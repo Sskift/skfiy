@@ -44,6 +44,11 @@ describe("app task state", () => {
       message: "环境阻塞，无法继续执行.",
       finderPlanPreview: undefined
     });
+    expect(createTaskViewFromEvent({ status: "needs_clarification" })).toEqual({
+      status: "needs_clarification",
+      message: "需要澄清目标应用和动作.",
+      finderPlanPreview: undefined
+    });
 
     const finderPlanPreview = {
       rootPath: "/tmp/work",

@@ -19,6 +19,7 @@ export type TaskStatus =
   | "running"
   | "approval_required"
   | "needs_confirmation"
+  | "needs_clarification"
   | "completed"
   | "denied"
   | "blocked"
@@ -77,6 +78,11 @@ export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; p
   needs_confirmation: {
     label: "Needs confirmation",
     message: "需要人工确认.",
+    pulse: "Waiting"
+  },
+  needs_clarification: {
+    label: "Needs clarification",
+    message: "需要澄清目标应用和动作.",
     pulse: "Waiting"
   },
   completed: {
@@ -345,6 +351,7 @@ export function canDismissTaskBubble(status: TaskStatus): boolean {
     status === "completed"
     || status === "denied"
     || status === "blocked"
+    || status === "needs_clarification"
     || status === "failed"
     || status === "cancelled"
   );
@@ -366,6 +373,8 @@ export function getDashboardStatusCopy(task: {
       return { label: "等待审批", detail: task.message, tone: "warning" };
     case "needs_confirmation":
       return { label: "需要人工确认", detail: task.message, tone: "warning" };
+    case "needs_clarification":
+      return { label: "需要澄清目标", detail: task.message, tone: "warning" };
     case "completed":
       return { label: "任务已完成", detail: task.message, tone: "success" };
     case "denied":

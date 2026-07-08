@@ -924,7 +924,7 @@ async function runCommandTask(
     activeTaskController = null;
     currentTaskId += 1;
     emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-      status: "needs_confirmation",
+      status: "needs_clarification",
       message: `${route.reason} 请明确目标应用和动作。`
     }, route));
     return;

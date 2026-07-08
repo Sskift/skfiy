@@ -736,6 +736,7 @@ describe("App", () => {
       ["executing", "Executing", "Typing in Ghostty", "running"],
       ["approval_required", "Approval required", "Needs a human check", "waiting"],
       ["needs_confirmation", "Needs confirmation", "Verification failed", "waiting"],
+      ["needs_clarification", "Needs clarification", "Clarify the target app", "waiting"],
       ["completed", "Completed", "Task finished", "waving"],
       ["failed", "Failed", "Could not complete", "failed"]
     ];
@@ -1101,6 +1102,23 @@ describe("App", () => {
       "Needs confirmation"
     );
     expect(screen.getByText("Verification failed: Ghostty did not become frontmost.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
+  });
+
+  it("shows unsupported route clarification without approval execution controls", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "needs_clarification",
+      message: "No supported desktop control route matched this request. 请明确目标应用和动作。",
+      routeReason: "No supported desktop control route matched this request."
+    }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent(
+      "Needs clarification"
+    );
+    expect(screen.getByText("No supported desktop control route matched this request. 请明确目标应用和动作。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
   });

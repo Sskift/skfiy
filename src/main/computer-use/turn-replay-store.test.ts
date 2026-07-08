@@ -83,6 +83,42 @@ describe("createTurnReplayStore", () => {
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
 
+  it("preserves unsupported route clarification as a terminal task timeline status", () => {
+    const updates: unknown[] = [];
+    const store = createTurnReplayStore({
+      onReplayChanged: (replay) => {
+        updates.push(replay);
+      }
+    });
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "needs_clarification",
+      message: "No supported desktop control route matched this request.",
+      routeReason: "No supported desktop control route matched this request."
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "running"
+      },
+      timeline: [
+        {
+          status: "needs_clarification",
+          message: "No supported desktop control route matched this request.",
+          routeReason: "No supported desktop control route matched this request."
+        }
+      ]
+    });
+    expect(updates.at(-1)).toMatchObject({
+      timeline: [
+        {
+          status: "needs_clarification"
+        }
+      ]
+    });
+  });
+
   it("keeps turn/tool lifecycle identity across approval and completion", () => {
     const store = createTurnReplayStore();
 

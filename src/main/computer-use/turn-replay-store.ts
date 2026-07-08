@@ -11,6 +11,7 @@ export type TurnReplayTaskStatus =
   | "executing"
   | "approval_required"
   | "needs_confirmation"
+  | "needs_clarification"
   | "running"
   | "completed"
   | "denied"
@@ -83,6 +84,7 @@ export function createTurnReplayStore(options: TurnReplayStoreOptions = {}) {
         || event.status === "blocked"
         || event.status === "cancelled"
         || event.status === "needs_confirmation"
+        || event.status === "needs_clarification"
         || event.status === "idle"
       ) {
         active = false;

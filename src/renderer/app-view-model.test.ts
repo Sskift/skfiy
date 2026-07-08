@@ -81,6 +81,28 @@ describe("app view model", () => {
     expect(getReplayOcrLabel({ ocrLabels: [{ text: "Open" }, { text: "Save" }] })).toBe("OCR 2");
   });
 
+  it("shows clarification as a warning task state in dashboard copy", () => {
+    expect(getUserDashboardPanelViewModel({
+      desktopSessionDiagnostics: {
+        state: "controllable",
+        reason: "Desktop session is interactive."
+      },
+      task: {
+        status: "needs_clarification",
+        message: "Clarify the target app."
+      },
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "granted" }
+      },
+      turnReplay: null
+    }).status).toEqual({
+      label: "需要澄清目标",
+      detail: "Clarify the target app.",
+      tone: "warning"
+    });
+  });
+
   it("derives task replay rows for display", () => {
     expect(getTaskReplayRows([])).toEqual([]);
     expect(getTaskReplayRows([
@@ -441,6 +463,31 @@ describe("app view model", () => {
       }
     ],
     [
+      "clarification request",
+      {
+        task: {
+          status: "needs_clarification" as const,
+          message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+        },
+        turnReplay: {
+          timeline: [
+            {
+              status: "needs_clarification" as const,
+              routeReason: "No supported desktop control route matched this request."
+            }
+          ]
+        }
+      },
+      {
+        kind: "needs_clarification",
+        title: "Route needs clarification",
+        value: "needs_clarification",
+        tone: "warning",
+        routeLabel: "unknown",
+        detail: "No supported desktop control route matched this request."
+      }
+    ],
+    [
       "cancellation",
       {
         task: {
@@ -572,6 +619,20 @@ describe("app view model", () => {
       label: "路由待命",
       detail: "暂无路由活动",
       tone: "neutral"
+    });
+  });
+
+  it("keeps pet clarification route signal distinct from confirmation", () => {
+    expect(getPetRouteOutcomeSignal(readPetRouteOutcome({
+      task: {
+        status: "needs_clarification",
+        message: "Generic visible-app control is not a supported product route yet. 请明确目标应用和动作。"
+      },
+      turnReplay: null
+    }))).toEqual({
+      label: "路由待澄清",
+      detail: "Generic visible-app control is not a supported product route yet. 请明确目标应用和动作。",
+      tone: "warning"
     });
   });
 

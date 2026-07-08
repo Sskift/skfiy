@@ -10,6 +10,7 @@ const CANONICAL_TASK_STATUSES = [
   "running",
   "approval_required",
   "needs_confirmation",
+  "needs_clarification",
   "completed",
   "denied",
   "blocked",

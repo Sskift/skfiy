@@ -109,8 +109,8 @@ describe("dogfood issue draft generator", () => {
           },
           {
             id: "unsupported-desktop-route-guard",
-            result: "needs-user-confirmation",
-            events: [{ status: "needs_confirmation", message: "No supported desktop control route matched this request." }]
+            result: "needs-clarification",
+            events: [{ status: "needs_clarification", message: "No supported desktop control route matched this request." }]
           }
         ],
         appPolicySettings: [

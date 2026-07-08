@@ -31,6 +31,7 @@ const ACCEPTED_REPORT_RESULTS = new Set([
   "passed",
   "blocked",
   "needs-user-confirmation",
+  "needs-clarification",
   "sensitive-paused"
 ]);
 
@@ -309,7 +310,7 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     checks,
     `${checkId}.result`,
     ACCEPTED_REPORT_RESULTS.has(report?.result),
-    "report result must be passed, blocked, needs-user-confirmation, or sensitive-paused"
+    "report result must be passed, blocked, needs-user-confirmation, needs-clarification, or sensitive-paused"
   );
   check(
     checks,

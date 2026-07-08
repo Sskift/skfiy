@@ -233,6 +233,36 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("preserves live route clarification state before replay exists", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: {
+        status: "needs_clarification",
+        message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+      },
+      observedAt: "2026-06-20T10:01:20.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:20.000Z",
+      currentTurn: {
+        state: "needs_clarification",
+        latestMessage: "No supported desktop control route matched this request. 请明确目标应用和动作。",
+        approvalRequired: false,
+        approvalState: "not-required",
+        stopState: "inactive",
+        updateSource: "live-task-event"
+      },
+      routeOutcome: {
+        kind: "needs_clarification",
+        title: "Route needs clarification",
+        value: "needs_clarification",
+        state: "needs_clarification",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+      }
+    });
+  });
+
   it("summarizes agent-owned tool lifecycle identity and result evidence", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: {

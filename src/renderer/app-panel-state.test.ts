@@ -102,6 +102,16 @@ describe("app panel state", () => {
 
     expect(createPetClickPanelTransition({
       suppressNextClick: false,
+      taskStatus: "needs_clarification"
+    })).toEqual({
+      nextSuppressNextClick: false,
+      resetTaskBubble: true,
+      clearReplayRecords: true,
+      panelAction: { type: "open-assistant" }
+    });
+
+    expect(createPetClickPanelTransition({
+      suppressNextClick: false,
       taskStatus: "running"
     })).toEqual({
       nextSuppressNextClick: false,

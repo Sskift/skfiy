@@ -87,7 +87,7 @@ describe("Ghostty product smoke script", () => {
         id: "unsupported-desktop-route-guard",
         command: "帮我整理一下桌面",
         requiresComputerUseEvidence: false,
-        expectedResults: ["needs-user-confirmation"]
+        expectedResults: ["needs-clarification"]
       }
     ]);
     expect(createHelpText(createDefaultSmokeOptions("/repo"))).toContain("route guards");
@@ -165,7 +165,7 @@ describe("Ghostty product smoke script", () => {
       {
         id: "single-command",
         command: "打开 Ghostty 执行 pwd 并截图",
-        expectedResults: ["passed", "blocked", "needs-user-confirmation"]
+        expectedResults: ["passed", "blocked", "needs-user-confirmation", "needs-clarification"]
       }
     ]);
   });
@@ -192,6 +192,12 @@ describe("Ghostty product smoke script", () => {
         message: "Computer Use permissions required: Accessibility is denied."
       }
     ])).toBe("blocked");
+    expect(classifySmokeResult([
+      {
+        status: "needs_clarification",
+        message: "No supported desktop control route matched this request."
+      }
+    ])).toBe("needs-clarification");
   });
 
   it("classifies locked or unavailable desktop sessions as blocked", async () => {

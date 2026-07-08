@@ -25,6 +25,25 @@ describe("task event route metadata", () => {
     });
   });
 
+  it("preserves clarification status and route reason in replay task events", () => {
+    const event = withRouteTaskEventMetadata({
+      status: "needs_clarification",
+      message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+    }, {
+      kind: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
+    });
+
+    expect(event).toMatchObject({
+      status: "needs_clarification",
+      routeReason: "No supported desktop control route matched this request."
+    });
+    expect(readTurnReplayTaskEvent(event)).toMatchObject({
+      status: "needs_clarification",
+      routeReason: "No supported desktop control route matched this request."
+    });
+  });
+
   it("preserves explicit app-policy denial metadata in replay task events", () => {
     const event = withRouteTaskEventMetadata({
       status: "blocked",

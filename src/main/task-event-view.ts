@@ -24,6 +24,7 @@ export type TaskStatus =
   | "running"
   | "approval_required"
   | "needs_confirmation"
+  | "needs_clarification"
   | "completed"
   | "denied"
   | "blocked"
