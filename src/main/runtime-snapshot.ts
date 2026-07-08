@@ -165,6 +165,7 @@ export function createRuntimeSnapshotFromReplay({
     {
       state,
       ...(replay.transcript.command ? { command: sanitizeRuntimeSnapshotText(replay.transcript.command) } : {}),
+      ...readLatestTimelineCurrentTurnFields(latestTimelineEvent),
       ...(latestApp?.name ? { targetApp: latestApp.name } : {}),
       ...(latestApp?.bundleId ? { targetBundleId: latestApp.bundleId } : {}),
       ...(replay.transcript.risk?.level ? { risk: replay.transcript.risk.level } : {}),
@@ -589,6 +590,24 @@ function summarizeVerification(
     status: action.status,
     ...(action.message ? { message: sanitizeRuntimeSnapshotText(action.message) } : {}),
     ...(action.reason ? { reason: sanitizeRuntimeSnapshotText(action.reason) } : {})
+  };
+}
+
+function readLatestTimelineCurrentTurnFields(
+  event: TurnReplay["timeline"][number] | undefined
+): Record<string, unknown> {
+  if (!event) {
+    return {};
+  }
+
+  return {
+    ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {}),
+    ...(event.turnId ? { turnId: event.turnId } : {}),
+    ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+    ...(event.route ? { route: event.route } : {}),
+    ...(event.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(event.routeReason) } : {}),
+    ...(event.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(event.denialKind) } : {}),
+    ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {})
   };
 }
 

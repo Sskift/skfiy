@@ -268,6 +268,109 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("keeps replay timeline app-policy denial metadata in runtime route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          approvalRequired: false,
+          apps: [],
+          screenshots: [],
+          actions: [],
+          outcome: "blocked"
+        },
+        timeline: [
+          {
+            status: "blocked",
+            command: "organize Finder",
+            message: "Finder is denied by app policy. token=secret-token",
+            route: "finder",
+            routeReason: "Finder is denied by app policy. token=secret-token",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:01:17.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:17.000Z",
+      currentTurn: {
+        state: "blocked",
+        command: "organize Finder",
+        route: "finder",
+        routeReason: "Finder is denied by app policy. token=[redacted]",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        latestMessage: "Finder is denied by app policy. token=[redacted]"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        state: "blocked",
+        source: "runtime-snapshot",
+        routeLabel: "finder",
+        detail: "Finder is denied by app policy. token=[redacted]"
+      },
+      replay: {
+        timelineTail: [
+          {
+            status: "blocked",
+            command: "organize Finder",
+            route: "finder",
+            routeReason: "Finder is denied by app policy. token=[redacted]",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          }
+        ]
+      }
+    });
+  });
+
+  it("keeps replay timeline user denial metadata in runtime route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          approvalRequired: true,
+          apps: [],
+          screenshots: [],
+          actions: [],
+          outcome: "denied"
+        },
+        timeline: [
+          {
+            status: "denied",
+            command: "fill Chrome form",
+            message: "User denied this browser mutation.",
+            route: "chrome",
+            routeReason: "User denied this browser mutation.",
+            denialKind: "user"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:01:18.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:18.000Z",
+      currentTurn: {
+        state: "denied",
+        command: "fill Chrome form",
+        route: "chrome",
+        routeReason: "User denied this browser mutation.",
+        denialKind: "user",
+        latestMessage: "User denied this browser mutation.",
+        approvalState: "required"
+      },
+      routeOutcome: {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        state: "denied",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "User denied this browser mutation."
+      }
+    });
+  });
+
   it("preserves live route clarification state before replay exists", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: null,
