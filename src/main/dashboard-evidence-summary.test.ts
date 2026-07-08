@@ -117,6 +117,22 @@ describe("dashboard evidence summary", () => {
         }
       ]
     });
+    expect(summary.lanes.find((lane) => lane.id === "computer-use-operator")).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "unknown",
+          value: "idle"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "unknown",
+          value: "open https://example.test/?token=redacted-secret"
+        }
+      ])
+    });
     expect(summary.lanes.find((lane) => lane.id === "chrome-extension")).toMatchObject({
       checks: expect.arrayContaining([
         {
@@ -135,6 +151,105 @@ describe("dashboard evidence summary", () => {
     });
     expect(JSON.stringify(summary)).not.toContain("secret-token");
     expect(JSON.stringify(summary)).not.toContain("token=secret-token");
+  });
+
+  it("keeps app-policy denial distinct in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy. token=secret-token",
+        latestMessage: "Ghostty is denied by app policy."
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "blocked",
+          value: "app_policy_denied"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "blocked",
+          value: "Ghostty is denied by app policy. token=redacted-secret"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
+  it("keeps explicit stop-turn results visible in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "ready",
+          value: "stopped"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "ready",
+          value: "Task stopped."
+        }
+      ])
+    });
   });
 
   it("marks missing Codex plugin and broken Chrome host evidence as actionable blockers", () => {

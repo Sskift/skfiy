@@ -1171,6 +1171,12 @@ describe("DashboardApp", () => {
               label: "Operator readiness",
               state: "blocked",
               value: "blocked"
+            },
+            {
+              id: "route-outcome",
+              label: "Route outcome",
+              state: "blocked",
+              value: "app_policy_denied"
             }
           ],
           nextActions: ["Clear dashboard alerts before starting a real Computer Use task."]
@@ -1257,6 +1263,8 @@ describe("DashboardApp", () => {
     expect(within(lanes).getByText("Chrome extension")).toBeInTheDocument();
     const operatorChecks = within(activity).getByRole("list", { name: "Checks for Computer Use operator" });
     expect(within(operatorChecks).getByText("Operator readiness")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("Route outcome")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("app_policy_denied")).toBeInTheDocument();
     const chromeActions = within(activity).getByRole("list", { name: "Next actions for Chrome extension" });
     expect(within(chromeActions).getByText("Refresh the installed extension heartbeat, then rerun Chrome status.")).toBeInTheDocument();
     const chromeCommands = within(activity).getByRole("list", { name: "Commands for Chrome extension" });

@@ -1,6 +1,10 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import { readRecord } from "./record-utils.js";
+import {
+  readRouteOutcome,
+  type RouteOutcomeKind
+} from "../shared/route-outcome.js";
 
 export const DASHBOARD_EVIDENCE_SUMMARY_ENDPOINT = "/api/evidence-summary";
 
@@ -112,6 +116,13 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
   const currentTurn = readRecord(snapshot.currentTurn) ?? {};
   const replay = readRecord(snapshot.replay) ?? {};
   const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const routeOutcome = readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "Dashboard evidence summary",
+    includeCommandDetail: true,
+    sanitizeString: sanitizeText
+  });
   const alertCounts = countAlerts(snapshot.alerts);
   const readinessState = mapReadinessState(readString(readiness.state));
   const checks: EvidenceCheck[] = [
@@ -128,6 +139,18 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         ? "ready"
         : readString(currentTurn.state) ? "needs-evidence" : "unknown",
       value: readString(currentTurn.state, "unknown")
+    },
+    {
+      id: "route-outcome",
+      label: "Route outcome",
+      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
+      value: routeOutcome.value
+    },
+    {
+      id: "route-detail",
+      label: "Route detail",
+      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
+      value: routeOutcome.detail
     },
     {
       id: "replay",
@@ -168,6 +191,33 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         : "Run a fresh dashboard smoke and capture a bounded runtime snapshot."
     ]
   };
+}
+
+function mapRouteOutcomeEvidenceState(kind: RouteOutcomeKind): EvidenceState {
+  if (kind === "app_policy_denied" || kind === "blocked" || kind === "failed") {
+    return "blocked";
+  }
+
+  if (
+    kind === "approval_required"
+    || kind === "needs_confirmation"
+    || kind === "needs_clarification"
+    || kind === "running"
+  ) {
+    return "needs-evidence";
+  }
+
+  if (
+    kind === "idle"
+    || kind === "completed"
+    || kind === "user_denied"
+    || kind === "cancelled"
+    || kind === "stopped"
+  ) {
+    return "ready";
+  }
+
+  return "unknown";
 }
 
 function createCodexPluginLane(snapshot: DashboardSnapshot): EvidenceLane {
