@@ -159,6 +159,77 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("validates explicit runtime snapshot route outcome before exposing CLI evidence", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      const snapshot = {
+        ...createRuntimeSnapshotFromReplay({
+          replay: null,
+          currentTurn: {
+            status: "blocked",
+            message: "Ghostty denied by app policy with token=secret-token",
+            command: "open Ghostty token=secret-token",
+            route: "ghostty",
+            routeReason: "Ghostty denied by app policy with token=secret-token",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          },
+          observedAt: "2026-07-07T00:00:15.000Z"
+        }),
+        routeOutcome: {
+          kind: "not-a-route-kind",
+          title: "Injected title token=secret-token",
+          value: "app_policy_denied token=secret-token",
+          detail: "Injected detail token=secret-token",
+          tone: "loud",
+          source: "runtime-snapshot token=secret-token",
+          routeLabel: "ghostty token=secret-token",
+          state: "blocked token=secret-token"
+        }
+      };
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:15.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        routeOutcome: {
+          kind: "app_policy_denied",
+          title: "Injected title redacted=[redacted]",
+          value: "app_policy_denied redacted=[redacted]",
+          detail: "Injected detail redacted=[redacted]",
+          tone: "danger",
+          source: "runtime-snapshot redacted=[redacted]",
+          routeLabel: "ghostty redacted=[redacted]",
+          state: "blocked redacted=[redacted]"
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("not-a-route-kind");
+      expect(JSON.stringify(evidence)).not.toContain("loud");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves Chrome host policy denial as a distinct route outcome from runtime snapshots", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));

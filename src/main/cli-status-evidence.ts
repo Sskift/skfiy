@@ -21,7 +21,12 @@ import {
 import { sanitizeSensitiveString } from "./cli-output-sanitize.js";
 import { createChromePageControlCapability } from "./cli-chrome-capabilities.js";
 import { createBinaryReadinessEvidence } from "./cli-status-readiness.js";
-import { readRouteOutcome } from "../shared/route-outcome.js";
+import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
 const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
@@ -425,13 +430,14 @@ function summarizeRouteOutcome(
   currentTurn: Record<string, unknown> | undefined,
   replay: Record<string, unknown> | undefined
 ): Record<string, unknown> {
-  const outcome: Record<string, unknown> = routeOutcome ?? { ...readRouteOutcome({
+  const inferredRouteOutcome = readRouteOutcome({
     currentTurn,
     replay,
     defaultSource: "runtime-snapshot",
     includeCommandDetail: false,
     sanitizeString: sanitizeStatusEvidenceString
-  }) };
+  });
+  const outcome = readExplicitRouteOutcome(routeOutcome, inferredRouteOutcome);
 
   return compactRecord({
     kind: readString(outcome.kind),
@@ -443,6 +449,27 @@ function summarizeRouteOutcome(
     routeLabel: sanitizeStatusEvidenceString(readString(outcome.routeLabel)),
     state: sanitizeStatusEvidenceString(readString(outcome.state))
   });
+}
+
+function readExplicitRouteOutcome(
+  value: unknown,
+  fallback: RouteOutcome
+): RouteOutcome {
+  const record = readRecord(value);
+  if (!record) {
+    return fallback;
+  }
+
+  return {
+    kind: isRouteOutcomeKind(record.kind) ? record.kind : fallback.kind,
+    title: readSafeStatusEvidenceString(record.title, fallback.title) ?? fallback.title,
+    value: readSafeStatusEvidenceString(record.value, fallback.value) ?? fallback.value,
+    detail: readSafeStatusEvidenceString(record.detail, fallback.detail) ?? fallback.detail,
+    tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
+    source: readSafeStatusEvidenceString(record.source, fallback.source) ?? fallback.source,
+    routeLabel: readSafeStatusEvidenceString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
+    state: readSafeStatusEvidenceString(record.state, fallback.state) ?? fallback.state
+  };
 }
 
 function summarizeNamedStatusRecord(
@@ -542,4 +569,8 @@ function readObservedAgeSeconds(observedAt: string | undefined, generatedAt: str
 
 function sanitizeStatusEvidenceString(value: string | undefined): string | undefined {
   return value ? sanitizeSensitiveString(value) : undefined;
+}
+
+function readSafeStatusEvidenceString(value: unknown, fallback?: string): string | undefined {
+  return sanitizeStatusEvidenceString(readString(value)) ?? fallback;
 }
