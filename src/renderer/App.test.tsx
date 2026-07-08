@@ -1000,6 +1000,24 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy agent status/i)).not.toBeInTheDocument();
   });
 
+  it("dismisses terminal task bubbles before compact pet dragging", async () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    const api = window.skfiy as DesktopApi;
+
+    act(() => emitTaskEvent({ status: "cancelled", message: "Task stopped." }));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Cancelled");
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 3, screenX: 100, screenY: 100 });
+    fireEvent.pointerMove(pet, { pointerId: 3, screenX: 112, screenY: 42 });
+
+    expect(api.moveWindowBy).toHaveBeenCalled();
+    await waitFor(() => expect(api.setWindowMode).toHaveBeenLastCalledWith("compact"));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
+    expect(screen.queryByText("Task stopped.")).not.toBeInTheDocument();
+  });
+
   it("uses a compact transparent window until an input, task, or settings bubble is visible", async () => {
     render(<App />);
 

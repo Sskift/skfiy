@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   INITIAL_PANEL_STATE,
   createPetClickPanelTransition,
+  createPetDragPanelTransition,
   reducePanelState,
   type PanelState
 } from "./app-panel-state";
@@ -118,6 +119,26 @@ describe("app panel state", () => {
       resetTaskBubble: false,
       clearReplayRecords: false,
       panelAction: { type: "toggle-assistant" }
+    });
+  });
+
+  it("derives pet drag panel transitions for compact movement", () => {
+    expect(createPetDragPanelTransition({
+      taskStatus: "cancelled"
+    })).toEqual({
+      resetTaskBubble: true,
+      clearReplayRecords: true,
+      compactWindow: true,
+      panelAction: { type: "close-for-drag" }
+    });
+
+    expect(createPetDragPanelTransition({
+      taskStatus: "running"
+    })).toEqual({
+      resetTaskBubble: false,
+      clearReplayRecords: false,
+      compactWindow: true,
+      panelAction: { type: "close-for-drag" }
     });
   });
 });

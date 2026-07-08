@@ -77,6 +77,13 @@ export interface PetClickPanelTransition {
   panelAction?: PanelStateAction;
 }
 
+export interface PetDragPanelTransition {
+  resetTaskBubble: boolean;
+  clearReplayRecords: boolean;
+  compactWindow: boolean;
+  panelAction: PanelStateAction;
+}
+
 export function createPetClickPanelTransition({
   suppressNextClick,
   taskStatus
@@ -106,5 +113,20 @@ export function createPetClickPanelTransition({
     resetTaskBubble: false,
     clearReplayRecords: false,
     panelAction: { type: "toggle-assistant" }
+  };
+}
+
+export function createPetDragPanelTransition({
+  taskStatus
+}: {
+  taskStatus: TaskStatus;
+}): PetDragPanelTransition {
+  const dismissTaskBubble = canDismissTaskBubble(taskStatus);
+
+  return {
+    resetTaskBubble: dismissTaskBubble,
+    clearReplayRecords: dismissTaskBubble,
+    compactWindow: true,
+    panelAction: { type: "close-for-drag" }
   };
 }

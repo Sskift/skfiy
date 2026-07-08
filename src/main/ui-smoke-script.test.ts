@@ -215,4 +215,19 @@ describe("packaged UI product smoke script", () => {
     })).toBe("missing-onboarding");
   });
 
+  it("infers full display origin from inset available screen bounds", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ui-product.mjs");
+    const source = readFileSync(modulePath, "utf8");
+    const {
+      inferDisplayOrigin
+    } = await import(pathToFileURL(modulePath).href) as {
+      inferDisplayOrigin: (usableStart: number, usableSize: number, displaySize: number) => number;
+    };
+
+    expect(inferDisplayOrigin(30, 1410, 1440)).toBe(0);
+    expect(inferDisplayOrigin(0, 2504, 2560)).toBe(0);
+    expect(inferDisplayOrigin(1473, 949, 982)).toBe(1440);
+    expect(inferDisplayOrigin(-1512, 949, 982)).toBe(-1545);
+    expect(source).toContain("inferDisplayOrigin.toString()");
+  });
 });

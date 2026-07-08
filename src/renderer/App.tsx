@@ -65,6 +65,7 @@ import {
 import {
   INITIAL_PANEL_STATE,
   createPetClickPanelTransition,
+  createPetDragPanelTransition,
   reducePanelState,
   type PanelStateAction
 } from "./app-panel-state";
@@ -1011,11 +1012,20 @@ export default function App() {
 
     petDragRef.current = move.nextDrag;
 
-    if (move.startedMoving) {
-      transitionPanelState({ type: "close-for-drag" });
+    const dragTransition = move.startedMoving
+      ? createPetDragPanelTransition({ taskStatus: task.status })
+      : null;
+
+    if (dragTransition) {
+      if (dragTransition.resetTaskBubble) setTask(createTaskStatusView("idle"));
+      if (dragTransition.clearReplayRecords) setReplayRecords([]);
+      transitionPanelState(dragTransition.panelAction);
     }
 
     api.moveWindowBy(move.deltaX, move.deltaY, move.nextDrag.visibleRect);
+    if (dragTransition?.compactWindow) {
+      api.setWindowMode("compact");
+    }
   }
 
   function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
