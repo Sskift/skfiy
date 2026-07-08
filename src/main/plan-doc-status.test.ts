@@ -25,6 +25,21 @@ const activePlanPath = path.join(
   "2026-07-07-code-health-cleanup.md"
 );
 
+function collectMarkdownDocs(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectMarkdownDocs(entryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
+  });
+}
+
 function readLatestAlphaEvidence(): LatestAlphaEvidence {
   return JSON.parse(
     readFileSync(
@@ -48,14 +63,13 @@ describe("implementation plan status docs", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
     const workflowDocPaths = [
-      "AGENTS.md",
-      "docs/README.md",
-      "docs/product-readiness-matrix.md",
-      "docs/superpowers/plans/2026-07-07-code-health-cleanup.md"
+      path.join(process.cwd(), "AGENTS.md"),
+      path.join(process.cwd(), "README.md"),
+      ...collectMarkdownDocs(path.join(process.cwd(), "docs"))
     ];
 
     for (const docPath of workflowDocPaths) {
-      const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
+      const contents = readFileSync(docPath, "utf8");
       const stalePlanReferences = [...contents.matchAll(planReferencePattern)]
         .map((match) => match[0])
         .filter((reference) => reference !== activePlanReference);
