@@ -66,6 +66,7 @@ import {
   readAlertMessages,
   readAppReadinessLanes,
   readCapabilitySummaries,
+  readChromeControlCommandHints,
   readChromeControlState,
   readComputerUseReadiness,
   readDogfoodSummary,
@@ -2026,6 +2027,7 @@ function ChromeControlActions({
   )
     && Boolean(chromeControl.extensionId)
     && Number.isInteger(chromeControl.tabId);
+  const commandHints = useMemo(() => readChromeControlCommandHints(chromeControl), [chromeControl]);
 
   const launchAction = async (action: DashboardChromeControlActionRequest["action"]) => {
     const trimmedSelector = selector.trim();
@@ -2165,6 +2167,19 @@ function ChromeControlActions({
       </div>
       {chromeControl.actionUnavailableReason ? (
         <p className="skfiy-dashboard-muted-message">{chromeControl.actionUnavailableReason}</p>
+      ) : null}
+      {commandHints.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-command-list" aria-label="Chrome control command hints">
+          {commandHints.map((command) => (
+            <li key={command.id}>
+              <span>{command.label}</span>
+              <code>{command.command}</code>
+              <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                {command.mutates ? "mutates" : "read-only"}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
       ) : null}
       <p
         aria-live="polite"

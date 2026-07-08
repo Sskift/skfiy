@@ -24,6 +24,13 @@ export interface DashboardStatusItem {
   tone: Tone;
 }
 
+export interface DashboardCommandHint {
+  id: string;
+  label: string;
+  command: string;
+  mutates: boolean;
+}
+
 export interface DashboardMutationReceipt {
   title: string;
   result: string;
@@ -641,6 +648,60 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     browserContextAccessSteps,
     hostPolicy
   };
+}
+
+export function readChromeControlCommandHints(
+  chromeControl: DashboardChromeControlState
+): DashboardCommandHint[] {
+  if (
+    !chromeControl.actionable
+    || !chromeControl.extensionId
+    || !Number.isInteger(chromeControl.tabId)
+  ) {
+    return [];
+  }
+
+  const commandFor = (action: string) =>
+    `./dist/skfiy chrome ${action} --extension-id ${chromeControl.extensionId} --target-tab-id ${chromeControl.tabId}`;
+
+  return [
+    {
+      id: "observe",
+      label: "Observe current page",
+      command: `${commandFor("observe")} --json`,
+      mutates: false
+    },
+    {
+      id: "screenshot",
+      label: "Screenshot current page",
+      command: `${commandFor("screenshot")} --json`,
+      mutates: false
+    },
+    {
+      id: "click",
+      label: "Click confirmed selector",
+      command: `${commandFor("click")} --selector <selector> --json`,
+      mutates: true
+    },
+    {
+      id: "fill",
+      label: "Fill approved field",
+      command: `${commandFor("fill")} --selector <selector> --text <text> --json`,
+      mutates: true
+    },
+    {
+      id: "submit",
+      label: "Submit approved test form",
+      command: `${commandFor("submit")} --selector form --json`,
+      mutates: true
+    },
+    {
+      id: "scroll",
+      label: "Scroll current page",
+      command: `${commandFor("scroll")} --dy 600 --json`,
+      mutates: true
+    }
+  ];
 }
 
 function readBrowserContextAccessSteps(

@@ -1402,6 +1402,17 @@ describe("DashboardApp", () => {
     render(<DashboardApp loadSnapshot={loadSnapshot} loadProviderSettings={loadProviderSettings} />);
 
     const form = await screen.findByRole("form", { name: "Chrome control actions" });
+    const commandHints = within(form).getByRole("list", { name: "Chrome control command hints" });
+    expect(within(commandHints).getByText("Observe current page")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --json"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getByText("Click confirmed selector")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "./dist/skfiy chrome click --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --selector <selector> --json"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getAllByText("read-only")).toHaveLength(2);
+    expect(within(commandHints).getAllByText("mutates")).toHaveLength(4);
     const selectorInput = within(form).getByLabelText("Chrome action selector");
     const textInput = within(form).getByLabelText("Chrome fill text");
     const scrollInput = within(form).getByLabelText("Chrome scroll delta");

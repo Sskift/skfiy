@@ -96,6 +96,7 @@ Completed in this pass:
 - The React evidence summary now renders lane checks, next actions, and command mutability labels from the same read-only API.
 - React personal memory controls now expose the existing `/api/personal-skills` unmute path for muted personal skills, without adding a new endpoint or changing provider/preload permissions.
 - React personal memory controls now render the existing mutation safety receipt from `/api/personal-memory` and `/api/personal-skills`, showing planned/system mutation metadata without echoing memory content.
+- React Browser control now renders the fallback Chrome page-control CLI command hints for the actionable current tab, with read-only versus mutating action labels and no new endpoint or permission surface.
 
 Acceptance:
 

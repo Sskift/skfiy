@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
 import {
+  readChromeControlCommandHints,
   readChromeControlState,
   readComputerUseReadiness,
   readKnowledgeGraph,
@@ -212,6 +213,90 @@ describe("readComputerUseReadiness", () => {
 });
 
 describe("readChromeControlState", () => {
+  it("derives Chrome control command hints for an actionable current tab", () => {
+    const chromeControl = readChromeControlState({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "connected",
+          liveConnection: "connected",
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"],
+          pageControl: {
+            state: "ready",
+            capable: true,
+            activeTab: {
+              host: "127.0.0.1:51234",
+              tabId: 42,
+              scheme: "http"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              observe: true,
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true,
+              screenshot: true
+            }
+          }
+        },
+        nativeHost: {
+          state: "installed"
+        },
+        desktopSession: {
+          state: "controllable"
+        }
+      }
+    });
+
+    expect(readChromeControlCommandHints(chromeControl)).toEqual([
+      {
+        id: "observe",
+        label: "Observe current page",
+        command: "./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --json",
+        mutates: false
+      },
+      {
+        id: "screenshot",
+        label: "Screenshot current page",
+        command: "./dist/skfiy chrome screenshot --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --json",
+        mutates: false
+      },
+      {
+        id: "click",
+        label: "Click confirmed selector",
+        command: "./dist/skfiy chrome click --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --selector <selector> --json",
+        mutates: true
+      },
+      {
+        id: "fill",
+        label: "Fill approved field",
+        command: "./dist/skfiy chrome fill --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --selector <selector> --text <text> --json",
+        mutates: true
+      },
+      {
+        id: "submit",
+        label: "Submit approved test form",
+        command: "./dist/skfiy chrome submit --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --selector form --json",
+        mutates: true
+      },
+      {
+        id: "scroll",
+        label: "Scroll current page",
+        command: "./dist/skfiy chrome scroll --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --dy 600 --json",
+        mutates: true
+      }
+    ]);
+  });
+
+  it("does not create Chrome command hints before page actions are ready", () => {
+    expect(readChromeControlCommandHints(readChromeControlState(createSnapshot()))).toEqual([]);
+  });
+
   it("turns Browser Context permission blockers into popup grant and observe steps", () => {
     const snapshot = createSnapshot();
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
