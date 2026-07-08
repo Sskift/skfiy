@@ -8,7 +8,6 @@ import {
   type TurnReplay
 } from "./computer-use/turn-replay-store.js";
 import type {
-  DesktopActionResult,
   PermissionSummary
 } from "./computer-use/types.js";
 import {
@@ -61,15 +60,15 @@ import { resolvePlannerCommand } from "./planner-command.js";
 import { createExternalCuaTerminalPlannerFromEnv } from "./external-cua-planner.js";
 import { readDesktopSessionDiagnosticsForRenderer } from "./desktop-session-diagnostics.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
+import { runChromePageTask } from "./orchestrator/chrome-task.js";
+import { runFinderOrganizationTask } from "./orchestrator/finder-task.js";
+import { runGhosttyCommandTask } from "./orchestrator/ghostty-task.js";
 import {
-  runChromePageTask,
-  type ChromeDesktopClient
-} from "./orchestrator/chrome-task.js";
-import {
-  runFinderOrganizationTask,
-  type FinderDesktopClient
-} from "./orchestrator/finder-task.js";
-import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
+  assertDesktopActionResult,
+  createChromeDesktopClient,
+  createFinderDesktopClient,
+  createGhosttyDesktopClient
+} from "./main-desktop-clients.js";
 import { runTmuxSupervisionTask } from "./orchestrator/tmux-supervision-task.js";
 import {
   readPermissionDiagnosticsForRenderer,
@@ -249,40 +248,6 @@ function createScreenshotPath(scope: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   screenshotSerial += 1;
   return path.join(os.tmpdir(), "skfiy", `${scope}-${timestamp}-${screenshotSerial}.png`);
-}
-
-function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient {
-  return {
-    getPermissions: async () => helper.getPermissions(),
-    listApps: async () => helper.listApps(),
-    ocrImage: async (inputPath) => helper.ocrImage(inputPath),
-    executeAction: async (action) => {
-      const result = await helper.executeAction(action);
-      assertDesktopActionResult(result, action.type);
-      return result;
-    }
-  };
-}
-
-function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopClient {
-  return {
-    executeAction: async (action) => helper.executeAction(action),
-    getFinderSelection: async () => helper.getFinderSelection(),
-    getFinderItemLayout: async (folderPath, itemNames) =>
-      helper.getFinderItemLayout(folderPath, itemNames)
-  };
-}
-
-function createChromeDesktopClient(helper: DesktopHelperClient): ChromeDesktopClient {
-  return {
-    executeAction: async (action) => helper.executeAction(action)
-  };
-}
-
-function assertDesktopActionResult(result: DesktopActionResult, label: string): void {
-  if ("ok" in result && !result.ok) {
-    throw new Error(result.message ?? `Desktop helper could not ${label}.`);
-  }
 }
 
 function createDesktopHelper(): DesktopHelperClient {
