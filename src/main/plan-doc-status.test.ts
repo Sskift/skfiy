@@ -25,6 +25,17 @@ const activePlanPath = path.join(
   "2026-07-07-code-health-cleanup.md"
 );
 
+const repoMarkdownSkipDirs = new Set([
+  ".git",
+  ".skfiy-alpha",
+  ".skfiy-cli-smoke",
+  ".skfiy-dogfood",
+  ".skfiy-smoke",
+  ".build",
+  "dist",
+  "node_modules"
+]);
+
 function collectMarkdownDocs(rootPath: string): string[] {
   if (!existsSync(rootPath)) {
     return [];
@@ -34,6 +45,25 @@ function collectMarkdownDocs(rootPath: string): string[] {
     const entryPath = path.join(rootPath, entry.name);
     if (entry.isDirectory()) {
       return collectMarkdownDocs(entryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
+  });
+}
+
+function collectRepositoryMarkdownDocs(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectRepositoryMarkdownDocs(entryPath);
     }
 
     return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
@@ -107,6 +137,27 @@ describe("implementation plan status docs", () => {
     });
 
     expect(datedNonDecisionDocs).toEqual([]);
+  });
+
+  it("keeps stale dated plan material out of repository markdown", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDatedPlanDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      const hasDateStamp = /(?:^|[-_])\d{4}-\d{2}-\d{2}(?:[-_]|$)/.test(basename);
+      const looksLikePlanningMaterial = /(^|[-_.])(plans?|planning|research|implementation-log|work-log|handoff|checklist|backlog)($|[-_.])/i.test(basename)
+        || /(^|\/)(plans?|research|handoffs?|checklists?|backlogs?)($|\/)/i.test(docPath);
+
+      return hasDateStamp && looksLikePlanningMaterial;
+    });
+
+    expect(staleDatedPlanDocs).toEqual([]);
   });
 
   it("keeps decision records from becoming archived implementation plans", () => {

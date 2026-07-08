@@ -32,8 +32,8 @@ decision records and the single active plan.
   decision changes. They must not carry active plan sections, status blocks,
   task checklists, or next-work queues.
 - `superpowers/plans/`: the current active implementation plan for agentic
-  work. Keep exactly one plan file here. Retired dated plans belong outside the
-  active plan directory and must not be restored.
+  work. Keep exactly one plan file here. Retired dated plans belong in git
+  history, not in another repo docs/archive folder, and must not be restored.
 
 ## Local Artifact Hygiene
 
