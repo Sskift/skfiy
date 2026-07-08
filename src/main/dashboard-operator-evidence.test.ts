@@ -4,6 +4,51 @@ import { createDashboardOperatorEvidence } from "./dashboard-operator-evidence";
 import { createDashboardDescriptor } from "./dashboard-status";
 
 describe("createDashboardOperatorEvidence", () => {
+  it("uses explicit snapshot route outcomes without leaking sensitive route detail", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const evidence = createDashboardOperatorEvidence({
+      descriptor,
+      snapshot: createDashboardSnapshot({
+        descriptor,
+        generatedAt: "2026-07-08T00:00:00.000Z",
+        currentTurn: {
+          state: "executing",
+          command: "still running token=secret-token"
+        },
+        routeOutcome: {
+          kind: "needs_confirmation",
+          title: "Route needs confirmation",
+          value: "needs_confirmation",
+          detail: "Runtime replay needs a human check for token=secret-token",
+          tone: "warning",
+          source: "runtime-snapshot",
+          routeLabel: "Ghostty",
+          state: "needs_confirmation"
+        },
+        replay: { state: "available" }
+      })
+    });
+
+    expect(evidence.snapshot.routeOutcome).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Runtime replay needs a human check for redacted-secret",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "Ghostty",
+      state: "needs_confirmation"
+    });
+    expect(evidence.status).toMatchObject({
+      currentTurnState: "executing",
+      routeOutcomeKind: "needs_confirmation",
+      routeOutcomeState: "needs_confirmation"
+    });
+    expect(evidence.snapshot.currentTurn).not.toHaveProperty("command");
+    expect(JSON.stringify(evidence)).not.toContain("secret-token");
+    expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
+  });
+
   it.each([
     [
       "app-policy denial",

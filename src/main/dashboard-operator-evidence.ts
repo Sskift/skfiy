@@ -1,7 +1,12 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import { readRecord } from "./record-utils.js";
-import { readRouteOutcome } from "../shared/route-outcome.js";
+import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export interface DashboardOperatorEvidenceInput {
   descriptor: DashboardDescriptor;
@@ -38,13 +43,14 @@ export function createDashboardOperatorEvidence({
   const readiness = summarizeReadiness(readRecord(snapshot.operatorReadiness));
   const currentTurn = summarizeCurrentTurn(readRecord(snapshot.currentTurn));
   const replay = summarizeReplay(readRecord(snapshot.replay));
-  const routeOutcome = readRouteOutcome({
+  const inferredRouteOutcome = readRouteOutcome({
     currentTurn: readRecord(snapshot.currentTurn),
     replay: readRecord(snapshot.replay),
     defaultSource: "current-turn",
     includeCommandDetail: false,
     sanitizeString: sanitizeText
   });
+  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome);
 
   return {
     schemaVersion: 1,
@@ -92,6 +98,27 @@ export function createDashboardOperatorEvidence({
       tokenFree: true,
       source: "allowlisted-dashboard-summary"
     }
+  };
+}
+
+function readExplicitRouteOutcome(
+  value: unknown,
+  fallback: RouteOutcome
+): RouteOutcome {
+  const record = readRecord(value);
+  if (!record) {
+    return fallback;
+  }
+
+  return {
+    kind: isRouteOutcomeKind(record.kind) ? record.kind : fallback.kind,
+    title: readSafeString(record.title, fallback.title) ?? fallback.title,
+    value: readSafeString(record.value, fallback.value) ?? fallback.value,
+    detail: readSafeString(record.detail, fallback.detail) ?? fallback.detail,
+    tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
+    source: readSafeString(record.source, fallback.source) ?? fallback.source,
+    routeLabel: readSafeString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
+    state: readSafeString(record.state, fallback.state) ?? fallback.state
   };
 }
 
