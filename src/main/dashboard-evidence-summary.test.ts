@@ -202,6 +202,56 @@ describe("dashboard evidence summary", () => {
     expect(JSON.stringify(lane)).not.toContain("secret-token");
   });
 
+  it("keeps Chrome host policy denial distinct in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "chrome",
+        policyKind: "chrome-host-policy",
+        routeReason: "Chrome host policy blocked this approved task: token=secret-token",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "blocked",
+          value: "chrome_host_policy_denied"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "blocked",
+          value: "Chrome host policy blocked this approved task: token=redacted-secret"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
   it("keeps explicit stop-turn results visible in the operator evidence lane", () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const snapshot: DashboardSnapshot = {

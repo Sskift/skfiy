@@ -159,6 +159,64 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("preserves Chrome host policy denial as a distinct route outcome from runtime snapshots", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify(createRuntimeSnapshotFromReplay({
+        replay: null,
+        currentTurn: {
+          status: "blocked",
+          message: "Chrome host policy blocked this approved task: blocked.example",
+          command: "open https://blocked.example/?token=secret-token",
+          route: "chrome",
+          routeReason: "Chrome host policy blocked this approved task: blocked.example",
+          policyKind: "chrome-host-policy"
+        },
+        observedAt: "2026-07-07T00:00:30.000Z"
+      }), null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:30.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        currentTurn: {
+          state: "blocked",
+          route: "chrome"
+        },
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          state: "blocked",
+          routeLabel: "chrome",
+          detail: "Chrome host policy blocked this approved task: blocked.example"
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves Task stopped as a stopped route outcome from runtime snapshots", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));

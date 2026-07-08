@@ -194,7 +194,12 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
 }
 
 function mapRouteOutcomeEvidenceState(kind: RouteOutcomeKind): EvidenceState {
-  if (kind === "app_policy_denied" || kind === "blocked" || kind === "failed") {
+  if (
+    kind === "app_policy_denied"
+    || kind === "chrome_host_policy_denied"
+    || kind === "blocked"
+    || kind === "failed"
+  ) {
     return "blocked";
   }
 
