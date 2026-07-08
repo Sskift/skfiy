@@ -857,6 +857,94 @@ describe("dashboard loopback HTTP response helper", () => {
     cleanup();
   });
 
+  it("renders route confirmation distinctly in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "needs_confirmation",
+        source: "runtime-snapshot",
+        approvalState: "required",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        latestMessage: "Confirm before organizing Finder."
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Confirm");
+      expect(homePanel?.textContent).toContain("Route needs confirmation");
+      expect(homePanel?.textContent).toContain("Confirm route");
+      expect(homePanel?.textContent).not.toContain("Approval required");
+      expect(homePanel?.textContent).not.toContain("Review the pending approval");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps Task stopped visible in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "cancelled",
+        source: "runtime-snapshot",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Stopped");
+      expect(homePanel?.textContent).toContain("Route stopped");
+      expect(homePanel?.textContent).toContain("Task stopped");
+      expect(homePanel?.textContent).not.toContain("Ready for the next agent task");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("renders runtime snapshot empty state without treating fresh installs as stale", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
