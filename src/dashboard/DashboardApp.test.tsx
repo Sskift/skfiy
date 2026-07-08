@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApp } from "./DashboardApp";
 import type {
+  DashboardEvidenceSummary,
   DashboardPersonalSkillActionResponse,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -782,6 +783,79 @@ describe("DashboardApp", () => {
     expect(within(form).getByLabelText("API key")).toHaveValue("");
     expect(screen.queryByDisplayValue("sk-secret")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/provider-settings", { cache: "no-store" });
+  });
+
+  it("loads the compact evidence summary from React dashboard controls", async () => {
+    const evidenceSummary: DashboardEvidenceSummary = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-22T08:01:00.000Z",
+      dashboard: {
+        url: "http://127.0.0.1:52363/",
+        endpoint: "/api/evidence-summary"
+      },
+      status: {
+        state: "needs-evidence",
+        laneCount: 3,
+        readyLaneCount: 1,
+        blockedLaneCount: 1,
+        attentionLaneCount: 1
+      },
+      lanes: [
+        {
+          id: "computer-use-operator",
+          title: "Computer Use operator",
+          state: "blocked",
+          summary: "Operator runtime still needs fresh controllability evidence."
+        },
+        {
+          id: "codex-plugin",
+          title: "Codex plugin",
+          state: "ready",
+          summary: "Latest artifact is passed."
+        },
+        {
+          id: "chrome-extension",
+          title: "Chrome extension",
+          state: "needs-evidence",
+          summary: "Chrome bridge still needs installed-extension evidence."
+        }
+      ],
+      outputPolicy: {
+        tokenFree: true,
+        source: "dashboard-evidence-summary"
+      }
+    };
+    const loadEvidenceSummary = vi.fn(async () => evidenceSummary);
+
+    render(<DashboardApp
+      loadEvidenceSummary={loadEvidenceSummary}
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    const summaryButton = within(activity).getByRole("button", { name: "Load evidence summary" });
+    expect(within(activity).getByText("summary not loaded")).toBeInTheDocument();
+
+    fireEvent.click(summaryButton);
+
+    await waitFor(() => expect(loadEvidenceSummary).toHaveBeenCalledTimes(1));
+    expect(within(activity).getByText("summary needs-evidence")).toBeInTheDocument();
+    expect(within(activity).getByText("lanes 3")).toBeInTheDocument();
+    expect(within(activity).getByText("ready 1")).toBeInTheDocument();
+    expect(within(activity).getByText("attention 1")).toBeInTheDocument();
+    expect(within(activity).getByText("blocked 1")).toBeInTheDocument();
+
+    const lanes = within(activity).getByRole("list", { name: "Evidence summary lanes" });
+    expect(within(lanes).getByText("Computer Use operator")).toBeInTheDocument();
+    expect(within(lanes).getByText("Operator runtime still needs fresh controllability evidence.")).toBeInTheDocument();
+    expect(within(lanes).getByText("Codex plugin")).toBeInTheDocument();
+    expect(within(lanes).getByText("Chrome extension")).toBeInTheDocument();
   });
 
   it("submits planner settings, refreshes status, and never echoes the API key", async () => {

@@ -18,6 +18,7 @@
 - Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
 - React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
 - React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
+- React Dashboard can now load the existing read-only compact evidence summary from `/api/evidence-summary` and render lane counts without adding a new endpoint.
 - Default smoke behavior is output-free, and Dashboard compact smoke skips Knowledge Graph evidence when no output path is provided.
 
 ## Active Scope
@@ -84,9 +85,13 @@ npm run typecheck -- --pretty false
 
 ## Task 2: Dashboard Advanced Control Migration
 
-Status: pending.
+Status: in progress.
 
 Continue moving fallback/server-only Dashboard controls into React only when the existing API contract is safe, local, and covered.
+
+Completed in this pass:
+
+- The React Activity surface can call `/api/evidence-summary` on demand and render the compact evidence lane state, ready count, attention count, and blocked count.
 
 Acceptance:
 

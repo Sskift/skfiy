@@ -2,6 +2,7 @@ import type {
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardEvidenceSummary,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalSkillActionRequest,
@@ -85,6 +86,19 @@ export async function fetchProviderSettings(): Promise<DashboardProviderSettings
   }
 
   return payload as unknown as DashboardProviderSettingsResponse;
+}
+
+export async function fetchDashboardEvidenceSummary(): Promise<DashboardEvidenceSummary> {
+  const response = await fetch("/api/evidence-summary", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Evidence summary request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardEvidenceSummary;
 }
 
 export async function postPlannerProviderSettings(

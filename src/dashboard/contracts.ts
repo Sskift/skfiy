@@ -236,6 +236,39 @@ export interface DashboardPersonalSkillActionResponse {
   };
 }
 
+export type DashboardEvidenceSummaryState =
+  | "ready"
+  | "needs-evidence"
+  | "blocked"
+  | "unknown"
+  | string;
+
+export interface DashboardEvidenceSummary {
+  schemaVersion: number;
+  generatedAt: string;
+  dashboard: {
+    url: string;
+    endpoint: "/api/evidence-summary" | string;
+  };
+  status: {
+    state: DashboardEvidenceSummaryState;
+    laneCount: number;
+    readyLaneCount: number;
+    blockedLaneCount: number;
+    attentionLaneCount: number;
+  };
+  lanes: Array<{
+    id: string;
+    title: string;
+    state: DashboardEvidenceSummaryState;
+    summary: string;
+  }>;
+  outputPolicy?: {
+    tokenFree?: boolean;
+    source?: string;
+  };
+}
+
 export type DashboardKnowledgeGraphNodeKind =
   | "memory"
   | "session"

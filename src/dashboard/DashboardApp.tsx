@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, ProgressBar, Skeleton } from "@heroui/react";
 import {
   fetchChromeHostPolicy,
+  fetchDashboardEvidenceSummary,
   fetchDashboardSnapshot,
   fetchProviderSettings,
   postChromeControlAction,
@@ -43,6 +44,7 @@ import type {
   DashboardChromeHostPolicyAction,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardEvidenceSummary,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
@@ -92,6 +94,7 @@ import {
 import { KnowledgeGraph } from "./KnowledgeGraph";
 
 export interface DashboardAppProps {
+  loadEvidenceSummary?: () => Promise<DashboardEvidenceSummary>;
   loadChromeHostPolicy?: () => Promise<DashboardChromeHostPolicyResponse>;
   loadSnapshot?: () => Promise<DashboardSnapshot>;
   loadProviderSettings?: () => Promise<DashboardProviderSettingsResponse>;
@@ -152,6 +155,7 @@ const CHROME_HOST_POLICY_ACTIONS: Array<{
 ];
 
 export function DashboardApp({
+  loadEvidenceSummary = fetchDashboardEvidenceSummary,
   loadChromeHostPolicy = fetchChromeHostPolicy,
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
@@ -168,8 +172,11 @@ export function DashboardApp({
   const [providerSettingsNotice, setProviderSettingsNotice] = useState<string | null>(null);
   const [memoryError, setMemoryError] = useState<string | null>(null);
   const [memoryNotice, setMemoryNotice] = useState<string | null>(null);
+  const [evidenceSummary, setEvidenceSummary] = useState<DashboardEvidenceSummary | null>(null);
+  const [evidenceSummaryError, setEvidenceSummaryError] = useState<string | null>(null);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingEvidenceSummary, setIsLoadingEvidenceSummary] = useState(false);
   const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -248,6 +255,18 @@ export function DashboardApp({
     }
   }, [loadProviderSettings, savePlannerProviderSettings]);
 
+  const refreshEvidenceSummary = useCallback(async () => {
+    setIsLoadingEvidenceSummary(true);
+    setEvidenceSummaryError(null);
+    try {
+      setEvidenceSummary(await loadEvidenceSummary());
+    } catch (summaryError) {
+      setEvidenceSummaryError(readErrorMessage(summaryError));
+    } finally {
+      setIsLoadingEvidenceSummary(false);
+    }
+  }, [loadEvidenceSummary]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -313,8 +332,11 @@ export function DashboardApp({
             providerSettings={providerSettings}
             providerSettingsError={providerSettingsError}
             providerSettingsNotice={providerSettingsNotice}
+            evidenceSummary={evidenceSummary}
+            evidenceSummaryError={evidenceSummaryError}
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
+            isLoadingEvidenceSummary={isLoadingEvidenceSummary}
             isMemorySaving={isSavingMemory}
             memoryError={memoryError}
             memoryNotice={memoryNotice}
@@ -324,6 +346,7 @@ export function DashboardApp({
             onRunPersonalSkillAction={submitPersonalSkillAction}
             onRunChromeControlAction={runChromeControlAction}
             onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
+            onLoadEvidenceSummary={refreshEvidenceSummary}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
           />
         ) : (
@@ -352,8 +375,11 @@ function DashboardContent({
   providerSettings,
   providerSettingsError,
   providerSettingsNotice,
+  evidenceSummary,
+  evidenceSummaryError,
   isProviderSettingsLoading,
   isProviderSettingsSaving,
+  isLoadingEvidenceSummary,
   isMemorySaving,
   memoryError,
   memoryNotice,
@@ -363,14 +389,18 @@ function DashboardContent({
   onRunPersonalSkillAction,
   onRunChromeControlAction,
   onSaveChromeHostPolicyAction,
+  onLoadEvidenceSummary,
   onSubmitPlannerProviderSettings
 }: {
   snapshot: DashboardSnapshot;
   providerSettings: DashboardProviderSettingsResponse | null;
   providerSettingsError: string | null;
   providerSettingsNotice: string | null;
+  evidenceSummary: DashboardEvidenceSummary | null;
+  evidenceSummaryError: string | null;
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
+  isLoadingEvidenceSummary: boolean;
   isMemorySaving: boolean;
   memoryError: string | null;
   memoryNotice: string | null;
@@ -388,6 +418,7 @@ function DashboardContent({
   onSaveChromeHostPolicyAction: (
     request: DashboardChromeHostPolicyActionRequest
   ) => Promise<DashboardChromeHostPolicyResponse>;
+  onLoadEvidenceSummary: () => Promise<void>;
   onSubmitPlannerProviderSettings: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<void>;
@@ -759,6 +790,12 @@ function DashboardContent({
           </Card.Root>
           <LatestSignalCard signal={latestSignal} />
           <RuntimeEvidenceCard evidence={runtimeEvidence} />
+          <EvidenceSummaryCard
+            error={evidenceSummaryError}
+            isLoading={isLoadingEvidenceSummary}
+            onLoad={onLoadEvidenceSummary}
+            summary={evidenceSummary}
+          />
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -769,7 +806,7 @@ function DashboardContent({
             </Card.Header>
             <Card.Content className="skfiy-dashboard-card-content">
               <p className="skfiy-dashboard-message">
-                Open the local operator evidence JSON for dashboard, runtime, and readiness handoffs.
+                Dashboard, runtime, and readiness handoff payload.
               </p>
               <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
                 <a
@@ -2155,6 +2192,88 @@ function ChromeHostPolicyControls({
       </p>
     </form>
   );
+}
+
+function EvidenceSummaryCard({
+  error,
+  isLoading,
+  onLoad,
+  summary
+}: {
+  error: string | null;
+  isLoading: boolean;
+  onLoad: () => Promise<void>;
+  summary: DashboardEvidenceSummary | null;
+}) {
+  const tone = readEvidenceSummaryTone(summary?.status.state);
+
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Evidence summary</Card.Title>
+          <Card.Description>Compact local readiness contract</Card.Description>
+        </div>
+        <Gauge size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          Readiness, plugin, and Chrome bridge lanes grouped for handoff review.
+        </p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary ? tone : "neutral"}>
+            summary {summary?.status.state ?? "not loaded"}
+          </StatusChip>
+          {summary ? (
+            <>
+              <StatusChip tone="neutral">lanes {summary.status.laneCount}</StatusChip>
+              <StatusChip tone="success">ready {summary.status.readyLaneCount}</StatusChip>
+              <StatusChip tone="warning">attention {summary.status.attentionLaneCount}</StatusChip>
+              <StatusChip tone="danger">blocked {summary.status.blockedLaneCount}</StatusChip>
+            </>
+          ) : null}
+        </div>
+        <button
+          className="skfiy-dashboard-button button"
+          disabled={isLoading}
+          onClick={() => void onLoad()}
+          type="button"
+        >
+          <RefreshCw size={15} aria-hidden="true" />
+          {isLoading ? "Loading summary" : "Load evidence summary"}
+        </button>
+        {summary?.lanes.length ? (
+          <ul className="skfiy-dashboard-evidence-list" aria-label="Evidence summary lanes">
+            {summary.lanes.map((lane) => (
+              <li key={lane.id}>
+                <span>{lane.title}</span>
+                <strong>{lane.state}</strong>
+                <small>{lane.summary}</small>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {error ? (
+          <p className="skfiy-dashboard-control-feedback" data-tone="danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function readEvidenceSummaryTone(state: DashboardEvidenceSummary["status"]["state"] | undefined): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "blocked") {
+    return "danger";
+  }
+  if (state === "needs-evidence") {
+    return "warning";
+  }
+  return "neutral";
 }
 
 function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
