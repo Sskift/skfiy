@@ -357,6 +357,40 @@ describe("KnowledgeGraph", () => {
     ]);
   });
 
+  it("includes safe route context in the prompt path without echoing command detail", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "provider:hermes", label: "Hermes", kind: "provider", tone: "success", detail: "Hermes assistant is selected." },
+        {
+          id: "route:current",
+          label: "App policy denied route",
+          kind: "turn",
+          tone: "danger",
+          detail: "app_policy_denied · state blocked · route ghostty · run secret-token command"
+        }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:hermes", label: "injects prompt" },
+        { from: "route:current", to: "turn:current", label: "summarizes turn" }
+      ]}
+    />);
+
+    const promptStack = screen.getByRole("list", { name: "Prompt stack" });
+    expect(within(promptStack).getAllByRole("listitem").map((step) => step.textContent)).toEqual([
+      "1Memoryvolatile local memoryUser preferences",
+      "2Route contextruntime route stateApp policy denied route",
+      "3Background Agentruntime providerHermes"
+    ]);
+    expect(promptStack).not.toHaveTextContent("secret-token");
+
+    const ledger = screen.getByRole("list", { name: "Prompt source ledger" });
+    const routeEntry = within(ledger).getByText("Route context").closest("li");
+    expect(routeEntry).toHaveAttribute("data-status", "blocked");
+    expect(routeEntry).toHaveTextContent("App policy denied route");
+    expect(routeEntry).not.toHaveTextContent("secret-token");
+  });
+
   it("renders a prompt source ledger with durable, pending, and provider readiness states", () => {
     render(<KnowledgeGraph
       nodes={[
