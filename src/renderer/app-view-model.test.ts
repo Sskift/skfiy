@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatReplayAction,
   formatReplayPlanner,
+  getAssistantInputPanelViewModel,
   getAppRootViewModel,
   getFinderPlanPreviewSummaryViewModel,
   getLocalReplayViewModel,
@@ -20,6 +21,47 @@ import {
 } from "./app-view-model";
 
 describe("app view model", () => {
+  it("derives assistant input panel labels and submit availability", () => {
+    expect(getAssistantInputPanelViewModel({
+      input: "  ",
+      provider: {
+        label: "Codex",
+        readiness: "ready"
+      },
+      submitting: false
+    })).toEqual({
+      statusLabel: "Codex · ready",
+      submitDisabled: true,
+      submitLabel: "发送"
+    });
+
+    expect(getAssistantInputPanelViewModel({
+      input: "organize Downloads",
+      provider: {
+        label: "Claude Code",
+        readiness: "unavailable"
+      },
+      submitting: false
+    })).toEqual({
+      statusLabel: "Claude Code · unavailable",
+      submitDisabled: false,
+      submitLabel: "发送"
+    });
+
+    expect(getAssistantInputPanelViewModel({
+      input: "open Finder",
+      provider: {
+        label: "Local",
+        readiness: "unconfigured"
+      },
+      submitting: true
+    })).toEqual({
+      statusLabel: "等待回复",
+      submitDisabled: true,
+      submitLabel: "发送中"
+    });
+  });
+
   it("derives panel visibility without React state", () => {
     expect(getPanelVisibilityState({
       assistantPanelOpen: false,

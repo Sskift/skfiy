@@ -33,6 +33,7 @@ import {
   type PetAtlasState
 } from "./pet-atlas";
 import {
+  getAssistantInputPanelViewModel,
   getFinderPlanPreviewSummaryViewModel,
   getAppRootViewModel,
   getLocalReplayViewModel,
@@ -836,6 +837,11 @@ export default function App() {
     permissions,
     rows: permissionOnboardingRows
   });
+  const assistantInputPanel = getAssistantInputPanelViewModel({
+    input: assistantInput,
+    provider: selectedAssistantAgentProvider,
+    submitting: assistantInputSubmitting
+  });
   const plannerProviderDisplay = getPlannerProviderDisplayViewModel(plannerProviderSettings);
 
   useEffect(() => {
@@ -1071,14 +1077,14 @@ export default function App() {
                 onKeyDown={submitAssistantInputFromKeyboard}
               />
               <div className="assistant-input-actions">
-                <span>{assistantInputSubmitting ? "等待回复" : `${selectedAssistantAgentProvider.label} · ${readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}`}</span>
+                <span>{assistantInputPanel.statusLabel}</span>
                 <button
                   type="submit"
                   aria-label="发送给 skfiy"
-                  disabled={!assistantInput.trim() || assistantInputSubmitting}
+                  disabled={assistantInputPanel.submitDisabled}
                 >
                   <Play size={13} aria-hidden="true" />
-                  <span>{assistantInputSubmitting ? "发送中" : "发送"}</span>
+                  <span>{assistantInputPanel.submitLabel}</span>
                 </button>
               </div>
             </form>

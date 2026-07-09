@@ -208,6 +208,31 @@ export function readAssistantAgentProviderDetail(
   ].join(" · ");
 }
 
+export function getAssistantInputPanelViewModel({
+  input,
+  provider,
+  submitting
+}: {
+  input: string;
+  provider: {
+    label: string;
+    readiness: "ready" | "unconfigured" | "unavailable";
+  };
+  submitting: boolean;
+}): {
+  statusLabel: string;
+  submitDisabled: boolean;
+  submitLabel: string;
+} {
+  return {
+    statusLabel: submitting
+      ? "等待回复"
+      : `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
+    submitDisabled: submitting || input.trim().length === 0,
+    submitLabel: submitting ? "发送中" : "发送"
+  };
+}
+
 export function readSelectedAssistantAgentProvider<TProvider extends {
   id: string;
   selected?: boolean;
