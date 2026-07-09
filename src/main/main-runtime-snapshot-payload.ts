@@ -11,6 +11,7 @@ export function createRuntimeSnapshotCurrentTurnFromTaskEvent(
     ...(event.route ? { route: event.route } : {}),
     ...(event.routeReason ? { routeReason: event.routeReason } : {}),
     ...(event.denialKind ? { denialKind: event.denialKind } : {}),
-    ...(event.policyKind ? { policyKind: event.policyKind } : {})
+    ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+    ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {})
   };
 }

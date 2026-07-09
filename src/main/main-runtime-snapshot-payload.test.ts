@@ -11,6 +11,11 @@ describe("main runtime snapshot payload helpers", () => {
       route: "finder",
       routeReason: "Finder current-folder organization needs confirmation.",
       policyKind: "route-policy",
+      stopTurnBehavior: {
+        beforeStatus: "approval_required",
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      },
       replayReset: true
     })).toEqual({
       state: "approval_required",
@@ -18,7 +23,12 @@ describe("main runtime snapshot payload helpers", () => {
       command: "organize Downloads",
       route: "finder",
       routeReason: "Finder current-folder organization needs confirmation.",
-      policyKind: "route-policy"
+      policyKind: "route-policy",
+      stopTurnBehavior: {
+        beforeStatus: "approval_required",
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
     });
   });
 

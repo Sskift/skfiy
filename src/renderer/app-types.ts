@@ -254,11 +254,22 @@ export interface TaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
   tmuxSupervisionReport?: unknown;
+}
+
+export interface TaskEventStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 export interface FinderPlanPreview {

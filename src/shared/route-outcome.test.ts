@@ -71,4 +71,24 @@ describe("readRouteOutcome", () => {
       state: "needs_confirmation"
     });
   });
+
+  it("uses stopTurnBehavior to preserve stopped semantics without relying on status text", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "cancelled",
+        command: "stop current task",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    })).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      state: "cancelled"
+    });
+  });
 });

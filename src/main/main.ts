@@ -1148,7 +1148,11 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
 
   emitTaskEvent(window, {
     status: "cancelled",
-    message: "Task stopped."
+    message: "Task stopped.",
+    stopTurnBehavior: {
+      afterStatus: "cancelled",
+      afterMessage: "Task stopped."
+    }
   });
 });
 

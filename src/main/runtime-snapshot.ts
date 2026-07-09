@@ -78,6 +78,17 @@ export interface RuntimeSnapshotCurrentTurnInput {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  stopTurnBehavior?: RuntimeSnapshotStopTurnBehaviorInput;
+}
+
+export interface RuntimeSnapshotStopTurnBehaviorInput {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 export function createRuntimeSnapshotStatePath(homeDir: string): string {
@@ -148,7 +159,8 @@ export function createRuntimeSnapshotFromReplay({
       ...(event.route ? { route: event.route } : {}),
       ...(event.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(event.routeReason) } : {}),
       ...(event.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(event.denialKind) } : {}),
-      ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {})
+      ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {}),
+      ...readRuntimeStopTurnBehaviorField(event.stopTurnBehavior)
     }));
   const verificationCount = replay.transcript.actions
     .filter((action) => action.type === "verify")
@@ -423,6 +435,7 @@ function createRuntimeCurrentTurnPanel(
     state,
     ...(command ? { command } : {}),
     ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
+    ...readRuntimeStopTurnBehaviorField(currentTurn?.stopTurnBehavior),
     approvalRequired: state === "approval_required",
     approvalState: state === "approval_required" ? "required" : "not-required",
     stopState: isActiveTurnState(state) ? "available" : "inactive",
@@ -450,6 +463,7 @@ function mergeRuntimeCurrentTurnPanel(
     ...(state ? { state } : {}),
     ...(command ? { command } : {}),
     ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
+    ...readRuntimeStopTurnBehaviorField(currentTurn.stopTurnBehavior),
     ...(message ? { latestMessage: message } : {}),
     approvalRequired: base.approvalRequired === true || nextState === "approval_required",
     approvalState: base.approvalRequired === true || nextState === "approval_required"
@@ -488,6 +502,28 @@ function readRuntimeCurrentTurnRouteMetadata(
     ...(currentTurn?.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(currentTurn.denialKind) } : {}),
     ...(currentTurn?.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(currentTurn.policyKind) } : {})
   };
+}
+
+function readRuntimeStopTurnBehaviorField(
+  stopTurnBehavior?: RuntimeSnapshotStopTurnBehaviorInput
+): Record<string, Record<string, string>> {
+  if (!stopTurnBehavior) {
+    return {};
+  }
+
+  const behavior = {
+    ...(stopTurnBehavior.result ? { result: sanitizeRuntimeSnapshotText(stopTurnBehavior.result) } : {}),
+    ...(stopTurnBehavior.source ? { source: sanitizeRuntimeSnapshotText(stopTurnBehavior.source) } : {}),
+    ...(stopTurnBehavior.command ? { command: sanitizeRuntimeSnapshotText(stopTurnBehavior.command) } : {}),
+    ...(stopTurnBehavior.beforeStatus ? { beforeStatus: sanitizeRuntimeSnapshotText(stopTurnBehavior.beforeStatus) } : {}),
+    ...(stopTurnBehavior.beforeMessage ? { beforeMessage: sanitizeRuntimeSnapshotText(stopTurnBehavior.beforeMessage) } : {}),
+    ...(stopTurnBehavior.afterStatus ? { afterStatus: sanitizeRuntimeSnapshotText(stopTurnBehavior.afterStatus) } : {}),
+    ...(stopTurnBehavior.afterMessage ? { afterMessage: sanitizeRuntimeSnapshotText(stopTurnBehavior.afterMessage) } : {})
+  };
+
+  return Object.keys(behavior).length > 0
+    ? { stopTurnBehavior: behavior }
+    : {};
 }
 
 function summarizeScreenshot(screenshot: TurnTranscriptScreenshot): Record<string, unknown> {

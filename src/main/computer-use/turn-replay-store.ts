@@ -35,6 +35,17 @@ export interface TurnReplayTaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  stopTurnBehavior?: TurnReplayStopTurnBehavior;
+}
+
+export interface TurnReplayStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 export interface TurnReplay {

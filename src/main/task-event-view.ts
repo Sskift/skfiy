@@ -48,11 +48,22 @@ export interface TaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
   tmuxSupervisionReport?: TmuxSupervisionReport;
+}
+
+export interface TaskEventStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 export interface TaskEventRouteMetadata {
@@ -195,7 +206,8 @@ export function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
     ...(event.route ? { route: event.route } : {}),
     ...(event.routeReason ? { routeReason: event.routeReason } : {}),
     ...(event.denialKind ? { denialKind: event.denialKind } : {}),
-    ...(event.policyKind ? { policyKind: event.policyKind } : {})
+    ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+    ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {})
   };
 }
 

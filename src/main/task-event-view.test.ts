@@ -72,4 +72,22 @@ describe("task event route metadata", () => {
       policyKind: "app-policy"
     });
   });
+
+  it("preserves stop-turn behavior in replay task events", () => {
+    expect(readTurnReplayTaskEvent({
+      status: "cancelled",
+      message: "Task stopped.",
+      stopTurnBehavior: {
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
+    })).toMatchObject({
+      status: "cancelled",
+      message: "Task stopped.",
+      stopTurnBehavior: {
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
+    });
+  });
 });

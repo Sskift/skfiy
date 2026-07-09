@@ -363,12 +363,16 @@ function readRouteDetail({
 }): string {
   const error = readRecord(currentTurn?.error);
   const latestToolCall = readRecord(replay?.latestToolCall);
+  const stopTurnBehavior = readRecord(currentTurn?.stopTurnBehavior)
+    ?? readRecord(replay?.stopTurnBehavior);
   return readString(error?.message, sanitizeString)
     ?? readString(currentTurn?.error, sanitizeString)
     ?? readString(currentTurn?.routeReason, sanitizeString)
     ?? readString(currentTurn?.reason, sanitizeString)
     ?? readString(currentTurn?.latestMessage, sanitizeString)
     ?? readString(currentTurn?.message, sanitizeString)
+    ?? readString(stopTurnBehavior?.afterMessage, sanitizeString)
+    ?? readString(stopTurnBehavior?.message, sanitizeString)
     ?? readString(latestToolCall?.summary, sanitizeString)
     ?? readString(latestToolCall?.evidenceSummary, sanitizeString)
     ?? (includeCommandDetail ? readString(currentTurn?.command, sanitizeString) : undefined)

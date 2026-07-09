@@ -261,8 +261,11 @@ describe("runtime snapshot", () => {
       replay: null,
       currentTurn: {
         status: "cancelled",
-        message: "Task stopped.",
-        command: "stop current task"
+        command: "stop current task",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
       },
       observedAt: "2026-06-20T10:01:10.000Z"
     })).toMatchObject({
@@ -270,7 +273,10 @@ describe("runtime snapshot", () => {
       currentTurn: {
         state: "cancelled",
         command: "stop current task",
-        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        },
         stopState: "inactive",
         updateSource: "live-task-event"
       },
@@ -735,7 +741,12 @@ describe("runtime snapshot", () => {
       currentTurn: {
         status: "executing",
         message: "Using Bearer abc.def and token=super-secret",
-        command: "curl https://example.test?api_key=abc123"
+        command: "curl https://example.test?api_key=abc123",
+        stopTurnBehavior: {
+          beforeStatus: "approval_required",
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped with token=super-secret."
+        }
       },
       observedAt: "2026-06-20T10:03:00.000Z"
     })).toMatchObject({
@@ -746,7 +757,12 @@ describe("runtime snapshot", () => {
         source: "runtime-turn-marker",
         updateSource: "live-task-event",
         command: "curl https://example.test?api_key=[redacted]",
-        latestMessage: "Using Bearer [redacted] and token=[redacted]"
+        latestMessage: "Using Bearer [redacted] and token=[redacted]",
+        stopTurnBehavior: {
+          beforeStatus: "approval_required",
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped with token=[redacted]"
+        }
       }
     });
 
