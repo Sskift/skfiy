@@ -27,9 +27,10 @@ and research notes belong in git history only.
 ## Reference Docs
 
 - `superpowers/plans/`: the current active implementation plan for agentic
-  work. Keep exactly one plan file here. Retired dated plans belong in git
-  history only, with no archive, parking, handoff, checklist, script, test, or
-  workflow reference in the live repo tree.
+  work. Keep exactly one plan file here. Delete retired dated plans from the
+  live tree instead of archiving, parking, or renaming them. Historical planning
+  material belongs in git history only, with no handoff, checklist, script,
+  test, or workflow reference in the live repo tree.
 
 ## Local Artifact Hygiene
 
@@ -39,4 +40,6 @@ are ignored by git. Preserve current smoke/release evidence while an issue,
 release, or dogfood run is active. Old alpha packages, stale local smoke copies,
 dogfood downloads for superseded commits, `.DS_Store`, and helper build caches
 can be deleted locally once they are no longer referenced by an active
-release/dogfood run.
+release/dogfood run. Temporary audit notes and stale cleanup outputs should not
+be promoted into docs; fold durable decisions into canonical docs or leave the
+history in git.
