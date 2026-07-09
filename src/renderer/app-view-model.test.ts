@@ -776,6 +776,40 @@ describe("app view model", () => {
     });
   });
 
+  it("normalizes canceled stopTurnBehavior status aliases for pet stopped routes", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "cancelled",
+        message: "Operator interrupted the current turn.",
+        route: "chrome",
+        stopTurnBehavior: {
+          result: "stopped",
+          source: "hotkey",
+          command: "stop-current-turn",
+          beforeStatus: "running",
+          afterStatus: "canceled",
+          afterMessage: "Operator interruption recorded."
+        }
+      },
+      turnReplay: null
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      tone: "neutral",
+      routeLabel: "chrome",
+      state: "cancelled",
+      detail: "Operator interrupted the current turn."
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "路由已停止",
+      detail: "chrome · Operator interrupted the current turn.",
+      tone: "neutral"
+    });
+  });
+
   it("uses task event route metadata before falling back to message text", () => {
     const outcome = readPetRouteOutcome({
       task: {

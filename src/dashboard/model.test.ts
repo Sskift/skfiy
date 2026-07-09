@@ -2540,6 +2540,21 @@ describe("readRouteOutcome", () => {
       }
     ],
     [
+      "canceled alias",
+      {
+        state: "canceled",
+        route: "tmux_supervision",
+        latestMessage: "Tmux supervision was canceled."
+      },
+      {
+        kind: "cancelled",
+        title: "Route cancelled",
+        value: "cancelled",
+        tone: "neutral",
+        routeLabel: "tmux_supervision"
+      }
+    ],
+    [
       "stop turn",
       {
         state: "cancelled",

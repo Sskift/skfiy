@@ -504,8 +504,8 @@ function isStopTurnOutcome(
     return false;
   }
 
-  const afterStatus = readString(stopTurnBehavior.afterStatus, sanitizeString)
-    ?? readString(stopTurnBehavior.status, sanitizeString);
+  const afterStatus = readRouteStateString(stopTurnBehavior.afterStatus, sanitizeString)
+    ?? readRouteStateString(stopTurnBehavior.status, sanitizeString);
   const afterMessage = readString(stopTurnBehavior.afterMessage, sanitizeString)
     ?? readString(stopTurnBehavior.message, sanitizeString);
 
@@ -604,6 +604,10 @@ function readRouteStateValue(value: string | undefined): string | undefined {
 
   if (value === "verification_failed") {
     return "needs_confirmation";
+  }
+
+  if (value === "canceled") {
+    return "cancelled";
   }
 
   return value;

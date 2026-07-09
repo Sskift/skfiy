@@ -176,6 +176,24 @@ describe("createDashboardOperatorEvidence", () => {
       }
     ],
     [
+      "canceled alias",
+      {
+        state: "canceled",
+        route: "chrome",
+        latestMessage: "Browser task canceled before execution.",
+        command: "cancel Chrome token=secret-token"
+      },
+      {
+        kind: "cancelled",
+        title: "Route cancelled",
+        value: "cancelled",
+        state: "cancelled",
+        tone: "neutral",
+        routeLabel: "chrome",
+        detail: "Browser task canceled before execution."
+      }
+    ],
+    [
       "completion with stale approval flag",
       {
         state: "completed",

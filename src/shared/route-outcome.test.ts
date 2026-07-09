@@ -92,6 +92,64 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes canceled aliases to canonical cancellation semantics", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "canceled",
+        route: "chrome",
+        latestMessage: "Browser task canceled before execution."
+      }
+    })).toMatchObject({
+      kind: "cancelled",
+      title: "Route cancelled",
+      value: "cancelled",
+      detail: "Browser task canceled before execution.",
+      tone: "neutral",
+      routeLabel: "chrome",
+      state: "cancelled"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "tmux_supervision",
+          status: "canceled",
+          summary: "Tmux supervision was canceled."
+        }
+      }
+    })).toMatchObject({
+      kind: "cancelled",
+      value: "cancelled",
+      detail: "Tmux supervision was canceled.",
+      source: "turn-replay",
+      routeLabel: "tmux_supervision",
+      state: "cancelled"
+    });
+  });
+
+  it("uses canceled stopTurnBehavior status aliases as structured stopped evidence", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "canceled",
+        route: "chrome",
+        latestMessage: "Operator interrupted the current turn.",
+        stopTurnBehavior: {
+          afterStatus: "canceled",
+          afterMessage: "Operator interruption recorded."
+        }
+      }
+    })).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      detail: "Operator interrupted the current turn.",
+      tone: "neutral",
+      routeLabel: "chrome",
+      state: "cancelled"
+    });
+  });
+
   it("infers completed route outcome from replay-only evidence", () => {
     expect(readRouteOutcome({
       replay: {
@@ -613,6 +671,30 @@ describe("readExplicitRouteOutcome", () => {
       source: "runtime-snapshot",
       routeLabel: "unknown",
       state: "needs_clarification"
+    });
+  });
+
+  it("normalizes explicit cancellation route outcome state and value aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "cancelled",
+      value: "canceled",
+      state: "canceled",
+      detail: "Browser task canceled before execution."
+    }, fallback)).toEqual({
+      kind: "cancelled",
+      title: "Route cancelled",
+      value: "cancelled",
+      detail: "Browser task canceled before execution.",
+      tone: "neutral",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "cancelled"
     });
   });
 
