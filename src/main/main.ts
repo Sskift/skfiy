@@ -103,9 +103,9 @@ import {
   isEnabledEnvFlag,
   readElectronMediaPermissionState,
   readFiniteNumber,
-  readMode,
   readPermissionSettingsTarget,
   readPetWindowMode,
+  readRunCommandRequest,
   readVisiblePetRect,
   type PetWindowMode
 } from "./main-ipc-payload.js";
@@ -1037,29 +1037,19 @@ ipcMain.handle("skfiy:get-window-bounds", (event) => {
 
 ipcMain.handle(
   "skfiy:run-command",
-  async (event, command: unknown, options: { mode?: unknown } = {}) => {
+  async (event, command: unknown, options: unknown = {}) => {
     const window = BrowserWindow.fromWebContents(event.sender);
+    const request = readRunCommandRequest(command, options);
 
-    if (typeof command !== "string") {
+    if (!request.ok) {
       emitTaskEvent(window, {
         status: "failed",
-        message: "Command must be text."
+        message: request.message
       });
       return;
     }
 
-    const trimmed = command.trim();
-    const mode = readMode(options.mode);
-
-    if (!trimmed) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "No command was provided."
-      });
-      return;
-    }
-
-    await runCommandTask(window, trimmed, mode, readDefaultApprovalBypass(process.env));
+    await runCommandTask(window, request.command, request.mode, readDefaultApprovalBypass(process.env));
   }
 );
 

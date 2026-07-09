@@ -13,8 +13,47 @@ export interface VisiblePetRect {
   height: number;
 }
 
+export type RunCommandRequest =
+  | {
+    ok: true;
+    command: string;
+    mode: ManualMode;
+  }
+  | {
+    ok: false;
+    message: string;
+  };
+
 export function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
+}
+
+export function readRunCommandRequest(command: unknown, options: unknown): RunCommandRequest {
+  if (typeof command !== "string") {
+    return {
+      ok: false,
+      message: "Command must be text."
+    };
+  }
+
+  const trimmed = command.trim();
+
+  if (!trimmed) {
+    return {
+      ok: false,
+      message: "No command was provided."
+    };
+  }
+
+  const record = options && typeof options === "object"
+    ? options as { mode?: unknown }
+    : {};
+
+  return {
+    ok: true,
+    command: trimmed,
+    mode: readMode(record.mode)
+  };
 }
 
 export function isEnabledEnvFlag(value: string | undefined): boolean {

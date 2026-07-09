@@ -7,6 +7,7 @@ import {
   readMode,
   readPermissionSettingsTarget,
   readPetWindowMode,
+  readRunCommandRequest,
   readVisiblePetRect
 } from "./main-ipc-payload";
 
@@ -24,6 +25,33 @@ describe("main IPC payload helpers", () => {
     expect(readPermissionSettingsTarget("screen-recording")).toBe("screen-recording");
     expect(readPermissionSettingsTarget("accessibility")).toBe("accessibility");
     expect(readPermissionSettingsTarget("automation-finder")).toBeUndefined();
+  });
+
+  it("normalizes run-command requests without main-process side effects", () => {
+    expect(readRunCommandRequest("  organize Downloads  ", { mode: "quiet" })).toEqual({
+      ok: true,
+      command: "organize Downloads",
+      mode: "quiet"
+    });
+    expect(readRunCommandRequest("open Chrome", { mode: "unexpected" })).toEqual({
+      ok: true,
+      command: "open Chrome",
+      mode: "active"
+    });
+    expect(readRunCommandRequest("open Chrome", null)).toEqual({
+      ok: true,
+      command: "open Chrome",
+      mode: "active"
+    });
+
+    expect(readRunCommandRequest(42, { mode: "active" })).toEqual({
+      ok: false,
+      message: "Command must be text."
+    });
+    expect(readRunCommandRequest("  ", { mode: "quiet" })).toEqual({
+      ok: false,
+      message: "No command was provided."
+    });
   });
 
   it("normalizes env flags and media permission states", () => {
