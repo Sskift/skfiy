@@ -418,7 +418,7 @@ function dispatchComputerUseTaskEvent({
 
   if (dispatch.toolResult) {
     completeComputerUseToolCall(toolIdentity, dispatch.toolResult);
-    emitTaskEvent(window, dispatch.taskStatus);
+    emitTurnReplayTaskEvent(window, dispatch.taskStatus);
     return;
   }
 

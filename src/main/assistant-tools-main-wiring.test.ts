@@ -83,6 +83,11 @@ describe("assistant tool bridge main-process wiring", () => {
 
   it("records structured route terminal and approval events into replay", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const taskDispatchToolResult = sliceSource(
+      source,
+      "if (dispatch.toolResult) {",
+      "\n  }\n\n  emitTurnReplayTaskEvent(window, dispatch.taskStatus);"
+    );
     const appPolicyBlocked = sliceSource(
       source,
       "if (appPolicyPreflight.kind === \"blocked\")",
@@ -124,6 +129,9 @@ describe("assistant tool bridge main-process wiring", () => {
       "ipcMain.handle(\"skfiy:get-permissions\""
     );
 
+    expect(taskDispatchToolResult).toContain("completeComputerUseToolCall(toolIdentity, dispatch.toolResult)");
+    expect(taskDispatchToolResult).toContain("emitTurnReplayTaskEvent(window, dispatch.taskStatus)");
+    expect(taskDispatchToolResult).not.toContain("emitTaskEvent(window, dispatch.taskStatus)");
     expect(appPolicyBlocked).toContain("emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent)");
     expect(appPolicyBlocked).not.toContain("emitTaskEvent(window, appPolicyPreflight.taskEvent)");
     expect(appPolicyApproval).toContain("emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent)");

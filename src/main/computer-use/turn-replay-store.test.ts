@@ -83,6 +83,72 @@ describe("createTurnReplayStore", () => {
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
 
+  it("uses terminal task timeline events to preserve completed route outcome after prior progress", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_call",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "running"
+    });
+    store.recordTaskEvent({
+      status: "executing",
+      message: "Typing command in Ghostty.",
+      command: "run pwd in Ghostty",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "ghostty"
+    });
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "completed",
+      summary: "pwd completed.",
+      evidence: {
+        summary: "Computer Use route completed with replayed orchestration events."
+      }
+    });
+    store.recordTaskEvent({
+      status: "completed",
+      message: "pwd completed.",
+      command: "run pwd in Ghostty",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "ghostty"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "completed"
+      },
+      routeOutcome: {
+        kind: "completed",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "pwd completed."
+      },
+      timeline: [
+        {
+          status: "executing",
+          message: "Typing command in Ghostty.",
+          route: "ghostty"
+        },
+        {
+          status: "completed",
+          message: "pwd completed.",
+          route: "ghostty"
+        }
+      ]
+    });
+  });
+
   it("preserves route confirmation as a terminal task timeline outcome", () => {
     const store = createTurnReplayStore();
 
