@@ -10,13 +10,13 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
-- Plan/doc hygiene is currently clean: the repo keeps one active plan file, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
+- Plan/doc hygiene was re-audited on 2026-07-09: the repo keeps one active plan file, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
 - The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
 
-Status: clean and guarded.
+Status: clean, re-audited, and guarded.
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
 - Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/`, root-level Markdown, parking folders, archive folders, or reference folders.
@@ -24,7 +24,7 @@ Status: clean and guarded.
 - Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
 - Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
 - Plan-like Markdown filenames or directories outside this active plan and durable ADRs are retired implementation material even when they are not date-stamped.
-- Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
+- Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Git history is the archive; do not create archive, parking, handoff, or reference folders for superseded plans. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 
@@ -47,8 +47,8 @@ Keep changes product-facing but narrow:
 
 ## Next Work Order
 
-1. Keep the plan/doc hygiene guard green before each implementation cut: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths. Git history is the archive.
-2. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
+1. Keep the plan/doc hygiene guard green before each implementation cut. This is a standing invariant, not a feature backlog item: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
+2. Finish only the remaining safe Dashboard P1 migrations where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage. If no safe API gap remains, do not invent one.
 3. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
 4. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
 5. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
