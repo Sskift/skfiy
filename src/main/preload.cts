@@ -250,7 +250,10 @@ interface TurnTranscript {
     text?: string;
     key?: string;
     action?: string;
+    actionType?: string;
+    status?: string;
     stage?: string;
+    message?: string;
     reason?: string;
     providerLabel?: string;
     command?: string;
@@ -920,7 +923,10 @@ function isTurnTranscriptAction(value: unknown): value is TurnTranscript["action
     && (action.text === undefined || typeof action.text === "string")
     && (action.key === undefined || typeof action.key === "string")
     && (action.action === undefined || typeof action.action === "string")
+    && (action.actionType === undefined || typeof action.actionType === "string")
+    && (action.status === undefined || typeof action.status === "string")
     && (action.stage === undefined || typeof action.stage === "string")
+    && (action.message === undefined || typeof action.message === "string")
     && (action.reason === undefined || typeof action.reason === "string")
     && (action.providerLabel === undefined || typeof action.providerLabel === "string")
     && (action.command === undefined || typeof action.command === "string")

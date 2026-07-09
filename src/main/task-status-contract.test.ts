@@ -68,6 +68,25 @@ describe("task status boundary contract", () => {
     expect(sources.preload).toContain("event.stopTurnBehavior === undefined");
   });
 
+  it("keeps replay verification action fields across the preload boundary", () => {
+    const sources = {
+      mainTranscript: readFileSync(path.join(process.cwd(), "src/main/computer-use/turn-transcript.ts"), "utf8"),
+      preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
+      rendererTypes: readFileSync(path.join(process.cwd(), "src/renderer/app-types.ts"), "utf8"),
+      rendererViewModel: readFileSync(path.join(process.cwd(), "src/renderer/app-view-model.ts"), "utf8")
+    };
+
+    for (const [name, source] of Object.entries(sources)) {
+      expect(source, `${name} should preserve replay verify action type`).toContain("actionType");
+      expect(source, `${name} should preserve replay action status`).toContain("status");
+      expect(source, `${name} should preserve replay action message`).toContain("message");
+    }
+
+    expect(sources.preload).toContain("action.actionType === undefined");
+    expect(sources.preload).toContain("action.status === undefined");
+    expect(sources.preload).toContain("action.message === undefined");
+  });
+
   it("keeps route outcome kinds on the shared contract across runtime, bridge, dashboard, and pet surfaces", () => {
     const sources = {
       sharedRouteOutcome: readFileSync(path.join(process.cwd(), "src/shared/route-outcome.ts"), "utf8"),
