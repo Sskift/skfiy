@@ -26,16 +26,16 @@ export function createRunCommandRouteDecision({
     return { kind: "chat", route };
   }
 
-  if (assistantTurnStatus !== "completed") {
-    return { kind: "assistant_failed", route };
-  }
-
   if (route.kind === "needs_clarification") {
     return { kind: "needs_clarification", route };
   }
 
   if (route.kind === "denied" || route.kind === "blocked") {
     return { kind: "terminal_route_state", route };
+  }
+
+  if (assistantTurnStatus !== "completed") {
+    return { kind: "assistant_failed", route };
   }
 
   if (route.kind === "needs_confirmation") {
