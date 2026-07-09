@@ -111,6 +111,15 @@ function createPolicyResponse(policy = {}) {
   };
 }
 
+function createLocalhostPolicyResponse(policy = {}) {
+  return createPolicyResponse({
+    allowedHosts: [LOCALHOST_TEST_HOST],
+    currentTurnAllowedHosts: [],
+    blockedHosts: [],
+    ...policy
+  });
+}
+
 function createPageObserveResponse() {
   return createNativeResponse(PAGE_OBSERVE, "page-control-heartbeat-response");
 }
@@ -478,6 +487,15 @@ function storeLocalhostHostPolicy(mock) {
   });
 }
 
+function createLocalhostTab({ id = 42, windowId = 7, active } = {}) {
+  return {
+    id,
+    windowId,
+    ...(active === undefined ? {} : { active }),
+    url: LOCALHOST_TEST_URL
+  };
+}
+
 function mockTabsGet(mock, tabsById, fallback) {
   mock.chrome.tabs.get.mockImplementation(async (tabId) => {
     if (Object.hasOwn(tabsById, tabId)) {
@@ -488,11 +506,7 @@ function mockTabsGet(mock, tabsById, fallback) {
 }
 
 function mockLocalhostTargetTab(mock, { tabId = 42, windowId = 7 } = {}) {
-  const targetTab = {
-    id: tabId,
-    windowId,
-    url: LOCALHOST_TEST_URL
-  };
+  const targetTab = createLocalhostTab({ id: tabId, windowId });
   mockTabsGet(mock, { [tabId]: targetTab });
 
   return targetTab;
@@ -550,11 +564,7 @@ function mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId = 99, targetT
       windowId: 7,
       url: wakeUrl
     },
-    [targetTabId]: {
-      id: targetTabId,
-      windowId: 7,
-      url: LOCALHOST_TEST_URL
-    }
+    [targetTabId]: createLocalhostTab({ id: targetTabId })
   });
 }
 
@@ -640,14 +650,9 @@ afterEach(() => {
 
 describe("Chrome extension background page routing", () => {
   it("blocks script injection when host policy allows a host but Chrome host permission is missing", async () => {
-    const mock = createChromeMock();
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
-    mock.chrome.tabs.query.mockResolvedValue([{
-      id: 17,
-      windowId: 2,
-      url: "https://allowed.example/dashboard"
-    }]);
-    await loadBackground(mock);
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 17, windowId: 2 })
+    });
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: "skfiy.page.observe",
@@ -663,13 +668,13 @@ describe("Chrome extension background page routing", () => {
         result: "blocked",
         reason: "chrome_host_permission_missing",
         code: "chrome_host_permission_missing",
-        message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.",
-        host: "allowed.example",
-        origin: "https://allowed.example",
+        message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE,
+        host: ALLOWED_EXAMPLE_HOST,
+        origin: `https://${ALLOWED_EXAMPLE_HOST}`,
         chromeHostPermission: {
           state: "missing",
-          origins: ["https://allowed.example/*"],
-          message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+          origins: ALLOWED_EXAMPLE_PAGE_ACCESS,
+          message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
         },
         policyDecision: {
           decision: "allowed",
@@ -678,7 +683,7 @@ describe("Chrome extension background page routing", () => {
       });
     });
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
-      origins: ["https://allowed.example/*"]
+      origins: ALLOWED_EXAMPLE_PAGE_ACCESS
     });
     expectNoPageControlMutation(mock);
   });
@@ -687,23 +692,15 @@ describe("Chrome extension background page routing", () => {
     const mock = createChromeMock([
       createNativeResponse(PAGE_ACTION, "page-control-fill-cli-current")
     ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "https://allowed.example/dashboard"
-      }
+      activeTab: createAllowedExampleTab()
     });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
+    storeHostPolicy(mock, { allowedHosts: [ALLOWED_EXAMPLE_HOST] });
     await loadBackground(mock);
 
-    const { keepChannelOpen, sendResponse } = sendPageControlWake(mock, {
+    const { keepChannelOpen, sendResponse } = sendPageControlWake(mock, createFillWakeDirective({
       wakeId: "wake-fill-current",
-      requestId: "page-control-fill-cli-current",
-      targetTabId: 42,
-      wakeAction: "fill",
-      selector: "#name",
-      text: "skfiy"
-    }, { requestId: "wake-fill-current" });
+      requestId: "page-control-fill-cli-current"
+    }), { requestId: "wake-fill-current" });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -726,10 +723,10 @@ describe("Chrome extension background page routing", () => {
               result: "blocked",
               reason: "chrome_host_permission_missing",
               code: "chrome_host_permission_missing",
-              message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.",
+              message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE,
               chromeHostPermission: expect.objectContaining({
                 state: "missing",
-                origins: ["https://allowed.example/*"]
+                origins: ALLOWED_EXAMPLE_PAGE_ACCESS
               })
             })
           })
@@ -1734,14 +1731,10 @@ describe("Chrome extension background policy sync", () => {
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createLocalhostPolicyResponse(),
       createPageObserveResponse()
     ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: LOCALHOST_TEST_URL
-      }
+      activeTab: createLocalhostTab()
     });
     await loadBackground(mock);
 
@@ -1773,7 +1766,7 @@ describe("Chrome extension background policy sync", () => {
   it("routes extension wake tab heartbeats to the requested target tab", async () => {
     const wakeUrl = createWakeUrl({ targetTabId: 42 });
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createLocalhostPolicyResponse(),
       createPageObserveResponse()
     ], {
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
@@ -2247,14 +2240,10 @@ describe("Chrome extension background policy sync", () => {
 
   it("injects the content script before page-control heartbeat when a granted page has no receiver yet", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createLocalhostPolicyResponse(),
       createPageObserveResponse()
     ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: LOCALHOST_TEST_URL
-      },
+      activeTab: createLocalhostTab(),
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
         undefined,
