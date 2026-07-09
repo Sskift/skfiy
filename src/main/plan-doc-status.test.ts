@@ -235,6 +235,25 @@ describe("implementation plan status docs", () => {
     expect(staleDatedDocs).toEqual([]);
   });
 
+  it("keeps pre-active-plan date anchors out of non-ADR repository markdown", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDateAnchors = markdownDocs.flatMap((docPath) => {
+      if (docPath.startsWith("docs/decisions/")) {
+        return [];
+      }
+
+      const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
+      return [...contents.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)]
+        .map((match) => match[0])
+        .filter((dateStamp) => Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate)
+        .map((dateStamp) => `${docPath}: ${dateStamp}`);
+    });
+
+    expect(staleDateAnchors).toEqual([]);
+  });
+
   it("keeps decision records from becoming retired implementation plans", () => {
     const decisionsRoot = path.join(process.cwd(), "docs", "decisions");
     const decisionDocs = collectMarkdownDocs(decisionsRoot);
