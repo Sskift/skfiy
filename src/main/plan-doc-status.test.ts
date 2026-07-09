@@ -153,21 +153,21 @@ describe("implementation plan status docs", () => {
     expect(datedResearchOrLogs).toEqual([]);
   });
 
-  it("keeps dated non-decision markdown out of docs", () => {
+  it("keeps dated non-active markdown out of docs", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const docsRoot = path.join(process.cwd(), "docs");
     const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
-    const datedNonDecisionDocs = markdownDocs.filter((docPath) => {
-      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+    const datedNonActiveDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
         return false;
       }
 
       return /^\d{4}-\d{2}-\d{2}-/.test(path.basename(docPath));
     });
 
-    expect(datedNonDecisionDocs).toEqual([]);
+    expect(datedNonActiveDocs).toEqual([]);
   });
 
   it("keeps stale dated plan material out of repository markdown", () => {
@@ -175,7 +175,7 @@ describe("implementation plan status docs", () => {
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
     const staleDatedPlanDocs = markdownDocs.filter((docPath) => {
-      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+      if (docPath === activePlanReference) {
         return false;
       }
 
@@ -195,7 +195,7 @@ describe("implementation plan status docs", () => {
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
     const inactivePlanLikeDocs = markdownDocs.filter((docPath) => {
-      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+      if (docPath === activePlanReference) {
         return false;
       }
 
@@ -219,12 +219,12 @@ describe("implementation plan status docs", () => {
     expect(retiredPlanningContainers).toEqual([]);
   });
 
-  it("keeps pre-active-plan dated markdown out of repository docs except ADRs", () => {
+  it("keeps pre-active-plan dated markdown out of repository docs", () => {
     const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
     const staleDatedDocs = markdownDocs.filter((docPath) => {
-      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+      if (docPath === activePlanReference) {
         return false;
       }
 
@@ -235,15 +235,11 @@ describe("implementation plan status docs", () => {
     expect(staleDatedDocs).toEqual([]);
   });
 
-  it("keeps pre-active-plan date anchors out of non-ADR repository markdown", () => {
+  it("keeps pre-active-plan date anchors out of repository markdown", () => {
     const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
     const staleDateAnchors = markdownDocs.flatMap((docPath) => {
-      if (docPath.startsWith("docs/decisions/")) {
-        return [];
-      }
-
       const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
       return [...contents.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)]
         .map((match) => match[0])
@@ -252,23 +248,6 @@ describe("implementation plan status docs", () => {
     });
 
     expect(staleDateAnchors).toEqual([]);
-  });
-
-  it("keeps decision records from becoming retired implementation plans", () => {
-    const decisionsRoot = path.join(process.cwd(), "docs", "decisions");
-    const decisionDocs = collectMarkdownDocs(decisionsRoot);
-    const planLikeDecisionDocs = decisionDocs.filter((docPath) => {
-      const contents = readFileSync(docPath, "utf8");
-      return /^##\s+(?:Active Scope|Next Work Order|Execution Rules|Handoff Requirements|Audit Queue|Current Cleanup Evidence)\b/im.test(contents)
-        || /^##\s+Task\s+\d+\b/im.test(contents)
-        || /^\s*Focused verification:/im.test(contents)
-        || /^\s*Acceptance:/im.test(contents)
-        || /^\s*Status:\s+(?:pending|in progress|complete)\b/im.test(contents)
-        || /^\s*-\s+\[[ x]\]\s+/im.test(contents)
-        || /docs\/superpowers\/plans\//i.test(contents);
-    }).map((docPath) => path.relative(process.cwd(), docPath).split(path.sep).join("/"));
-
-    expect(planLikeDecisionDocs).toEqual([]);
   });
 
   it("keeps canonical docs from carrying stale cleanup queues", () => {
@@ -403,7 +382,6 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("Retired dated implementation plans");
     expect(activePlan).toContain("must stay out of repo docs");
     expect(activePlan).toContain("zero retired dated implementation Markdown");
-    expect(activePlan).toContain("ADR-only context");
     expect(activePlan).toContain("Guard coverage must stay structural");
     expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
     expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");

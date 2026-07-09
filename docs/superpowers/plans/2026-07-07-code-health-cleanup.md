@@ -10,7 +10,7 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
-- Plan/doc hygiene is clean as of 2026-07-09: the repo keeps one active plan file, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
+- Plan/doc hygiene is clean as of 2026-07-09: the repo keeps one active plan file, no pre-active-plan dated Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
 - The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
@@ -20,13 +20,12 @@ Status: complete as a cleanup task, still enforced as a standing guard.
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
 - Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/`, root-level Markdown, parking folders, archive folders, or reference folders.
-- Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
-- Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
-- Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
-- Plan-like Markdown filenames or directories outside this active plan and durable ADRs are retired implementation material even when they are not date-stamped.
+- Date-stamped Markdown in the repository is allowed only for this active plan. Any earlier dated Markdown is retired implementation material and belongs in git history only.
+- Markdown dated before the active plan date must be deleted from the live repo tree instead of renamed, archived, or parked.
+- Plan-like Markdown filenames or directories outside this active plan are retired implementation material even when they are not date-stamped.
 - Retired research, release-evidence, archive, parking, handoff, checklist, and backlog directories must not exist under `docs/`, even as empty placeholders.
-- Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Git history is the archive; do not create archive, parking, handoff, or reference folders for superseded plans. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
-- Non-ADR Markdown must not keep pre-active-plan dates as migration notes, breadcrumbs, or cleanup evidence; old plan dates belong only in git history.
+- Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Git history is the archive; do not create archive, parking, handoff, decision, or reference folders for superseded plans.
+- Markdown must not keep pre-active-plan dates as migration notes, breadcrumbs, or cleanup evidence; old plan dates belong only in git history.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 

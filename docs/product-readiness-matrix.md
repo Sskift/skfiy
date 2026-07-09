@@ -27,11 +27,10 @@ QA/SRE gates, and real-scenario acceptance rules.
 4. Do not mark a feature ready because unit tests pass alone. A feature is ready
    only when its product-path smoke or equivalent real scenario is either
    passing or explicitly blocked by a manual macOS authorization/preflight state.
-5. Keep exactly one active plan under `docs/superpowers/plans/`. Keep
-   `docs/decisions/` limited to ADR context; fold operational steps into the
-   active plan or canonical docs so stale local reports do not compete with
-   current direction. Do not keep retired implementation plans in archive or
-   parking folders.
+5. Keep exactly one active plan under `docs/superpowers/plans/`. Fold durable
+   decisions and operational steps into the active plan or canonical docs so
+   stale local reports do not compete with current direction. Do not keep
+   retired implementation plans in archive, parking, or decision folders.
 
 ## Product Boundary
 

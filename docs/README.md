@@ -1,13 +1,12 @@
 # skfiy Docs
 
 This directory keeps current operator instructions separate from git-history
-context. When a workflow changes, update the canonical document first. Dated
-decision records are ADR references, not active implementation plans, task
-queues, or progress trackers. Historical research and implementation notes
-should be folded into canonical docs or left in git history, not kept as live
-repo checklists. Date-stamped Markdown under this directory is reserved for
-durable decision records and the single active plan. Older dated implementation
-plans, handoffs, checklists, and research notes belong in git history only.
+context. When a workflow changes, update the canonical document first.
+Historical research, decision notes, and implementation notes should be folded
+into canonical docs or left in git history, not kept as live repo checklists.
+Date-stamped Markdown under this directory is reserved for the single active
+plan. Older dated implementation plans, handoffs, checklists, decision notes,
+and research notes belong in git history only.
 
 ## Canonical Docs
 
@@ -27,9 +26,6 @@ plans, handoffs, checklists, and research notes belong in git history only.
 
 ## Reference Docs
 
-- `decisions/`: durable ADR records that should stay stable unless the
-  decision changes. They must not carry active plan sections, status blocks,
-  task checklists, or next-work queues.
 - `superpowers/plans/`: the current active implementation plan for agentic
   work. Keep exactly one plan file here. Retired dated plans belong in git
   history only, with no archive, parking, handoff, checklist, script, test, or
