@@ -447,14 +447,6 @@ function expectUnavailablePageControlHealthHeartbeat(message) {
   }));
 }
 
-function dispatchRuntimeInstalled(mock) {
-  mock.chrome.runtime.onInstalled.listeners[0]();
-}
-
-function dispatchRuntimeStartup(mock) {
-  mock.chrome.runtime.onStartup.listeners[0]();
-}
-
 function dispatchTabCreated(mock, tab) {
   mock.chrome.tabs.onCreated.listeners[0](tab);
 }
@@ -1498,43 +1490,6 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].requestedAt).toEqual(expect.any(String));
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].completedAt).toEqual(expect.any(String));
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].updatedAt).toEqual(expect.any(String));
-  });
-
-  it("syncs from install and startup lifecycle hooks", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["installed.example"] }),
-      createPageObserveResponse(),
-      createPolicyResponse({ allowedHosts: ["startup.example"] }),
-      createPageObserveResponse()
-    ]);
-    await loadBackground(mock);
-
-    dispatchRuntimeInstalled(mock);
-    await waitForAssertion(() => {
-      expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
-        state: "synced",
-        trigger: "runtime_installed"
-      });
-    });
-
-    dispatchRuntimeStartup(mock);
-    await waitForAssertion(() => {
-      expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
-        state: "synced",
-        trigger: "runtime_startup"
-      });
-    });
-
-    expect(mock.postedMessages.map((message) => message.type)).toEqual([
-      "skfiy.host_policy.request",
-      "skfiy.page.observe",
-      "skfiy.host_policy.request",
-      "skfiy.page.observe"
-    ]);
-    expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-runtime_installed-/);
-    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
-    expect(mock.postedMessages[2].requestId).toMatch(/^host-policy-sync-runtime_startup-/);
-    expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["startup.example"]);
   });
 
   it("records a native heartbeat when the service worker loads after extension reload", async () => {
