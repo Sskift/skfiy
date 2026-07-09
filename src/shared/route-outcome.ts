@@ -611,6 +611,16 @@ function readRouteStateValue(value: string | undefined): string | undefined {
     return undefined;
   }
 
+  if (
+    value === "approval-required"
+    || value === "requires_approval"
+    || value === "requires-approval"
+    || value === "needs_approval"
+    || value === "needs-approval"
+  ) {
+    return "approval_required";
+  }
+
   if (value === "needs_user_confirmation" || value === "needs-user-confirmation" || value === "needs-confirmation") {
     return "needs_confirmation";
   }

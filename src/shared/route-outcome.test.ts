@@ -40,6 +40,42 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes legacy approval route states to approval semantics", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "approval-required",
+        route: "finder",
+        latestMessage: "Finder file moves need review."
+      }
+    })).toMatchObject({
+      kind: "approval_required",
+      title: "Route approval required",
+      value: "approval_required",
+      detail: "Finder file moves need review.",
+      tone: "warning",
+      routeLabel: "finder",
+      state: "approval_required"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "needs_approval",
+          summary: "Chrome page action requires approval."
+        }
+      }
+    })).toMatchObject({
+      kind: "approval_required",
+      value: "approval_required",
+      detail: "Chrome page action requires approval.",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "approval_required"
+    });
+  });
+
   it("does not let stale approval metadata override terminal route outcomes", () => {
     expect(readRouteOutcome({
       currentTurn: {
@@ -701,6 +737,30 @@ describe("readExplicitRouteOutcome", () => {
       source: "runtime-snapshot",
       routeLabel: "unknown",
       state: "needs_confirmation"
+    });
+  });
+
+  it("normalizes explicit approval route outcome state and value aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "approval_required",
+      value: "requires-approval",
+      state: "needs_approval",
+      detail: "Finder file moves need review."
+    }, fallback)).toEqual({
+      kind: "approval_required",
+      title: "Route approval required",
+      value: "approval_required",
+      detail: "Finder file moves need review.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "approval_required"
     });
   });
 

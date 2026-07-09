@@ -2541,6 +2541,22 @@ describe("readRouteOutcome", () => {
       }
     ],
     [
+      "approval alias",
+      {
+        state: "requires-approval",
+        route: "finder",
+        latestMessage: "Finder file moves need review."
+      },
+      {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        tone: "warning",
+        routeLabel: "finder",
+        state: "approval_required"
+      }
+    ],
+    [
       "cancellation",
       {
         state: "cancelled",

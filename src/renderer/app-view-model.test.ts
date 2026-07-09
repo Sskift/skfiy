@@ -925,6 +925,46 @@ describe("app view model", () => {
     });
   });
 
+  it("normalizes explicit replay route outcome approval aliases for the pet route signal", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "running",
+        message: "Preparing Finder approval."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "approval_required",
+          title: "Route approval required",
+          value: "needs-approval",
+          detail: "Finder file moves need review.",
+          tone: "warning",
+          source: "turn-replay",
+          routeLabel: "finder",
+          state: "requires_approval"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(outcome).toEqual({
+      kind: "approval_required",
+      title: "Route approval required",
+      value: "approval_required",
+      detail: "Finder file moves need review.",
+      tone: "warning",
+      source: "turn-replay",
+      routeLabel: "finder",
+      state: "approval_required"
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "路由待审批",
+      detail: "finder · Finder file moves need review.",
+      tone: "warning"
+    });
+  });
+
   it("uses explicit task event route outcome before stale replay route outcome", () => {
     const outcome = readPetRouteOutcome({
       task: {

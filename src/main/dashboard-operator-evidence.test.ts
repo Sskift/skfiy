@@ -172,6 +172,24 @@ describe("createDashboardOperatorEvidence", () => {
       }
     ],
     [
+      "approval alias",
+      {
+        state: "needs-approval",
+        route: "finder",
+        latestMessage: "Finder file moves need review.",
+        command: "organize Downloads token=secret-token"
+      },
+      {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        state: "approval_required",
+        tone: "warning",
+        routeLabel: "finder",
+        detail: "Finder file moves need review."
+      }
+    ],
+    [
       "stop turn",
       {
         state: "cancelled",
