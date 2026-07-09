@@ -73,7 +73,11 @@ describe("selectCommandRoute", () => {
       "在 Safari 点击登录按钮",
       "在 Slack 点击发送按钮",
       "点当前屏幕可见按钮",
-      "观察当前可见 app"
+      "观察当前可见 app",
+      "在当前窗口点击提交按钮",
+      "观察前台应用",
+      "click the current window button",
+      "inspect the frontmost app"
     ]) {
       expect(selectCommandRoute(command)).toEqual({
         kind: "needs_clarification",
