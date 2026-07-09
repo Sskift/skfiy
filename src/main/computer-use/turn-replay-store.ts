@@ -6,6 +6,8 @@ import {
   type TurnTranscriptOutcome
 } from "./turn-transcript.js";
 import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
   readRouteOutcome,
   type RouteOutcome
 } from "../../shared/route-outcome.js";
@@ -94,7 +96,7 @@ export function createTurnReplayStore(options: TurnReplayStoreOptions = {}) {
         return;
       }
 
-      timeline = [...timeline, { ...event }];
+      timeline = [...timeline, sanitizeTurnReplayTaskEvent(event)];
 
       if (
         event.status === "completed"
@@ -159,6 +161,12 @@ function createReplayRouteOutcome(
   timeline: readonly TurnReplayTaskEvent[]
 ): RouteOutcome {
   const latestTimelineEvent = timeline.at(-1);
+  const explicitRouteOutcome = sanitizeTurnReplayRouteOutcome(latestTimelineEvent?.routeOutcome);
+
+  if (explicitRouteOutcome) {
+    return explicitRouteOutcome;
+  }
+
   const latestToolAction = transcript.actions.filter(isRouteToolAction).at(-1);
   const currentTurn = {
     state: latestTimelineEvent?.status ?? readRouteStateFromTranscriptOutcome(transcript.outcome),
@@ -186,6 +194,57 @@ function createReplayRouteOutcome(
     includeCommandDetail: false,
     sanitizeString: sanitizeTurnReplayRouteOutcomeString
   });
+}
+
+function sanitizeTurnReplayTaskEvent(event: TurnReplayTaskEvent): TurnReplayTaskEvent {
+  const { routeOutcome, ...eventWithoutRouteOutcome } = event;
+  const sanitizedRouteOutcome = sanitizeTurnReplayRouteOutcome(routeOutcome);
+
+  return {
+    ...eventWithoutRouteOutcome,
+    ...(sanitizedRouteOutcome ? { routeOutcome: sanitizedRouteOutcome } : {})
+  };
+}
+
+function sanitizeTurnReplayRouteOutcome(value: unknown): RouteOutcome | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const kind = isRouteOutcomeKind(record.kind) ? record.kind : undefined;
+  const title = readSanitizedTurnReplayRouteOutcomeString(record.title);
+  const outcomeValue = readSanitizedTurnReplayRouteOutcomeString(record.value);
+  const detail = readSanitizedTurnReplayRouteOutcomeString(record.detail);
+  const tone = isRouteOutcomeTone(record.tone) ? record.tone : undefined;
+  const source = readSanitizedTurnReplayRouteOutcomeString(record.source);
+  const routeLabel = readSanitizedTurnReplayRouteOutcomeString(record.routeLabel);
+  const state = readSanitizedTurnReplayRouteOutcomeString(record.state);
+  const denialKind = readSanitizedTurnReplayRouteOutcomeString(record.denialKind);
+  const policyKind = readSanitizedTurnReplayRouteOutcomeString(record.policyKind);
+
+  if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
+    return undefined;
+  }
+
+  return {
+    kind,
+    title,
+    value: outcomeValue,
+    detail,
+    tone,
+    source,
+    routeLabel,
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  };
+}
+
+function readSanitizedTurnReplayRouteOutcomeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0
+    ? sanitizeTurnReplayRouteOutcomeString(value)
+    : undefined;
 }
 
 function readRouteStateFromTranscriptOutcome(outcome: TurnTranscriptOutcome): string {

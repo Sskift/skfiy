@@ -191,6 +191,49 @@ describe("createTurnReplayStore", () => {
     });
   });
 
+  it("uses explicit task route outcomes for replay route semantics without leaking tokens", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Fallback route message should not replace the explicit outcome.",
+      route: "chrome",
+      routeReason: "Fallback route reason should not replace the explicit outcome.",
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked token=explicit-secret",
+        tone: "danger",
+        source: "task-event",
+        routeLabel: "chrome",
+        state: "blocked",
+        policyKind: "chrome-host-policy"
+      }
+    });
+
+    const replay = store.getReplay();
+
+    expect(replay?.routeOutcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "task-event",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(replay?.timeline[0]?.routeOutcome).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(replay)).not.toContain("explicit-secret");
+  });
+
   it("keeps turn/tool lifecycle identity across approval and completion", () => {
     const store = createTurnReplayStore();
 
