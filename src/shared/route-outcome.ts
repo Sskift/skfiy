@@ -165,7 +165,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (isDeniedOrBlockedState(state) && isAppPolicyDenial(classifierText, currentTurn, sanitizeString)) {
+  if (isDeniedOrBlockedState(state) && isAppPolicyDenial(classifierText, denialKind, policyKind)) {
     return createOutcome({
       kind: "app_policy_denied",
       title: "App policy denied route",
@@ -178,7 +178,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (isDeniedOrBlockedState(state) && isChromeHostPolicyDenial(classifierText, currentTurn, sanitizeString)) {
+  if (isDeniedOrBlockedState(state) && isChromeHostPolicyDenial(classifierText, policyKind)) {
     return createOutcome({
       kind: "chrome_host_policy_denied",
       title: "Chrome host policy denied route",
@@ -191,7 +191,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "denied" || (state === "blocked" && isUserDenial(currentTurn, sanitizeString))) {
+  if (state === "denied" || (state === "blocked" && isUserDenial(denialKind))) {
     return createOutcome({
       kind: "user_denied",
       title: "User denied route",
@@ -465,29 +465,24 @@ function isDeniedOrBlockedState(state: string): boolean {
 
 function isAppPolicyDenial(
   classifierText: string,
-  currentTurn: Record<string, unknown> | undefined,
-  sanitizeString?: (value: string) => string | undefined
+  denialKind: string | undefined,
+  policyKind: string | undefined
 ): boolean {
   return classifierText.includes("denied by app policy")
-    || readString(currentTurn?.denialKind, sanitizeString) === "app_policy"
-    || readString(currentTurn?.policyKind, sanitizeString) === "app-policy";
+    || denialKind === "app_policy"
+    || policyKind === "app-policy";
 }
 
 function isChromeHostPolicyDenial(
   classifierText: string,
-  currentTurn: Record<string, unknown> | undefined,
-  sanitizeString?: (value: string) => string | undefined
+  policyKind: string | undefined
 ): boolean {
   return classifierText.includes("chrome host policy blocked")
     || classifierText.includes("chrome-host-policy")
-    || readString(currentTurn?.policyKind, sanitizeString) === "chrome-host-policy";
+    || policyKind === "chrome-host-policy";
 }
 
-function isUserDenial(
-  currentTurn: Record<string, unknown> | undefined,
-  sanitizeString?: (value: string) => string | undefined
-): boolean {
-  const denialKind = readString(currentTurn?.denialKind, sanitizeString);
+function isUserDenial(denialKind: string | undefined): boolean {
   return denialKind === "user" || denialKind === "user_denied";
 }
 

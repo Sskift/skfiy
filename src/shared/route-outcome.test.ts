@@ -182,6 +182,54 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("classifies replay-only app policy metadata without current turn state", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        timelineTail: [
+          {
+            status: "blocked",
+            route: "finder",
+            message: "Configured policy blocked Finder.",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          }
+        ]
+      }
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      value: "app_policy_denied",
+      detail: "Configured policy blocked Finder.",
+      routeLabel: "finder",
+      state: "blocked",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+  });
+
+  it("classifies replay-only blocked user denial metadata without current turn state", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        timelineTail: [
+          {
+            status: "blocked",
+            route: "chrome",
+            message: "Operator denied the requested page action.",
+            denialKind: "user"
+          }
+        ]
+      }
+    })).toMatchObject({
+      kind: "user_denied",
+      value: "user_denied",
+      detail: "Operator denied the requested page action.",
+      routeLabel: "chrome",
+      state: "blocked",
+      denialKind: "user"
+    });
+  });
+
   it("keeps policy denial metadata distinct even when the route state is denied", () => {
     expect(readRouteOutcome({
       currentTurn: {
