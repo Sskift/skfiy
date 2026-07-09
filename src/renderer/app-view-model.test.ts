@@ -723,7 +723,7 @@ describe("app view model", () => {
           kind: "app_policy_denied",
           title: "App policy denied route",
           value: "app_policy_denied",
-          detail: "Ghostty denied by app policy with token=secret-token",
+          detail: "Ghostty denied by app policy with token=secret-token at /Users/tester/Work",
           tone: "danger",
           source: "turn-replay",
           routeLabel: "ghostty",
@@ -741,7 +741,7 @@ describe("app view model", () => {
       kind: "app_policy_denied",
       title: "App policy denied route",
       value: "app_policy_denied",
-      detail: "Ghostty denied by app policy with token=[redacted]",
+      detail: "Ghostty denied by app policy with token=[redacted] at [path]",
       tone: "danger",
       source: "turn-replay",
       routeLabel: "ghostty",
@@ -751,9 +751,10 @@ describe("app view model", () => {
     });
     expect(getPetRouteOutcomeSignal(outcome)).toEqual({
       label: "应用策略拒绝",
-      detail: "ghostty · Ghostty denied by app policy with token=[redacted] · 拒绝 app_policy · 策略 app-policy",
+      detail: "ghostty · Ghostty denied by app policy with token=[redacted] at [path] · 拒绝 app_policy · 策略 app-policy",
       tone: "danger"
     });
+    expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
   });
 
   it("uses explicit task event route outcome before stale replay route outcome", () => {
@@ -982,7 +983,7 @@ describe("app view model", () => {
       source: "finder-applescript",
       targetPath: "/tmp/skfiy-finder-smoke",
       selectedCount: 1
-    })).toBe("observe_finder_selection: 1 selected finder-applescript /tmp/skfiy-finder-smoke");
+    })).toBe("observe_finder_selection: 1 selected finder-applescript [path]");
     expect(formatReplayAction({
       type: "preview_finder_plan",
       rootPath: "/tmp/skfiy-finder-smoke",
@@ -990,14 +991,14 @@ describe("app view model", () => {
       destructiveOperationCount: 0,
       createFolderCount: 3,
       moveFileCount: 3
-    })).toBe("preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves /tmp/skfiy-finder-smoke");
+    })).toBe("preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves [path]");
     expect(formatReplayAction({
       type: "confirm_finder_plan",
       rootPath: "/tmp/skfiy-finder-smoke",
       operationCount: 6,
       destructiveOperationCount: 0,
       reason: "Finder current-folder organization needs confirmation."
-    })).toBe("confirm_finder_plan: 6 ops 0 destructive Finder current-folder organization needs confirmation. /tmp/skfiy-finder-smoke");
+    })).toBe("confirm_finder_plan: 6 ops 0 destructive Finder current-folder organization needs confirmation. [path]");
     expect(formatReplayAction({ type: "type_text", text: "hello" })).toBe("type_text: hello");
     expect(formatReplayAction({ type: "press_key", key: "Enter" })).toBe("press_key: Enter");
     expect(formatReplayAction({ type: "activate_app", appName: "Finder" })).toBe("activate_app: Finder");

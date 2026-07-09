@@ -827,7 +827,8 @@ function readSanitizedPetRouteOutcomeField(value: unknown): string | undefined {
 function sanitizePetRouteOutcomeString(value: string): string {
   return value
     .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]");
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/(?:file:\/\/)?(?:\/Users\/|\/tmp\/|\/private\/tmp\/|\/var\/|\/repo\/)[^\s"')]+/g, "[path]");
 }
 
 export function getAppRootViewModel<
