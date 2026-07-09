@@ -138,6 +138,63 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes legacy user-confirmation route states to confirmation semantics", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "needs_user_confirmation",
+        route: "finder",
+        latestMessage: "Finder verification needs user confirmation."
+      }
+    })).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Finder verification needs user confirmation.",
+      tone: "warning",
+      routeLabel: "finder",
+      state: "needs_confirmation"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        timelineTail: [
+          {
+            status: "needs-user-confirmation",
+            route: "chrome",
+            message: "Chrome verification needs user confirmation."
+          }
+        ]
+      }
+    })).toMatchObject({
+      kind: "needs_confirmation",
+      value: "needs_confirmation",
+      detail: "Chrome verification needs user confirmation.",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "needs_confirmation"
+    });
+  });
+
+  it("normalizes replay latest tool-call user-confirmation status without timeline state", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "needs_user_confirmation",
+          summary: "Chrome verification needs user confirmation."
+        }
+      }
+    })).toMatchObject({
+      kind: "needs_confirmation",
+      value: "needs_confirmation",
+      detail: "Chrome verification needs user confirmation.",
+      routeLabel: "chrome",
+      state: "needs_confirmation"
+    });
+  });
+
   it("infers stopped route outcome from replay stop behavior without current turn text", () => {
     expect(readRouteOutcome({
       replay: {
@@ -414,6 +471,30 @@ describe("readExplicitRouteOutcome", () => {
       routeLabel: "unknown",
       state: "chrome_host_policy_denied",
       policyKind: "chrome-host-policy"
+    });
+  });
+
+  it("normalizes explicit confirmation route outcome state and value aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "needs_confirmation",
+      value: "needs_user_confirmation",
+      state: "needs-user-confirmation",
+      detail: "Finder verification needs user confirmation."
+    }, fallback)).toEqual({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Finder verification needs user confirmation.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "needs_confirmation"
     });
   });
 

@@ -83,7 +83,7 @@ export function readRouteOutcome({
 }: RouteOutcomeInput): RouteOutcome {
   const latestReplayEvent = readLatestReplayEvent(replay);
   const latestToolCall = readRecord(replay?.latestToolCall);
-  const state = readString(currentTurn?.state, sanitizeString)
+  const state = readRouteStateString(currentTurn?.state, sanitizeString)
     ?? readReplayRouteState(replay, latestReplayEvent, latestToolCall, sanitizeString)
     ?? "idle";
   const approvalState = readString(currentTurn?.approvalState, sanitizeString);
@@ -332,12 +332,12 @@ export function readExplicitRouteOutcome(
   return {
     kind,
     title: readString(record.title, sanitizeString) ?? defaults.title,
-    value: readString(record.value, sanitizeString) ?? defaults.value,
+    value: readExplicitRouteOutcomeValue(kind, record.value, defaults.value, sanitizeString),
     detail: readString(record.detail, sanitizeString) ?? defaults.detail,
     tone: isRouteOutcomeTone(record.tone) ? record.tone : defaults.tone,
     source: readString(record.source, sanitizeString) ?? defaults.source,
     routeLabel: readString(record.routeLabel, sanitizeString) ?? defaults.routeLabel,
-    state: readString(record.state, sanitizeString) ?? defaults.state,
+    state: readRouteStateString(record.state, sanitizeString) ?? defaults.state,
     ...(denialKind ? { denialKind } : {}),
     ...(policyKind ? { policyKind } : {})
   };
@@ -574,11 +574,11 @@ function readReplayRouteState(
   latestToolCall: Record<string, unknown> | undefined,
   sanitizeString?: (value: string) => string | undefined
 ): string | undefined {
-  return readString(latestReplayEvent?.status, sanitizeString)
+  return readRouteStateString(latestReplayEvent?.status, sanitizeString)
     ?? readRouteStateFromReplayOutcome(readString(replay?.outcome, sanitizeString))
     ?? readRouteStateFromReplayOutcome(readString(readRecord(replay?.transcript)?.outcome, sanitizeString))
-    ?? readRouteStateValue(readString(latestToolCall?.status, sanitizeString))
-    ?? readRouteStateValue(readString(replay?.state, sanitizeString));
+    ?? readRouteStateString(latestToolCall?.status, sanitizeString)
+    ?? readRouteStateString(replay?.state, sanitizeString);
 }
 
 function readRouteStateFromReplayOutcome(outcome: string | undefined): string | undefined {
@@ -598,7 +598,31 @@ function readRouteStateValue(value: string | undefined): string | undefined {
     return undefined;
   }
 
+  if (value === "needs_user_confirmation" || value === "needs-user-confirmation" || value === "needs-confirmation") {
+    return "needs_confirmation";
+  }
+
   return value;
+}
+
+function readRouteStateString(
+  value: unknown,
+  sanitizeString?: (value: string) => string | undefined
+): string | undefined {
+  return readRouteStateValue(readString(value, sanitizeString));
+}
+
+function readExplicitRouteOutcomeValue(
+  kind: RouteOutcomeKind,
+  value: unknown,
+  fallbackValue: string,
+  sanitizeString?: (value: string) => string | undefined
+): string {
+  const sanitized = readString(value, sanitizeString);
+  const stateValue = readRouteStateValue(sanitized);
+  return kind === "needs_confirmation" && stateValue === "needs_confirmation"
+    ? "needs_confirmation"
+    : sanitized ?? fallbackValue;
 }
 
 function readLatestReplayEvent(
