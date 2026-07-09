@@ -65,7 +65,6 @@ import {
 import {
   INITIAL_PANEL_STATE,
   createPetClickPanelTransition,
-  createPetDragPanelTransition,
   reducePanelState,
   type PanelStateAction
 } from "./app-panel-state";
@@ -77,9 +76,9 @@ import {
 } from "./app-permission-state";
 import {
   createPetDragState,
+  createPetDragMoveTransition,
   readVisiblePetRect,
   shouldSuppressPetClickAfterDrag,
-  updatePetDragStateForPointerMove,
   type PetDragState
 } from "./app-pet-drag-state";
 import {
@@ -749,10 +748,14 @@ export default function App() {
       return;
     }
 
-    const move = updatePetDragStateForPointerMove(drag, {
-      pointerId: event.pointerId,
-      screenX: event.screenX,
-      screenY: event.screenY
+    const move = createPetDragMoveTransition({
+      drag,
+      taskStatus: task.status,
+      pointer: {
+        pointerId: event.pointerId,
+        screenX: event.screenX,
+        screenY: event.screenY
+      }
     });
 
     if (!move) {
@@ -761,9 +764,7 @@ export default function App() {
 
     petDragRef.current = move.nextDrag;
 
-    const dragTransition = move.startedMoving
-      ? createPetDragPanelTransition({ taskStatus: task.status })
-      : null;
+    const dragTransition = move.panelTransition;
 
     if (dragTransition) {
       if (dragTransition.resetTaskBubble) setTask(createTaskStatusView("idle"));

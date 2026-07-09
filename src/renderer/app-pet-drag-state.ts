@@ -1,4 +1,8 @@
-import type { VisiblePetRect } from "./app-types";
+import type { TaskStatus, VisiblePetRect } from "./app-types";
+import {
+  createPetDragPanelTransition,
+  type PetDragPanelTransition
+} from "./app-panel-state";
 
 export interface PetDragState {
   pointerId: number;
@@ -19,6 +23,10 @@ export interface PetDragMove {
   deltaY: number;
   nextDrag: PetDragState;
   startedMoving: boolean;
+}
+
+export interface PetDragMoveTransition extends PetDragMove {
+  panelTransition?: PetDragPanelTransition;
 }
 
 export function readVisiblePetRect(rect: {
@@ -74,6 +82,30 @@ export function updatePetDragStateForPointerMove(
       visibleRect: drag.visibleRect
     },
     startedMoving: !drag.moved
+  };
+}
+
+export function createPetDragMoveTransition({
+  drag,
+  pointer,
+  taskStatus
+}: {
+  drag: PetDragState;
+  pointer: PetDragPointer;
+  taskStatus: TaskStatus;
+}): PetDragMoveTransition | null {
+  const move = updatePetDragStateForPointerMove(drag, pointer);
+  if (!move) {
+    return null;
+  }
+
+  const panelTransition = move.startedMoving
+    ? createPetDragPanelTransition({ taskStatus })
+    : undefined;
+
+  return {
+    ...move,
+    ...(panelTransition ? { panelTransition } : {})
   };
 }
 

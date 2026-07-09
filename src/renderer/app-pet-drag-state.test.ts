@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createPetDragMoveTransition,
   createPetDragState,
   readVisiblePetRect,
   shouldSuppressPetClickAfterDrag,
@@ -93,6 +94,78 @@ describe("app pet drag state", () => {
     })).toMatchObject({
       deltaX: 0,
       deltaY: -5,
+      startedMoving: false
+    });
+  });
+
+  it("creates the UI transition for the first drag move", () => {
+    const drag = createPetDragState({
+      pointerId: 7,
+      screenX: 100,
+      screenY: 120
+    }, visibleRect);
+
+    expect(createPetDragMoveTransition({
+      drag,
+      pointer: {
+        pointerId: 7,
+        screenX: 112,
+        screenY: 95
+      },
+      taskStatus: "completed"
+    })).toEqual({
+      deltaX: 12,
+      deltaY: -25,
+      nextDrag: {
+        pointerId: 7,
+        lastScreenX: 112,
+        lastScreenY: 95,
+        moved: true,
+        visibleRect
+      },
+      startedMoving: true,
+      panelTransition: {
+        resetTaskBubble: true,
+        clearReplayRecords: true,
+        compactWindow: true,
+        panelAction: { type: "close-for-drag" }
+      }
+    });
+  });
+
+  it("keeps follow-up drag moves as movement-only transitions", () => {
+    const firstMove = createPetDragMoveTransition({
+      drag: createPetDragState({
+        pointerId: 7,
+        screenX: 100,
+        screenY: 120
+      }, visibleRect),
+      pointer: {
+        pointerId: 7,
+        screenX: 112,
+        screenY: 95
+      },
+      taskStatus: "running"
+    });
+
+    expect(createPetDragMoveTransition({
+      drag: firstMove!.nextDrag,
+      pointer: {
+        pointerId: 7,
+        screenX: 118,
+        screenY: 95
+      },
+      taskStatus: "running"
+    })).toEqual({
+      deltaX: 6,
+      deltaY: 0,
+      nextDrag: {
+        pointerId: 7,
+        lastScreenX: 118,
+        lastScreenY: 95,
+        moved: true,
+        visibleRect
+      },
       startedMoving: false
     });
   });
