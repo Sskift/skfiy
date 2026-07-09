@@ -1,6 +1,6 @@
 # skfiy Product Readiness Matrix
 
-Updated: 2026-07-08
+Updated: 2026-07-09
 
 This document is the supervisor-facing readiness reference for the active agent
 and Computer Use work. It does not replace
@@ -29,8 +29,9 @@ QA/SRE gates, and real-scenario acceptance rules.
    passing or explicitly blocked by a manual macOS authorization/preflight state.
 5. Keep exactly one active plan under `docs/superpowers/plans/`. Keep
    `docs/decisions/` limited to ADR context; fold operational steps into the
-   active plan or canonical docs so stale local reports do not compete with current
-   direction.
+   active plan or canonical docs so stale local reports do not compete with
+   current direction. Do not keep retired implementation plans in archive or
+   parking folders.
 
 ## Product Boundary
 
