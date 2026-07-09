@@ -111,6 +111,10 @@ import {
 import {
   createToolResult
 } from "./main-computer-use-tool-result.js";
+import {
+  createAppPolicyPreflightDecision,
+  createChromeHostPolicyPreflightDecision
+} from "./main-computer-use-preflight.js";
 import { createRunCommandRouteDecision } from "./main-command-routing.js";
 import { createComputerUseTaskEventDispatch } from "./main-task-event-dispatch.js";
 import {
@@ -144,14 +148,9 @@ import {
   type PendingApproval
 } from "./main-pending-approval.js";
 import {
-  createAppPolicyApprovalRequiredTaskEvent,
-  createAppPolicyBlockedTaskEvent,
   createAssistantChatRouteTaskEvent,
   createAssistantToolPlanRouteTaskEvent,
   createAssistantTurnFailedRouteTaskEvent,
-  createChromeHostPolicyAllowedTaskEvent,
-  createChromeHostPolicyApprovalFailedTaskEvent,
-  createChromeHostPolicyBlockedTaskEvent,
   createComputerUseFailureTaskEvent,
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
@@ -567,34 +566,28 @@ async function continueComputerUseTask({
     return;
   }
 
-  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
+  const appPolicyPreflight = createAppPolicyPreflightDecision({
+    appPolicy: decideAppPolicy(appPolicySettingsStore.get(), route.bundleId),
+    approved,
+    command,
+    mode,
+    route
+  });
 
-  if (appPolicy.decision === "deny") {
+  if (appPolicyPreflight.kind === "blocked") {
     clearPendingComputerUseTask();
-    const taskEvent = createAppPolicyBlockedTaskEvent({
-      command,
-      reason: appPolicy.reason,
-      route
-    });
-    completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
-    emitTaskEvent(window, taskEvent);
+    completeComputerUseToolCall(toolIdentity, appPolicyPreflight.toolResult);
+    emitTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
-  if (appPolicy.decision === "ask" && !approved) {
+  if (appPolicyPreflight.kind === "approval_required") {
     clearPendingComputerUseTask();
     requireComputerUseApproval({
-      command,
-      mode,
-      route,
-      toolIdentity,
-      reason: appPolicy.reason
+      ...appPolicyPreflight.approvalRequest,
+      toolIdentity
     });
-    emitTaskEvent(window, createAppPolicyApprovalRequiredTaskEvent({
-      command,
-      reason: appPolicy.reason,
-      route
-    }));
+    emitTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
@@ -604,43 +597,21 @@ async function continueComputerUseTask({
       route,
       homeDir: os.homedir()
     });
+    const chromeHostPolicyPreflight = createChromeHostPolicyPreflightDecision({
+      command,
+      result: hostPolicyApproval,
+      route
+    });
 
-    if (hostPolicyApproval.status === "blocked") {
-      const taskEvent = createChromeHostPolicyBlockedTaskEvent({
-        command,
-        host: hostPolicyApproval.host,
-        route
-      });
+    if (chromeHostPolicyPreflight.kind === "blocked" || chromeHostPolicyPreflight.kind === "failed") {
       clearPendingComputerUseTask();
-      completeComputerUseToolCall(
-        toolIdentity,
-        createToolResult("blocked", taskEvent.message ?? `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
-      );
-      emitTaskEvent(window, taskEvent);
+      completeComputerUseToolCall(toolIdentity, chromeHostPolicyPreflight.toolResult);
+      emitTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
       return;
     }
 
-    if (hostPolicyApproval.status === "failed") {
-      const taskEvent = createChromeHostPolicyApprovalFailedTaskEvent({
-        command,
-        message: hostPolicyApproval.message,
-        route
-      });
-      clearPendingComputerUseTask();
-      completeComputerUseToolCall(
-        toolIdentity,
-        createToolResult("failed", taskEvent.message ?? `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
-      );
-      emitTaskEvent(window, taskEvent);
-      return;
-    }
-
-    if (hostPolicyApproval.status === "updated") {
-      emitTurnReplayTaskEvent(window, createChromeHostPolicyAllowedTaskEvent({
-        command,
-        host: hostPolicyApproval.host,
-        route
-      }));
+    if (chromeHostPolicyPreflight.kind === "allowed_current_turn") {
+      emitTurnReplayTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
     }
   }
 
