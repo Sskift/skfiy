@@ -2627,15 +2627,29 @@ function EvidenceSummaryCard({
             </>
           ) : null}
         </div>
-        <button
-          className="skfiy-dashboard-button button"
-          disabled={isLoading}
-          onClick={() => void onLoad()}
-          type="button"
+        <div
+          className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions"
+          aria-label="Evidence summary actions"
         >
-          <RefreshCw size={15} aria-hidden="true" />
-          {isLoading ? "Loading summary" : "Load evidence summary"}
-        </button>
+          <button
+            className="skfiy-dashboard-button button"
+            disabled={isLoading}
+            onClick={() => void onLoad()}
+            type="button"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            {isLoading ? "Loading summary" : "Load evidence summary"}
+          </button>
+          <a
+            className="skfiy-dashboard-button button"
+            href="/api/evidence-summary"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Eye size={14} aria-hidden="true" />
+            Evidence summary JSON
+          </a>
+        </div>
         {summary ? (
           <ul
             aria-label="Evidence summary contract"

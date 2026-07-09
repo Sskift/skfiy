@@ -574,6 +574,8 @@ describe("DashboardApp", () => {
     expect(within(alertGroups).getByText("Permissions")).toBeInTheDocument();
     expect(within(alertGroups).getByText("screen-recording-missing")).toBeInTheDocument();
     expect(within(alertGroups).getByText("Screen Recording is not granted.")).toBeInTheDocument();
+    expect(within(activity).getByRole("link", { name: "Evidence summary JSON" }))
+      .toHaveAttribute("href", "/api/evidence-summary");
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Runtime evidence" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Operator evidence" })).toBeInTheDocument();
@@ -1675,6 +1677,8 @@ describe("DashboardApp", () => {
 
     const activity = await screen.findByRole("region", { name: "Activity" });
     const summaryButton = within(activity).getByRole("button", { name: "Load evidence summary" });
+    expect(within(activity).getByRole("link", { name: "Evidence summary JSON" }))
+      .toHaveAttribute("href", "/api/evidence-summary");
     expect(within(activity).getByText("summary not loaded")).toBeInTheDocument();
 
     fireEvent.click(summaryButton);
