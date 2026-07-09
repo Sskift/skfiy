@@ -93,10 +93,8 @@ import {
   createPetWindowModeTransition
 } from "./main-window-state.js";
 import {
-  writeRuntimeSnapshot,
-  writeRuntimeTurnMarker,
-  type RuntimeSnapshotCurrentTurnInput
-} from "./runtime-snapshot.js";
+  persistMainRuntimeSnapshot
+} from "./main-runtime-snapshot-writer.js";
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
 import {
@@ -126,7 +124,6 @@ import {
   readAssistantAgentSettingsResponse,
   updateAssistantAgentSettingsResponse
 } from "./main-assistant-agent-settings-response.js";
-import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
   createManualScreenshotCompletedTaskEvent,
   createManualScreenshotFailedTaskEvent,
@@ -224,25 +221,11 @@ function persistRuntimeSnapshot(
   replay: TurnReplay | null,
   currentTurnEvent?: TaskEvent
 ): void {
-  const homeDir = os.homedir();
-  const currentTurn: RuntimeSnapshotCurrentTurnInput | undefined = currentTurnEvent
-    ? createRuntimeSnapshotCurrentTurnFromTaskEvent(currentTurnEvent)
-    : undefined;
-
-  void (async () => {
-    await writeRuntimeSnapshot({
-      homeDir,
-      replay,
-      currentTurn
-    });
-
-    if (currentTurn) {
-      await writeRuntimeTurnMarker({
-        homeDir,
-        currentTurn
-      });
-    }
-  })().catch(() => {
+  void persistMainRuntimeSnapshot({
+    homeDir: os.homedir(),
+    replay,
+    ...(currentTurnEvent ? { currentTurnEvent } : {})
+  }).catch(() => {
     // Dashboard runtime evidence is best-effort and must not block Computer Use turns.
   });
 }
