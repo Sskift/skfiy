@@ -38,7 +38,10 @@ import {
   postChromeHostPolicyAction,
   postPersonalMemoryAction,
   postPersonalSkillAction,
-  postPlannerProviderSettings
+  postPlannerProviderSettings,
+  subscribeDashboardSnapshotEvents,
+  type DashboardSnapshotEventHandlers,
+  type DashboardSnapshotEventSubscription
 } from "./api";
 import { buildChromeControlActionRequest } from "./chrome-control-actions";
 import type {
@@ -152,6 +155,9 @@ export interface DashboardAppProps {
   savePlannerProviderSettings?: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<DashboardProviderSettingsResponse>;
+  subscribeToSnapshotEvents?: (
+    handlers: DashboardSnapshotEventHandlers
+  ) => DashboardSnapshotEventSubscription;
 }
 
 const NAV_ITEMS = [
@@ -202,7 +208,8 @@ export function DashboardApp({
   runPersonalMemoryAction = postPersonalMemoryAction,
   runPersonalSkillAction = postPersonalSkillAction,
   saveChromeHostPolicyAction = postChromeHostPolicyAction,
-  savePlannerProviderSettings = postPlannerProviderSettings
+  savePlannerProviderSettings = postPlannerProviderSettings,
+  subscribeToSnapshotEvents = subscribeDashboardSnapshotEvents
 }: DashboardAppProps) {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [providerSettings, setProviderSettings] = useState<DashboardProviderSettingsResponse | null>(null);
@@ -314,6 +321,23 @@ export function DashboardApp({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    try {
+      const subscription = subscribeToSnapshotEvents({
+        onSnapshot: (nextSnapshot) => {
+          setSnapshot(nextSnapshot);
+          setError(null);
+        }
+      });
+
+      return () => {
+        subscription.close();
+      };
+    } catch {
+      return undefined;
+    }
+  }, [subscribeToSnapshotEvents]);
 
   return (
     <div className="skfiy-dashboard-shell">

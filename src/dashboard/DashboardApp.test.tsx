@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DashboardSnapshotEventHandlers } from "./api";
 import { DashboardApp } from "./DashboardApp";
 import type {
   DashboardEvidenceSummary,
@@ -656,6 +657,77 @@ describe("DashboardApp", () => {
     expect(within(tools).getByText(
       "Permissioned desktop/app-control tool invoked by the selected Background Agent."
     )).toBeInTheDocument();
+  });
+
+  it("applies local snapshot events without a manual refresh", async () => {
+    let eventHandlers: DashboardSnapshotEventHandlers | undefined;
+    const close = vi.fn();
+    const subscribeToSnapshotEvents = vi.fn((handlers: DashboardSnapshotEventHandlers) => {
+      eventHandlers = handlers;
+      return { close };
+    });
+    const loadSnapshot = vi.fn(async () => snapshot);
+
+    const { unmount } = render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={loadSnapshot}
+      subscribeToSnapshotEvents={subscribeToSnapshotEvents}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("你好，我在。").length).toBeGreaterThan(0);
+    expect(subscribeToSnapshotEvents).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      eventHandlers?.onSnapshot({
+        ...snapshot,
+        generatedAt: "2026-06-22T08:01:00.000Z",
+        currentTurn: {
+          state: "running",
+          latestMessage: "Live snapshot event applied.",
+          command: "stream dashboard snapshot"
+        },
+        alerts: []
+      });
+    });
+
+    await waitFor(() => {
+      const updatedActivity = screen.getByRole("region", { name: "Activity" });
+      expect(within(updatedActivity).getAllByText("Live snapshot event applied.").length).toBeGreaterThan(0);
+      expect(within(updatedActivity).getAllByText("stream dashboard snapshot").length).toBeGreaterThan(0);
+    });
+    expect(loadSnapshot).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the dashboard usable when live snapshot events are unavailable", async () => {
+    const subscribeToSnapshotEvents = vi.fn(() => {
+      throw new Error("EventSource unavailable");
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+      subscribeToSnapshotEvents={subscribeToSnapshotEvents}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("你好，我在。").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(subscribeToSnapshotEvents).toHaveBeenCalledTimes(1);
   });
 
   it("shows assistant provider, current turn, browser context, and latest blocker", async () => {

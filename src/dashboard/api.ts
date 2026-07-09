@@ -12,6 +12,15 @@ import type {
   DashboardSnapshot
 } from "./contracts";
 
+export interface DashboardSnapshotEventHandlers {
+  onSnapshot: (snapshot: DashboardSnapshot) => void;
+  onError?: (error: Error) => void;
+}
+
+export interface DashboardSnapshotEventSubscription {
+  close: () => void;
+}
+
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const response = await fetch("/snapshot.json", {
     cache: "no-store"
@@ -22,6 +31,35 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   }
 
   return await response.json() as DashboardSnapshot;
+}
+
+export function subscribeDashboardSnapshotEvents({
+  onSnapshot,
+  onError
+}: DashboardSnapshotEventHandlers): DashboardSnapshotEventSubscription {
+  if (typeof EventSource === "undefined") {
+    return { close: () => {} };
+  }
+
+  const source = new EventSource("/events");
+  const handleSnapshotEvent = (event: MessageEvent<string>) => {
+    try {
+      onSnapshot(JSON.parse(event.data) as DashboardSnapshot);
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error("Dashboard snapshot event was invalid."));
+    }
+  };
+
+  source.addEventListener("snapshot", handleSnapshotEvent as EventListener);
+  source.onerror = () => {
+    onError?.(new Error("Dashboard live update stream disconnected."));
+  };
+
+  return {
+    close: () => {
+      source.close();
+    }
+  };
 }
 
 export async function postChromeControlAction(
