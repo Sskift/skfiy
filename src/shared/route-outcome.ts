@@ -168,7 +168,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "denied") {
+  if (state === "denied" || (state === "blocked" && isUserDenial(currentTurn, sanitizeString))) {
     return createRouteOutcome({
       kind: "user_denied",
       title: "User denied route",
@@ -310,6 +310,14 @@ function isChromeHostPolicyDenial(
   return classifierText.includes("chrome host policy blocked")
     || classifierText.includes("chrome-host-policy")
     || readString(currentTurn?.policyKind, sanitizeString) === "chrome-host-policy";
+}
+
+function isUserDenial(
+  currentTurn: Record<string, unknown> | undefined,
+  sanitizeString?: (value: string) => string | undefined
+): boolean {
+  const denialKind = readString(currentTurn?.denialKind, sanitizeString);
+  return denialKind === "user" || denialKind === "user_denied";
 }
 
 function isStopTurnOutcome(

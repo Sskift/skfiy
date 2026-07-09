@@ -436,6 +436,34 @@ describe("app view model", () => {
       }
     ],
     [
+      "blocked user denial metadata",
+      {
+        task: {
+          status: "blocked" as const,
+          message: "User denied this Finder organization request.",
+          denialKind: "user"
+        },
+        turnReplay: {
+          transcript: {
+            actions: [
+              {
+                type: "tool_call",
+                route: "finder",
+                status: "approval_required"
+              }
+            ]
+          }
+        }
+      },
+      {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        tone: "neutral",
+        routeLabel: "finder"
+      }
+    ],
+    [
       "confirmation gate",
       {
         task: {

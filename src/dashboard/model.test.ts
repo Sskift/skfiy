@@ -2206,6 +2206,22 @@ describe("readRouteOutcome", () => {
       }
     ],
     [
+      "blocked user denial metadata",
+      {
+        state: "blocked",
+        route: "finder",
+        denialKind: "user",
+        reason: "User denied this Finder organization request."
+      },
+      {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        tone: "neutral",
+        routeLabel: "finder"
+      }
+    ],
+    [
       "Chrome host policy denial",
       {
         state: "blocked",
