@@ -332,6 +332,37 @@ describe("implementation plan status docs", () => {
     expect(stalePlanningDateAnchors).toEqual([]);
   });
 
+  it("keeps pre-active-plan short-date planning anchors out of repository markdown", () => {
+    const activePlanYear = new Date(activePlanDate).getUTCFullYear();
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd());
+    const staleShortDatePlanningAnchors = markdownDocs.flatMap((docPath) => {
+      const contents = readFileSync(docPath, "utf8");
+      const relativePath = path.relative(process.cwd(), docPath).split(path.sep).join("/");
+
+      return [...contents.matchAll(/(?<!\d{4}-)\b(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g)]
+        .flatMap((match) => {
+          const month = String(Number(match[1])).padStart(2, "0");
+          const day = String(Number(match[2])).padStart(2, "0");
+          const dateStamp = `${activePlanYear}-${month}-${day}`;
+          if (Date.parse(`${dateStamp}T00:00:00.000Z`) >= activePlanDate) {
+            return [];
+          }
+
+          const matchIndex = match.index ?? 0;
+          const contextStart = Math.max(0, matchIndex - 120);
+          const contextEnd = Math.min(contents.length, matchIndex + match[0].length + 120);
+          const planningContext = `${relativePath}\n${contents.slice(contextStart, contextEnd)}`;
+          const looksLikePlanningMaterial = /(?:plans?|planning|research|implementation[- ]log|work[- ]log|handoff|checklist|backlog|cleanup)/i.test(
+            planningContext
+          );
+
+          return looksLikePlanningMaterial ? [`${relativePath}: ${match[0]}`] : [];
+        });
+    });
+
+    expect(staleShortDatePlanningAnchors).toEqual([]);
+  });
+
   it("keeps AGENTS pointed at the current active plan", () => {
     const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
 
