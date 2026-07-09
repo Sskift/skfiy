@@ -133,7 +133,7 @@ Keep slimming scoped to product-owned hotspots and pure logic extraction:
 Focused verification:
 
 ```bash
-npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/renderer/App.test.tsx src/main/main.test.ts --reporter=dot
+npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/main/screenshot-path.test.ts src/renderer/App.test.tsx --reporter=dot
 npm run typecheck -- --pretty false
 ```
 

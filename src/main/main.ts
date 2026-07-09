@@ -80,6 +80,7 @@ import {
   registerStopTurnHotkey,
   STOP_TURN_ACCELERATOR
 } from "./stop-turn-hotkey.js";
+import { createScreenshotPathFactory } from "./screenshot-path.js";
 import {
   calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
@@ -200,7 +201,9 @@ let mainWindow: BrowserWindow | null = null;
 let currentPetAnchor: Point | null = null;
 let currentPetSize: Size | null = null;
 let currentTaskId = 0;
-let screenshotSerial = 0;
+const createScreenshotPath = createScreenshotPathFactory({
+  readTempDir: () => os.tmpdir()
+});
 let activeTaskController: AbortController | null = null;
 let activeComputerUseToolIdentity: AssistantComputerUseToolIdentity | null = null;
 let pendingApproval: PendingApproval | null = null;
@@ -255,12 +258,6 @@ function resolveHelperPath(): string {
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath
   });
-}
-
-function createScreenshotPath(scope: string): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  screenshotSerial += 1;
-  return path.join(os.tmpdir(), "skfiy", `${scope}-${timestamp}-${screenshotSerial}.png`);
 }
 
 function createDesktopHelper(): DesktopHelperClient {
