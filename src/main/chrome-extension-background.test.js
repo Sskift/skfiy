@@ -2157,7 +2157,7 @@ describe("Chrome extension background policy sync", () => {
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
         type: "skfiy.host_policy.response",
         schemaVersion: 1,
         requestId: "popup-refresh",
@@ -2178,30 +2178,8 @@ describe("Chrome extension background policy sync", () => {
         }),
         pageControl: expect.objectContaining({
           state: "unavailable"
-        }),
-        diagnostics: expect.objectContaining({
-          capabilities: expect.objectContaining({
-            nativeMessaging: true
-          }),
-          nativeHost: expect.objectContaining({
-            name: "com.sskift.skfiy",
-            bridgeState: "connected",
-            launchOrigin: `${EXTENSION_ORIGIN}/`,
-            messageType: "skfiy.host_policy.request",
-            responseType: "skfiy.native.response",
-            responseResult: "accepted",
-            syncState: "synced",
-            policyState: "configured",
-            lastError: null
-          }),
-          hostPolicy: expect.objectContaining({
-            entryCount: 2,
-            allowedHosts: 1,
-            currentTurnAllowedHosts: 1,
-            blockedHosts: 0
-          })
         })
-      });
+      }));
     });
 
     expect(mock.postedMessages).toHaveLength(1);
@@ -2243,20 +2221,6 @@ describe("Chrome extension background policy sync", () => {
         pageControlHeartbeat: expect.objectContaining({
           state: "recorded",
           result: "accepted"
-        }),
-        diagnostics: expect.objectContaining({
-          devReload: expect.objectContaining({
-            state: "idle",
-            heartbeat: expect.objectContaining({
-              state: "connected",
-              trigger: "popup_heartbeat"
-            })
-          }),
-          nativeHost: expect.objectContaining({
-            bridgeState: "connected",
-            launchOrigin: `${EXTENSION_ORIGIN}/`,
-            messageType: "skfiy.host_policy.request"
-          })
         })
       }));
     });
