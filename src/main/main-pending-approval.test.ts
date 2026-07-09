@@ -5,6 +5,7 @@ import {
   completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
+  readComputerUseRouteForToolCallState,
   readComputerUseToolCallIdentityToCancel,
   USER_DENIED_COMPUTER_USE_REASON
 } from "./main-pending-approval";
@@ -184,5 +185,39 @@ describe("main pending approval helpers", () => {
       pendingApproval: null,
       activeToolIdentity: unrelatedActiveToolIdentity
     });
+  });
+
+  it("derives active Computer Use route from pending approval or active identity", () => {
+    const activeToolIdentity = { turnId: "turn-agent-10", toolCallId: "tool-call-10" };
+    const chromeRoute = {
+      kind: "chrome",
+      bundleId: CHROME_BUNDLE_ID
+    } as const;
+    const finderRoute = {
+      kind: "finder",
+      bundleId: FINDER_BUNDLE_ID
+    } as const;
+    const pendingApproval = createPendingApproval(
+      "organize Downloads",
+      "active",
+      activeToolIdentity,
+      finderRoute
+    );
+
+    expect(readComputerUseRouteForToolCallState({
+      pendingApproval,
+      activeToolIdentity,
+      activeRoute: chromeRoute
+    })).toEqual(finderRoute);
+    expect(readComputerUseRouteForToolCallState({
+      pendingApproval: null,
+      activeToolIdentity,
+      activeRoute: chromeRoute
+    })).toEqual(chromeRoute);
+    expect(readComputerUseRouteForToolCallState({
+      pendingApproval: null,
+      activeToolIdentity: null,
+      activeRoute: chromeRoute
+    })).toBeNull();
   });
 });

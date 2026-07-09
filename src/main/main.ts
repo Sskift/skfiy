@@ -128,6 +128,7 @@ import {
   completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
+  readComputerUseRouteForToolCallState,
   readComputerUseToolCallIdentityToCancel,
   USER_DENIED_COMPUTER_USE_REASON,
   type ComputerUseCommandRoute,
@@ -431,7 +432,11 @@ function completeComputerUseToolCall(
   const nextState = completeComputerUseToolCallState(state, identity);
   pendingApproval = nextState.pendingApproval;
   activeComputerUseToolIdentity = nextState.activeToolIdentity;
-  activeComputerUseRoute = pendingApproval?.route ?? (activeComputerUseToolIdentity ? activeComputerUseRoute : null);
+  activeComputerUseRoute = readComputerUseRouteForToolCallState({
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
 }
 
 function cancelActiveComputerUseToolCall(reason: string): void {
@@ -449,7 +454,11 @@ function cancelActiveComputerUseToolCall(reason: string): void {
   const nextState = cancelComputerUseToolCallState(state, identity);
   pendingApproval = nextState.pendingApproval;
   activeComputerUseToolIdentity = nextState.activeToolIdentity;
-  activeComputerUseRoute = pendingApproval?.route ?? (activeComputerUseToolIdentity ? activeComputerUseRoute : null);
+  activeComputerUseRoute = readComputerUseRouteForToolCallState({
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
 }
 
 async function resumePendingApprovalTask(

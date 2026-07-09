@@ -21,6 +21,10 @@ export interface ComputerUseToolCallState {
   activeToolIdentity: AssistantComputerUseToolIdentity | null;
 }
 
+export interface ComputerUseToolCallRouteState extends ComputerUseToolCallState {
+  activeRoute: ComputerUseCommandRoute | null;
+}
+
 export const USER_DENIED_COMPUTER_USE_REASON = "User denied this Computer Use turn.";
 
 export function createPendingApproval(
@@ -84,4 +88,14 @@ export function cancelComputerUseToolCallState(
       ? null
       : state.activeToolIdentity
   };
+}
+
+export function readComputerUseRouteForToolCallState(
+  state: ComputerUseToolCallRouteState
+): ComputerUseCommandRoute | null {
+  if (state.pendingApproval) {
+    return state.pendingApproval.route;
+  }
+
+  return state.activeToolIdentity ? state.activeRoute : null;
 }
