@@ -11,7 +11,7 @@
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
 - Plan/doc hygiene is a standing invariant, not a cleanup backlog: the repo keeps one active plan file, no pre-active-plan dated Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
-- The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and extracted the renderer app shell view-model into pure helpers. Remaining slimming should focus on low-value Chrome background fixtures and safe `main.ts` pure helpers.
+- The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and extracted renderer app shell plus main permission-diagnostics response assembly into pure helpers. Remaining slimming should focus on low-value Chrome background fixtures and safe `main.ts` pure helpers.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
@@ -142,13 +142,13 @@ Keep slimming scoped to product-owned hotspots and pure logic extraction:
 - keep `src/main/cli-command-surface.ts` as a thin export surface; do not move command dispatch or status assembly back into it,
 - remove repeated fixtures and low-value coverage from `src/main/chrome-extension-background.test.js`,
 - keep `src/renderer/App.tsx` shell state aggregation in `src/renderer/app-view-model.ts` when it can be covered without React,
-- extract pure helpers from `src/main/main.ts` without changing UI behavior,
+- extract pure helpers from `src/main/main.ts` without changing UI behavior; prefer narrow modules such as `main-permission-diagnostics.ts` when Electron side effects can stay in the handler,
 - keep default smoke runs silent and avoid new evidence/artifact output unless explicitly requested.
 
 Focused verification:
 
 ```bash
-npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/main/screenshot-path.test.ts src/renderer/App.test.tsx src/renderer/app-view-model.test.ts --reporter=dot
+npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/main/screenshot-path.test.ts src/main/main-permission-diagnostics.test.ts src/renderer/App.test.tsx src/renderer/app-view-model.test.ts --reporter=dot
 npm run typecheck -- --pretty false
 ```
 

@@ -7,9 +7,6 @@ import {
   createTurnReplayStore,
   type TurnReplay
 } from "./computer-use/turn-replay-store.js";
-import type {
-  PermissionSummary
-} from "./computer-use/types.js";
 import {
   createAppPolicySettingsStore,
   decideAppPolicy,
@@ -71,8 +68,6 @@ import {
 } from "./main-desktop-clients.js";
 import { runTmuxSupervisionTask } from "./orchestrator/tmux-supervision-task.js";
 import {
-  createAppProcessPermissionSummary,
-  readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
 import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
@@ -118,6 +113,7 @@ import {
   createAssistantAgentTaskMessage,
   createRuntimeStatusResponse
 } from "./main-renderer-payload.js";
+import { createMainPermissionDiagnosticsResponse } from "./main-permission-diagnostics.js";
 import { createAssistantComputerUseToolPlan } from "./main-assistant-computer-use-plan.js";
 import {
   readAssistantAgentSettingsResponse,
@@ -299,13 +295,6 @@ function resolveHelperPath(): string {
 function createDesktopHelper(): DesktopHelperClient {
   return new DesktopHelperClient({
     helperPath: resolveHelperPath()
-  });
-}
-
-function readAppProcessPermissions(): PermissionSummary {
-  return createAppProcessPermissionSummary({
-    screenRecording: systemPreferences.getMediaAccessStatus("screen"),
-    accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false)
   });
 }
 
@@ -1060,11 +1049,11 @@ ipcMain.handle("skfiy:get-permission-diagnostics", async () => {
   const helper = createDesktopHelper();
   const active = await readPermissionsForRenderer({ helper });
 
-  return readPermissionDiagnosticsForRenderer({
+  return createMainPermissionDiagnosticsResponse({
     active,
-    appProcess: readAppProcessPermissions(),
-    helper: {
-      getPermissions: async () => active
+    appProcess: {
+      screenRecording: systemPreferences.getMediaAccessStatus("screen"),
+      accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false)
     },
     identity: {
       appPath: app.getAppPath(),
