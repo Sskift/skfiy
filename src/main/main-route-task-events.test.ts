@@ -12,6 +12,7 @@ import {
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
   createPlannerUnavailableTaskEvent,
+  createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
 } from "./main-route-task-events";
 import {
@@ -241,6 +242,17 @@ describe("main route task event helpers", () => {
       command: "run pwd in Ghostty",
       route: "ghostty",
       routeReason: "Task failed."
+    });
+  });
+
+  it("creates structured stop-turn events for runtime route outcome preservation", () => {
+    expect(createStopTurnTaskEvent()).toEqual({
+      status: "cancelled",
+      message: "Task stopped.",
+      stopTurnBehavior: {
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
     });
   });
 });

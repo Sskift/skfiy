@@ -141,6 +141,7 @@ import {
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
   createPlannerUnavailableTaskEvent,
+  createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
 } from "./main-route-task-events.js";
 import {
@@ -1146,14 +1147,7 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
   activeComputerUseToolIdentity = null;
   currentTaskId += 1;
 
-  emitTaskEvent(window, {
-    status: "cancelled",
-    message: "Task stopped.",
-    stopTurnBehavior: {
-      afterStatus: "cancelled",
-      afterMessage: "Task stopped."
-    }
-  });
+  emitTaskEvent(window, createStopTurnTaskEvent());
 });
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {

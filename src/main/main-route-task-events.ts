@@ -210,3 +210,14 @@ export function createComputerUseFailureTaskEvent({
     routeReason: message
   });
 }
+
+export function createStopTurnTaskEvent(message = "Task stopped."): TaskEvent {
+  return {
+    status: "cancelled",
+    message,
+    stopTurnBehavior: {
+      afterStatus: "cancelled",
+      afterMessage: message
+    }
+  };
+}
