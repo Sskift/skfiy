@@ -402,7 +402,7 @@ function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Reco
     updateSource: readString(currentTurn.updateSource),
     latestToolStatus: readString(currentTurn.latestToolStatus),
     latestMessage: sanitizeStatusEvidenceString(readString(currentTurn.latestMessage)),
-    latestAction: summarizeNamedStatusRecord(readRecord(currentTurn.latestAction), ["type", "action", "stage", "status"]),
+    latestAction: summarizeRuntimeAction(readRecord(currentTurn.latestAction)),
     latestVerification: summarizeNamedStatusRecord(readRecord(currentTurn.latestVerification), ["actionType", "status", "message", "reason"]),
     latestScreenshot: summarizeNamedStatusRecord(readRecord(currentTurn.latestScreenshot), ["stage", "bundleId", "recommendation", "sourceCount"])
   });
@@ -418,6 +418,7 @@ function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string,
     verificationCount: readNumber(replay.verificationCount),
     timelineCount: readNumber(replay.timelineCount),
     latestMessage: sanitizeStatusEvidenceString(readString(replay.latestMessage)),
+    latestAction: summarizeRuntimeAction(readRecordArray(replay.actions).at(-1)),
     latestToolCall: summarizeNamedStatusRecord(
       readRecord(replay.latestToolCall),
       ["type", "route", "status", "summary", "evidenceSummary", "artifactCount"]
@@ -498,6 +499,36 @@ function summarizeNamedStatusRecord(
   return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
+function summarizeRuntimeAction(action: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  return summarizeNamedStatusRecord(action, [
+    "type",
+    "route",
+    "status",
+    "decision",
+    "reason",
+    "summary",
+    "evidenceSummary",
+    "artifactCount",
+    "operationCount",
+    "destructiveOperationCount",
+    "createFolderCount",
+    "moveFileCount",
+    "selectedCount",
+    "source",
+    "textLength",
+    "key",
+    "action",
+    "stage",
+    "message"
+  ]);
+}
+
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map((entry) => readRecord(entry)).filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    : [];
+}
+
 function readSmokeArtifactFile(filePath: string): Record<string, unknown> | undefined {
   try {
     return readRecord(JSON.parse(readFileSync(filePath, "utf8")));
@@ -572,7 +603,10 @@ function readObservedAgeSeconds(observedAt: string | undefined, generatedAt: str
 }
 
 function sanitizeStatusEvidenceString(value: string | undefined): string | undefined {
-  return value ? sanitizeSensitiveString(value) : undefined;
+  return value ? sanitizeSensitiveString(value).replace(
+    /(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g,
+    "[path]"
+  ) : undefined;
 }
 
 function readSafeStatusEvidenceString(value: unknown, fallback?: string): string | undefined {

@@ -184,4 +184,72 @@ describe("createDashboardOperatorEvidence", () => {
     expect(JSON.stringify(evidence)).not.toContain("secret-token");
     expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
   });
+
+  it("summarizes latest route actions without exposing commands or local paths", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const evidence = createDashboardOperatorEvidence({
+      descriptor,
+      snapshot: createDashboardSnapshot({
+        descriptor,
+        generatedAt: "2026-07-08T00:00:00.000Z",
+        currentTurn: {
+          state: "blocked",
+          latestAction: {
+            type: "tool_result",
+            route: "finder",
+            status: "blocked",
+            command: "organize /Users/tester/Downloads?token=secret-token",
+            summary: "Finder blocked /Users/tester/Downloads with token=secret-token.",
+            artifactCount: 1
+          }
+        },
+        replay: {
+          state: "available",
+          actionCount: 2,
+          actions: [
+            {
+              type: "tool_call",
+              route: "finder",
+              status: "approval_required",
+              command: "organize /Users/tester/Downloads?token=secret-token"
+            },
+            {
+              type: "preview_finder_plan",
+              rootPath: "/Users/tester/Downloads",
+              operationCount: 6,
+              destructiveOperationCount: 0,
+              createFolderCount: 3,
+              moveFileCount: 3
+            }
+          ]
+        }
+      })
+    });
+    const currentTurn = evidence.snapshot.currentTurn as Record<string, unknown>;
+    const replay = evidence.snapshot.replay as Record<string, unknown>;
+
+    expect(currentTurn).toMatchObject({
+      latestAction: {
+        type: "tool_result",
+        route: "finder",
+        status: "blocked",
+        summary: "Finder blocked [path] with redacted-secret",
+        artifactCount: 1
+      }
+    });
+    expect(currentTurn.latestAction).not.toHaveProperty("command");
+    expect(replay).toMatchObject({
+      latestAction: {
+        type: "preview_finder_plan",
+        operationCount: 6,
+        destructiveOperationCount: 0,
+        createFolderCount: 3,
+        moveFileCount: 3
+      }
+    });
+    expect(replay.latestAction).not.toHaveProperty("rootPath");
+    expect(JSON.stringify(evidence)).not.toContain("secret-token");
+    expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
+    expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
+  });
 });

@@ -134,7 +134,8 @@ function summarizeCurrentTurn(turn: Record<string, unknown> | undefined): Record
     targetApp: readSafeString(turn?.targetApp),
     risk: readSafeString(turn?.risk),
     approvalState: readSafeString(turn?.approvalState),
-    stopState: readSafeString(turn?.stopState)
+    stopState: readSafeString(turn?.stopState),
+    latestAction: summarizeEvidenceAction(readRecord(turn?.latestAction))
   });
 }
 
@@ -144,8 +145,49 @@ function summarizeReplay(replay: Record<string, unknown> | undefined): Record<st
     source: readSafeString(replay?.source),
     screenshotCount: readFiniteNumber(replay?.screenshotCount),
     actionCount: readFiniteNumber(replay?.actionCount),
-    verificationCount: readFiniteNumber(replay?.verificationCount)
+    verificationCount: readFiniteNumber(replay?.verificationCount),
+    latestAction: summarizeEvidenceAction(readRecordArray(replay?.actions).at(-1))
   });
+}
+
+function summarizeEvidenceAction(action: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!action) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {};
+  const allowedKeys = [
+    "type",
+    "route",
+    "status",
+    "decision",
+    "reason",
+    "summary",
+    "evidenceSummary",
+    "artifactCount",
+    "operationCount",
+    "destructiveOperationCount",
+    "createFolderCount",
+    "moveFileCount",
+    "selectedCount",
+    "source",
+    "textLength",
+    "key",
+    "action",
+    "stage",
+    "message"
+  ];
+
+  for (const key of allowedKeys) {
+    const value = action[key];
+    if (typeof value === "string") {
+      summary[key] = sanitizeText(value);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      summary[key] = value;
+    }
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 function summarizeReadiness(readiness: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -316,6 +358,12 @@ function readSafeStringArray(value: unknown): string[] {
     : [];
 }
 
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map((entry) => readRecord(entry)).filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    : [];
+}
+
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
@@ -330,7 +378,8 @@ function sanitizeText(value: string): string | undefined {
   const sanitized = value
     .replace(SECRET_QUERY_PATTERN, "$1redacted-secret")
     .replace(SECRET_TEXT_PATTERN, "redacted-secret")
-    .replace(AUTH_HEADER_PATTERN, "redacted-secret");
+    .replace(AUTH_HEADER_PATTERN, "redacted-secret")
+    .replace(/(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g, "[path]");
 
   return sanitized.length > 0 ? sanitized : undefined;
 }

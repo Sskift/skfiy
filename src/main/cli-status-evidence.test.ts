@@ -95,7 +95,7 @@ describe("CLI status evidence", () => {
                 toolCallId: "tool-1",
                 route: "chrome",
                 status: "blocked",
-                summary: "Chrome route denied by app policy for token=secret-token.",
+                summary: "Chrome route denied by app policy for token=secret-token at /Users/tester/Profile.",
                 evidenceSummary: "No browser mutation executed.",
                 artifactCount: 0
               }
@@ -149,14 +149,24 @@ describe("CLI status evidence", () => {
           policyKind: "app-policy"
         },
         replay: {
+          latestAction: {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked",
+            summary: "Chrome route denied by app policy for redacted=[redacted] at [path]",
+            evidenceSummary: "No browser mutation executed.",
+            artifactCount: 0
+          },
           latestToolCall: {
             type: "tool_result",
             route: "chrome",
-            status: "blocked"
+            status: "blocked",
+            summary: "Chrome route denied by app policy for redacted=[redacted] at [path]"
           }
         }
       });
       expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
       rmSync(homeDir, { recursive: true, force: true });
