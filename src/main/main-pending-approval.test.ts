@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cancelComputerUseToolCallState,
+  completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
+  readComputerUseToolCallIdentityToCancel,
   USER_DENIED_COMPUTER_USE_REASON
 } from "./main-pending-approval";
 import { CHROME_BUNDLE_ID, FINDER_BUNDLE_ID } from "./task-routing";
@@ -86,6 +89,93 @@ describe("main pending approval helpers", () => {
     expect(createPendingApprovalDeniedTaskEvent(null)).toEqual({
       status: "idle",
       message: "No task is waiting for approval."
+    });
+  });
+
+  it("clears completed Computer Use tool identities from pending and active state", () => {
+    const identity = { turnId: "turn-agent-4", toolCallId: "tool-call-4" };
+    const otherIdentity = { turnId: "turn-agent-5", toolCallId: "tool-call-5" };
+    const approval = createPendingApproval(
+      "organize Downloads",
+      "active",
+      identity,
+      {
+        kind: "finder",
+        bundleId: FINDER_BUNDLE_ID
+      }
+    );
+
+    expect(completeComputerUseToolCallState({
+      pendingApproval: approval,
+      activeToolIdentity: identity
+    }, identity)).toEqual({
+      pendingApproval: null,
+      activeToolIdentity: null
+    });
+
+    expect(completeComputerUseToolCallState({
+      pendingApproval: approval,
+      activeToolIdentity: otherIdentity
+    }, otherIdentity)).toEqual({
+      pendingApproval: approval,
+      activeToolIdentity: null
+    });
+  });
+
+  it("prefers pending approval when choosing the Computer Use tool call to cancel", () => {
+    const activeToolIdentity = { turnId: "turn-agent-6", toolCallId: "tool-call-6" };
+    const pendingToolIdentity = { turnId: "turn-agent-7", toolCallId: "tool-call-7" };
+    const pendingApproval = createPendingApproval(
+      "open Chrome",
+      "active",
+      pendingToolIdentity,
+      {
+        kind: "chrome",
+        bundleId: CHROME_BUNDLE_ID
+      }
+    );
+
+    expect(readComputerUseToolCallIdentityToCancel({
+      pendingApproval,
+      activeToolIdentity
+    })).toEqual(pendingApproval);
+    expect(readComputerUseToolCallIdentityToCancel({
+      pendingApproval: null,
+      activeToolIdentity
+    })).toEqual(activeToolIdentity);
+    expect(readComputerUseToolCallIdentityToCancel({
+      pendingApproval: null,
+      activeToolIdentity: null
+    })).toBeNull();
+  });
+
+  it("clears pending approval and matching active identity after cancellation", () => {
+    const activeToolIdentity = { turnId: "turn-agent-8", toolCallId: "tool-call-8" };
+    const unrelatedActiveToolIdentity = { turnId: "turn-agent-9", toolCallId: "tool-call-9" };
+    const pendingApproval = createPendingApproval(
+      "open Chrome",
+      "quiet",
+      activeToolIdentity,
+      {
+        kind: "chrome",
+        bundleId: CHROME_BUNDLE_ID
+      }
+    );
+
+    expect(cancelComputerUseToolCallState({
+      pendingApproval,
+      activeToolIdentity
+    }, pendingApproval)).toEqual({
+      pendingApproval: null,
+      activeToolIdentity: null
+    });
+
+    expect(cancelComputerUseToolCallState({
+      pendingApproval,
+      activeToolIdentity: unrelatedActiveToolIdentity
+    }, pendingApproval)).toEqual({
+      pendingApproval: null,
+      activeToolIdentity: unrelatedActiveToolIdentity
     });
   });
 });

@@ -111,8 +111,7 @@ import {
 } from "./main-ipc-payload.js";
 import {
   createToolResult,
-  createToolResultFromTaskEvent,
-  isSameComputerUseToolIdentity
+  createToolResultFromTaskEvent
 } from "./main-computer-use-tool-result.js";
 import {
   createAssistantAgentTaskMessage,
@@ -125,8 +124,11 @@ import {
 } from "./main-assistant-agent-settings-response.js";
 import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
+  cancelComputerUseToolCallState,
+  completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
+  readComputerUseToolCallIdentityToCancel,
   USER_DENIED_COMPUTER_USE_REASON,
   type ComputerUseCommandRoute,
   type PendingApproval
@@ -380,21 +382,15 @@ function completeComputerUseToolCall(
     ...identity,
     result
   });
-  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
-    activeComputerUseToolIdentity = null;
-  }
-  if (
-    pendingApproval
-    && pendingApproval.turnId === identity.turnId
-    && pendingApproval.toolCallId === identity.toolCallId
-  ) {
-    pendingApproval = null;
-  }
-
+  const state = { pendingApproval, activeToolIdentity: activeComputerUseToolIdentity };
+  const nextState = completeComputerUseToolCallState(state, identity);
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
 }
 
 function cancelActiveComputerUseToolCall(reason: string): void {
-  const identity = pendingApproval ?? activeComputerUseToolIdentity;
+  const state = { pendingApproval, activeToolIdentity: activeComputerUseToolIdentity };
+  const identity = readComputerUseToolCallIdentityToCancel(state);
   if (!identity) {
     return;
   }
@@ -404,10 +400,9 @@ function cancelActiveComputerUseToolCall(reason: string): void {
     toolCallId: identity.toolCallId,
     reason
   });
-  pendingApproval = null;
-  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
-    activeComputerUseToolIdentity = null;
-  }
+  const nextState = cancelComputerUseToolCallState(state, identity);
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
 }
 
 async function resumePendingApprovalTask(
