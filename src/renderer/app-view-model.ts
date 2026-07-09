@@ -749,6 +749,7 @@ function getPetRouteOutcomeSignalDetail(outcome: PetRouteOutcome): string {
     ? `${outcome.routeLabel} · `
     : "";
   const detail = outcome.detail.trim();
+  const metadata = formatPetRouteOutcomeMetadata(outcome);
 
   if (outcome.kind === "idle" && !routePrefix) {
     return "暂无路由活动";
@@ -758,7 +759,16 @@ function getPetRouteOutcomeSignalDetail(outcome: PetRouteOutcome): string {
     return "状态待确认";
   }
 
-  return `${routePrefix}${detail || outcome.value}`;
+  return `${routePrefix}${detail || outcome.value}${metadata}`;
+}
+
+function formatPetRouteOutcomeMetadata(outcome: PetRouteOutcome): string {
+  const metadata = [
+    outcome.denialKind ? `拒绝 ${outcome.denialKind}` : undefined,
+    outcome.policyKind ? `策略 ${outcome.policyKind}` : undefined
+  ].filter((value): value is string => Boolean(value));
+
+  return metadata.length > 0 ? ` · ${metadata.join(" · ")}` : "";
 }
 
 function summarizePetRouteToolAction(action: {

@@ -707,7 +707,7 @@ describe("app view model", () => {
     });
     expect(getPetRouteOutcomeSignal(outcome)).toEqual({
       label: "应用策略拒绝",
-      detail: "ghostty · Configured app policy blocked Ghostty.",
+      detail: "ghostty · Configured app policy blocked Ghostty. · 拒绝 app_policy · 策略 app-policy",
       tone: "danger"
     });
   });
@@ -751,7 +751,7 @@ describe("app view model", () => {
     });
     expect(getPetRouteOutcomeSignal(outcome)).toEqual({
       label: "应用策略拒绝",
-      detail: "ghostty · Ghostty denied by app policy with token=[redacted]",
+      detail: "ghostty · Ghostty denied by app policy with token=[redacted] · 拒绝 app_policy · 策略 app-policy",
       tone: "danger"
     });
   });
@@ -803,7 +803,7 @@ describe("app view model", () => {
     });
     expect(getPetRouteOutcomeSignal(outcome)).toEqual({
       label: "Chrome 站点策略拒绝",
-      detail: "chrome · Chrome host policy blocked token=[redacted]",
+      detail: "chrome · Chrome host policy blocked token=[redacted] · 策略 chrome-host-policy",
       tone: "danger"
     });
   });

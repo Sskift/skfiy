@@ -327,7 +327,9 @@ describe("App", () => {
 
     const dashboard = await screen.findByLabelText("用户态 dashboard");
     expect(within(dashboard).getByText("应用策略拒绝")).toBeInTheDocument();
-    expect(within(dashboard).getByText("ghostty · Configured app policy blocked Ghostty.")).toBeInTheDocument();
+    expect(within(dashboard).getByText(
+      "ghostty · Configured app policy blocked Ghostty. · 拒绝 app_policy · 策略 app-policy"
+    )).toBeInTheDocument();
   });
 
   it("shows explicit task-event route outcomes in the user-mode dashboard", async () => {
@@ -352,7 +354,9 @@ describe("App", () => {
 
     const dashboard = await screen.findByLabelText("用户态 dashboard");
     expect(within(dashboard).getByText("Chrome 站点策略拒绝")).toBeInTheDocument();
-    expect(within(dashboard).getByText("chrome · Chrome host policy blocked token=[redacted]")).toBeInTheDocument();
+    expect(within(dashboard).getByText(
+      "chrome · Chrome host policy blocked token=[redacted] · 策略 chrome-host-policy"
+    )).toBeInTheDocument();
   });
 
   it("shows startup guard warnings as a non-blocking pet bubble", async () => {
