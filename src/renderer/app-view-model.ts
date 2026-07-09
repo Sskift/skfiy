@@ -547,6 +547,7 @@ export function readPetRouteOutcome({
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    routeOutcome?: PetRouteOutcome;
     stopTurnBehavior?: PetStopTurnBehavior;
   };
   turnReplay: {
@@ -575,6 +576,11 @@ export function readPetRouteOutcome({
     }>;
   } | null;
 }): PetRouteOutcome {
+  const explicitTaskRouteOutcome = readExplicitPetRouteOutcome(task.routeOutcome);
+  if (explicitTaskRouteOutcome) {
+    return explicitTaskRouteOutcome;
+  }
+
   const explicitRouteOutcome = readExplicitPetRouteOutcome(turnReplay?.routeOutcome);
   if (explicitRouteOutcome && (task.status !== "idle" || explicitRouteOutcome.kind === "idle")) {
     return explicitRouteOutcome;
@@ -638,6 +644,7 @@ export function getUserDashboardPanelViewModel({
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    routeOutcome?: PetRouteOutcome;
     stopTurnBehavior?: PetStopTurnBehavior;
   };
   turnReplay: {

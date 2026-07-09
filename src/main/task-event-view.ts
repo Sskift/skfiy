@@ -18,6 +18,10 @@ import {
   createTaskEventRouteMetadata,
   type TaskEventRouteMetadata
 } from "./task-event-route-metadata.js";
+import {
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export type ManualMode = "active" | "quiet";
 export type TaskStatus =
@@ -52,6 +56,7 @@ export interface TaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  routeOutcome?: RouteOutcome;
   stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
@@ -204,6 +209,7 @@ export function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
     ...(event.routeReason ? { routeReason: event.routeReason } : {}),
     ...(event.denialKind ? { denialKind: event.denialKind } : {}),
     ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+    ...(event.routeOutcome ? { routeOutcome: event.routeOutcome } : {}),
     ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {})
   };
 }
@@ -213,10 +219,40 @@ export function withRouteTaskEventMetadata(
   route: CommandRoute | ExecutableCommandRoute,
   metadata: TaskEventRouteMetadata = {}
 ): TaskEvent {
-  return {
+  const routedEvent = {
     ...event,
     ...createTaskEventRouteMetadata(route, metadata)
   };
+
+  return {
+    ...routedEvent,
+    routeOutcome: createTaskEventRouteOutcome(routedEvent)
+  };
+}
+
+function createTaskEventRouteOutcome(event: TaskEvent): RouteOutcome {
+  return readRouteOutcome({
+    currentTurn: {
+      state: event.status,
+      source: "task-event",
+      ...(event.command ? { command: event.command } : {}),
+      ...(event.route ? { route: event.route } : {}),
+      ...(event.routeReason ? { routeReason: event.routeReason } : {}),
+      ...(event.denialKind ? { denialKind: event.denialKind } : {}),
+      ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+      ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {}),
+      ...(event.message ? { latestMessage: event.message } : {})
+    },
+    defaultSource: "task-event",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeTaskEventRouteOutcomeString
+  });
+}
+
+function sanitizeTaskEventRouteOutcomeString(value: string): string {
+  return value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]");
 }
 
 function formatFinderSelectionSummary(context: FinderSelectionResult): string {

@@ -75,13 +75,20 @@ describe("main pending approval helpers", () => {
       }
     );
 
-    expect(createPendingApprovalDeniedTaskEvent(approval)).toEqual({
+    expect(createPendingApprovalDeniedTaskEvent(approval)).toMatchObject({
       status: "denied",
       message: "Task denied.",
       command: "open https://example.test",
       route: "chrome",
       routeReason: USER_DENIED_COMPUTER_USE_REASON,
-      denialKind: "user"
+      denialKind: "user",
+      routeOutcome: {
+        kind: "user_denied",
+        value: "user_denied",
+        routeLabel: "chrome",
+        source: "task-event",
+        denialKind: "user"
+      }
     });
   });
 

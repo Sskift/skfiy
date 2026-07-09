@@ -88,6 +88,7 @@ interface TaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  routeOutcome?: RouteOutcome;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
@@ -258,6 +259,7 @@ interface TurnReplay {
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    routeOutcome?: RouteOutcome;
   }>;
 }
 
@@ -428,6 +430,7 @@ function isTaskEvent(value: unknown): value is TaskEvent {
     && (candidate.routeReason === undefined || typeof candidate.routeReason === "string")
     && (candidate.denialKind === undefined || typeof candidate.denialKind === "string")
     && (candidate.policyKind === undefined || typeof candidate.policyKind === "string")
+    && (candidate.routeOutcome === undefined || isRouteOutcome(candidate.routeOutcome))
   );
 }
 
@@ -968,6 +971,7 @@ function isTurnReplayTimelineEvent(
     && (event.routeReason === undefined || typeof event.routeReason === "string")
     && (event.denialKind === undefined || typeof event.denialKind === "string")
     && (event.policyKind === undefined || typeof event.policyKind === "string")
+    && (event.routeOutcome === undefined || isRouteOutcome(event.routeOutcome))
   );
 }
 

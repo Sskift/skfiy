@@ -117,7 +117,19 @@ describe("app task state", () => {
       route: "ghostty",
       routeReason: "Ghostty is denied by configured app policy.",
       denialKind: "app_policy",
-      policyKind: "app-policy"
+      policyKind: "app-policy",
+      routeOutcome: {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        detail: "Ghostty is denied by configured app policy.",
+        tone: "danger",
+        source: "task-event",
+        routeLabel: "ghostty",
+        state: "blocked",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      }
     })).toMatchObject({
       status: "blocked",
       message: "Ghostty is blocked by configured app policy.",
@@ -125,7 +137,13 @@ describe("app task state", () => {
       route: "ghostty",
       routeReason: "Ghostty is denied by configured app policy.",
       denialKind: "app_policy",
-      policyKind: "app-policy"
+      policyKind: "app-policy",
+      routeOutcome: {
+        kind: "app_policy_denied",
+        detail: "Ghostty is denied by configured app policy.",
+        source: "task-event",
+        routeLabel: "ghostty"
+      }
     });
   });
 

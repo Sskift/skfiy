@@ -59,6 +59,7 @@ describe("task status boundary contract", () => {
       expect(source, `${name} should preserve route reasons`).toContain("routeReason?: string");
       expect(source, `${name} should preserve denial kind`).toContain("denialKind?: string");
       expect(source, `${name} should preserve policy kind`).toContain("policyKind?: string");
+      expect(source, `${name} should preserve structured route outcomes`).toContain("routeOutcome?: RouteOutcome");
     }
   });
 

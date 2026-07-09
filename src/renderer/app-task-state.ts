@@ -1,6 +1,7 @@
 import type {
   FinderPlanPreview,
   ObserveAppReplayRecord,
+  RouteOutcome,
   TaskEvent,
   TaskEventStopTurnBehavior,
   TaskStatus
@@ -15,6 +16,7 @@ export interface TaskView {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  routeOutcome?: RouteOutcome;
   stopTurnBehavior?: TaskEventStopTurnBehavior;
   finderPlanPreview?: FinderPlanPreview;
 }
@@ -76,6 +78,7 @@ export function createTaskViewFromEvent(event: TaskEvent): TaskView {
     ...(event.routeReason ? { routeReason: event.routeReason } : {}),
     ...(event.denialKind ? { denialKind: event.denialKind } : {}),
     ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+    ...(event.routeOutcome ? { routeOutcome: event.routeOutcome } : {}),
     ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {}),
     finderPlanPreview: event.finderPlanPreview
   };

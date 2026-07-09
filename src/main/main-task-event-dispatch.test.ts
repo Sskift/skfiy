@@ -40,7 +40,7 @@ describe("createComputerUseTaskEventDispatch", () => {
       route: ghosttyRoute
     });
 
-    expect(dispatch).toEqual({
+    expect(dispatch).toMatchObject({
       approvalRequest: {
         command: "pwd",
         planApproved: false,
@@ -50,7 +50,13 @@ describe("createComputerUseTaskEventDispatch", () => {
         status: "approval_required",
         message: "Approval required (medium): Terminal command needs approval.",
         command: "pwd",
-        route: "ghostty"
+        route: "ghostty",
+        routeOutcome: {
+          kind: "approval_required",
+          value: "approval_required",
+          routeLabel: "ghostty",
+          source: "task-event"
+        }
       },
       toolResult: undefined
     });
@@ -101,10 +107,16 @@ describe("createComputerUseTaskEventDispatch", () => {
     });
 
     expect(dispatch.approvalRequest).toBeUndefined();
-    expect(dispatch.taskStatus).toEqual({
+    expect(dispatch.taskStatus).toMatchObject({
       status: "completed",
       message: "pwd completed.",
-      route: "ghostty"
+      route: "ghostty",
+      routeOutcome: {
+        kind: "completed",
+        value: "completed",
+        routeLabel: "ghostty",
+        source: "task-event"
+      }
     });
     expect(dispatch.toolResult).toEqual({
       status: "completed",
@@ -130,10 +142,16 @@ describe("createComputerUseTaskEventDispatch", () => {
     });
 
     expect(dispatch.approvalRequest).toBeUndefined();
-    expect(dispatch.taskStatus).toEqual({
+    expect(dispatch.taskStatus).toMatchObject({
       status: "failed",
       message: "Accessibility is denied.",
-      route: "ghostty"
+      route: "ghostty",
+      routeOutcome: {
+        kind: "failed",
+        value: "failed",
+        routeLabel: "ghostty",
+        source: "task-event"
+      }
     });
     expect(dispatch.toolResult).toEqual({
       status: "failed",

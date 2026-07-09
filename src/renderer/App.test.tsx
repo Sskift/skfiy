@@ -330,6 +330,31 @@ describe("App", () => {
     expect(within(dashboard).getByText("ghostty · Configured app policy blocked Ghostty.")).toBeInTheDocument();
   });
 
+  it("shows explicit task-event route outcomes in the user-mode dashboard", async () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "blocked",
+      message: "Current Chrome route cannot continue.",
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked token=task-secret",
+        tone: "danger",
+        source: "task-event",
+        routeLabel: "chrome",
+        state: "blocked",
+        policyKind: "chrome-host-policy"
+      }
+    }));
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const dashboard = await screen.findByLabelText("用户态 dashboard");
+    expect(within(dashboard).getByText("Chrome 站点策略拒绝")).toBeInTheDocument();
+    expect(within(dashboard).getByText("chrome · Chrome host policy blocked token=[redacted]")).toBeInTheDocument();
+  });
+
   it("shows startup guard warnings as a non-blocking pet bubble", async () => {
     const api = window.skfiy as DesktopApi;
     api.getStartupWarnings = vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([

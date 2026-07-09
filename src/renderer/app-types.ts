@@ -1,10 +1,12 @@
 import type { PetAtlasManifest } from "./pet-atlas";
 import type {
+  RouteOutcome,
   RouteOutcomeKind,
   RouteOutcomeTone
 } from "../shared/route-outcome.js";
 
 export type {
+  RouteOutcome,
   RouteOutcomeKind,
   RouteOutcomeTone
 };
@@ -153,18 +155,7 @@ export interface TurnTranscript {
 
 export interface TurnReplay {
   transcript: TurnTranscript;
-  routeOutcome?: {
-    kind: RouteOutcomeKind;
-    title: string;
-    value: string;
-    detail: string;
-    tone: RouteOutcomeTone;
-    source: string;
-    routeLabel: string;
-    state: string;
-    denialKind?: string;
-    policyKind?: string;
-  };
+  routeOutcome?: RouteOutcome;
   timeline: Array<{
     status: TaskStatus;
     message?: string;
@@ -173,6 +164,7 @@ export interface TurnReplay {
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    routeOutcome?: RouteOutcome;
     stopTurnBehavior?: TaskEventStopTurnBehavior;
   }>;
 }
@@ -249,6 +241,7 @@ export interface TaskEvent {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  routeOutcome?: RouteOutcome;
   stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;

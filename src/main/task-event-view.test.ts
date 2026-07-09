@@ -21,7 +21,14 @@ describe("task event route metadata", () => {
     })).toMatchObject({
       route: "ghostty",
       routeReason: "Route policy requires confirmation before continuing with Ghostty.",
-      policyKind: "route-policy"
+      policyKind: "route-policy",
+      routeOutcome: {
+        kind: "needs_confirmation",
+        value: "needs_confirmation",
+        routeLabel: "ghostty",
+        source: "task-event",
+        policyKind: "route-policy"
+      }
     });
   });
 
@@ -40,36 +47,49 @@ describe("task event route metadata", () => {
     });
     expect(readTurnReplayTaskEvent(event)).toMatchObject({
       status: "needs_clarification",
-      routeReason: "No supported desktop control route matched this request."
+      routeReason: "No supported desktop control route matched this request.",
+      routeOutcome: {
+        kind: "needs_clarification",
+        value: "needs_clarification",
+        source: "task-event"
+      }
     });
   });
 
-  it("preserves explicit app-policy denial metadata in replay task events", () => {
+  it("preserves explicit app-policy denial metadata in replay task events without leaking tokens", () => {
     const event = withRouteTaskEventMetadata({
       status: "blocked",
-      message: "Ghostty is blocked by policy.",
+      message: "Ghostty is blocked by policy with token=event-secret.",
       command: "run pwd"
     }, {
       kind: "ghostty",
       bundleId: "com.mitchellh.ghostty"
     }, {
-      routeReason: "Ghostty is denied by configured app policy.",
+      routeReason: "Ghostty is denied by configured app policy with token=event-secret.",
       denialKind: "app_policy",
       policyKind: "app-policy"
     });
 
     expect(event).toMatchObject({
       route: "ghostty",
-      routeReason: "Ghostty is denied by configured app policy.",
+      routeReason: "Ghostty is denied by configured app policy with token=event-secret.",
       denialKind: "app_policy",
       policyKind: "app-policy"
     });
     expect(readTurnReplayTaskEvent(event)).toMatchObject({
       status: "blocked",
       route: "ghostty",
-      routeReason: "Ghostty is denied by configured app policy.",
+      routeReason: "Ghostty is denied by configured app policy with token=event-secret.",
       denialKind: "app_policy",
-      policyKind: "app-policy"
+      policyKind: "app-policy",
+      routeOutcome: {
+        kind: "app_policy_denied",
+        detail: "Ghostty is denied by configured app policy with token=[redacted]",
+        routeLabel: "ghostty",
+        source: "task-event",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      }
     });
   });
 

@@ -714,6 +714,58 @@ describe("app view model", () => {
     });
   });
 
+  it("uses explicit task event route outcome before stale replay route outcome", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "blocked",
+        message: "Blocked by current task event.",
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=task-secret",
+          tone: "danger",
+          source: "task-event",
+          routeLabel: "chrome",
+          state: "blocked",
+          policyKind: "chrome-host-policy"
+        }
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "completed",
+          title: "Route completed",
+          value: "completed",
+          detail: "Previous route completed.",
+          tone: "success",
+          source: "turn-replay",
+          routeLabel: "finder",
+          state: "completed"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(outcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "task-event",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "Chrome 站点策略拒绝",
+      detail: "chrome · Chrome host policy blocked token=[redacted]",
+      tone: "danger"
+    });
+  });
+
   it("keeps idle pet route signal from being overwritten by stale replay outcome", () => {
     expect(readPetRouteOutcome({
       task: {
