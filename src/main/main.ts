@@ -82,15 +82,16 @@ import {
 } from "./stop-turn-hotkey.js";
 import { createScreenshotPathFactory } from "./screenshot-path.js";
 import {
-  calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
   calculatePetWindowDragMove,
   readWindowPositionOverride,
-  resizePetWindowBoundsKeepingBottom,
-  resizePetWindowBoundsKeepingPetAnchor,
   type Point,
   type Size
 } from "./window-position.js";
+import {
+  COMPACT_WINDOW_SIZE,
+  createPetWindowModeTransition
+} from "./main-window-state.js";
 import {
   writeRuntimeSnapshot,
   writeRuntimeTurnMarker,
@@ -158,8 +159,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 app.setName("skfiy");
-const COMPACT_WINDOW_SIZE: Size = { width: 90, height: 66 };
-const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const PERSONAL_MEMORY_REVIEW_TIMEOUT_MS = 15_000;
 const skfiyAppSupportDir = createSkfiyApplicationSupportPath(os.homedir());
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
@@ -973,29 +972,17 @@ async function createWindow() {
 }
 
 function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
-  const nextSize = mode === "expanded" ? EXPANDED_WINDOW_SIZE : COMPACT_WINDOW_SIZE;
-  const currentBounds = window.getBounds();
+  const transition = createPetWindowModeTransition({
+    mode,
+    currentBounds: window.getBounds(),
+    currentPetAnchor,
+    currentPetSize,
+    displays: screen.getAllDisplays()
+  });
 
-  if (currentBounds.width === nextSize.width && currentBounds.height === nextSize.height) {
-    return;
+  if (transition.kind === "set-bounds") {
+    window.setBounds(transition.bounds);
   }
-
-  if (currentPetAnchor && currentPetSize) {
-    const nextOffset = calculatePetWindowOffsetForMode({
-      mode,
-      windowSize: nextSize,
-      petSize: currentPetSize
-    });
-    window.setBounds(resizePetWindowBoundsKeepingPetAnchor({
-      anchor: currentPetAnchor,
-      nextSize,
-      nextOffset,
-      displays: screen.getAllDisplays()
-    }));
-    return;
-  }
-
-  window.setBounds(resizePetWindowBoundsKeepingBottom(currentBounds, nextSize));
 }
 
 ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, visibleRectValue: unknown) => {
