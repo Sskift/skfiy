@@ -20,6 +20,7 @@ import {
   runSkfiyCli
 } from "./cli-command-surface";
 import {
+  createRuntimeSnapshotFromReplay,
   createRuntimeSnapshotStatePath,
   createRuntimeTurnMarkerStatePath
 } from "./runtime-snapshot";
@@ -3002,6 +3003,81 @@ describe("CLI command surface", () => {
     });
     expect(JSON.stringify(output)).not.toContain("secret-token");
     expect(stderr).toEqual([]);
+  });
+
+  it("surfaces token-free route outcome semantics in operator status", async () => {
+    const homeDir = createTempRoot();
+    const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    try {
+      mkdirSync(path.dirname(snapshotPath), { recursive: true });
+      writeFileSync(snapshotPath, `${JSON.stringify(createRuntimeSnapshotFromReplay({
+        replay: null,
+        currentTurn: {
+          status: "blocked",
+          message: "Configured app policy blocked Ghostty token=secret-token.",
+          command: "run token=secret-token command",
+          route: "ghostty",
+          routeReason: "Configured app policy blocked Ghostty token=secret-token.",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        },
+        observedAt: "2026-06-20T00:00:00.000Z"
+      }), null, 2)}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["operator", "status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:30.000Z",
+        statusReader: async () => ({
+          app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          cli: { state: "installed", path: "/repo/dist/skfiy" },
+          helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            finderAutomation: "granted"
+          },
+          desktopSession: {
+            state: "controllable",
+            controllable: true
+          },
+          extension: { state: "unknown" },
+          nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+          dashboard: { state: "not-running" },
+          moneyRun: {
+            state: "observing",
+            session: "money-run",
+            source: "tmux-read-only-probe",
+            mutatesSession: false
+          }
+        }),
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+      expect(output.routeOutcome).toMatchObject({
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        tone: "danger",
+        source: "runtime-snapshot",
+        routeLabel: "ghostty",
+        state: "blocked",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      });
+      expect(output.routeOutcome.detail).toContain("redacted=[redacted]");
+      expect(JSON.stringify(output)).not.toContain("secret-token");
+      expect(JSON.stringify(output)).not.toContain("token=secret-token");
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+    }
   });
 
   it("uses --require-ready to turn operator blockers into a non-zero exit", async () => {

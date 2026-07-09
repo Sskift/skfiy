@@ -1,4 +1,5 @@
 import {
+  compactRecord,
   readRecord,
   readString
 } from "./cli-record-utils.js";
@@ -9,6 +10,10 @@ import {
 import type { CliCommandInvocation } from "./cli-command-normalization.js";
 import type { StatusReadinessContext } from "./cli-status-readiness.js";
 import { SKFIY_MCP_TOOL_NAMES } from "./skfiy-mcp-server.js";
+import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone
+} from "../shared/route-outcome.js";
 
 export type OperatorStatusReadinessFactory = (
   status: Record<string, unknown>,
@@ -60,6 +65,7 @@ export function createOperatorStatusOutput({
       extension: readRecord(checks?.extension) ?? { state: "unknown", ready: false },
       moneyRun: readRecord(checks?.moneyRun) ?? { state: "unknown", ready: false }
     },
+    routeOutcome: createOperatorRouteOutcome(status),
     readiness,
     blockers: Array.isArray(readiness.blockers) ? readiness.blockers : [],
     supervision: {
@@ -71,6 +77,40 @@ export function createOperatorStatusOutput({
   };
 
   return sanitizeTokenFree(output) as Record<string, unknown>;
+}
+
+function createOperatorRouteOutcome(status: Record<string, unknown>): Record<string, unknown> {
+  const evidence = readRecord(status.evidence);
+  const runtimeSnapshot = readRecord(status.runtimeSnapshot) ?? readRecord(evidence?.runtimeSnapshot);
+  const routeOutcome = readRecord(runtimeSnapshot?.routeOutcome);
+  const currentTurn = readRecord(runtimeSnapshot?.currentTurn) ?? readRecord(evidence?.currentTurn);
+  const fallbackState = readString(currentTurn?.state) ?? "unknown";
+
+  if (!routeOutcome) {
+    return {
+      kind: "unknown",
+      title: "Route unknown",
+      value: "unknown",
+      detail: "Runtime route outcome has not been probed.",
+      tone: "neutral",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: fallbackState
+    };
+  }
+
+  return compactRecord({
+    kind: isRouteOutcomeKind(routeOutcome.kind) ? routeOutcome.kind : "unknown",
+    title: readString(routeOutcome.title) ?? "Route unknown",
+    value: readString(routeOutcome.value) ?? "unknown",
+    detail: readString(routeOutcome.detail) ?? "Runtime route outcome has not been probed.",
+    tone: isRouteOutcomeTone(routeOutcome.tone) ? routeOutcome.tone : "neutral",
+    source: readString(routeOutcome.source) ?? "runtime-snapshot",
+    routeLabel: readString(routeOutcome.routeLabel) ?? "unknown",
+    state: readString(routeOutcome.state) ?? fallbackState,
+    denialKind: readString(routeOutcome.denialKind),
+    policyKind: readString(routeOutcome.policyKind)
+  });
 }
 
 function createOperatorPluginStatus(

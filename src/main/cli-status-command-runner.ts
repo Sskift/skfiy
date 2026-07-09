@@ -169,10 +169,17 @@ export async function runOperatorStatusCli({
   });
 
   try {
-    const status = withStatusReadiness(await statusReader(input), input);
+    const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
+    const status = withCliStatusEvidence(
+      withStatusReadiness(await statusReader(input), input),
+      {
+        ...input,
+        generatedAt: effectiveGeneratedAt
+      }
+    );
     const output = createOperatorStatusOutput({
       invocation,
-      generatedAt: generatedAt ?? new Date().toISOString(),
+      generatedAt: effectiveGeneratedAt,
       status,
       result: "probed",
       createReadinessSummary: createCliStatusReadinessSummary
