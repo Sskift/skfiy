@@ -397,6 +397,7 @@ function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Reco
     approvalRequired: readBoolean(currentTurn.approvalRequired),
     approvalState: readString(currentTurn.approvalState),
     stopState: readString(currentTurn.stopState),
+    stopTurnBehavior: summarizeRuntimeStopTurnBehavior(readRecord(currentTurn.stopTurnBehavior)),
     updateSource: readString(currentTurn.updateSource),
     latestToolStatus: readString(currentTurn.latestToolStatus),
     latestMessage: sanitizeStatusEvidenceString(readString(currentTurn.latestMessage)),
@@ -404,6 +405,20 @@ function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Reco
     latestVerification: summarizeNamedStatusRecord(readRecord(currentTurn.latestVerification), ["actionType", "status", "message", "reason"]),
     latestScreenshot: summarizeNamedStatusRecord(readRecord(currentTurn.latestScreenshot), ["stage", "bundleId", "recommendation", "sourceCount"])
   });
+}
+
+function summarizeRuntimeStopTurnBehavior(
+  behavior: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  return summarizeNamedStatusRecord(behavior, [
+    "result",
+    "source",
+    "command",
+    "beforeStatus",
+    "beforeMessage",
+    "afterStatus",
+    "afterMessage"
+  ]);
 }
 
 function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string, unknown> {

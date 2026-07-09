@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import { createCliStatusEvidence, withCliStatusEvidence } from "./cli-status-evidence";
 import {
   createRuntimeSnapshotFromReplay,
-  createRuntimeSnapshotStatePath
+  createRuntimeSnapshotStatePath,
+  createRuntimeTurnMarker,
+  createRuntimeTurnMarkerStatePath
 } from "./runtime-snapshot";
 
 describe("CLI status evidence", () => {
@@ -617,6 +619,79 @@ describe("CLI status evidence", () => {
           detail: "Task stopped."
         }
       });
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves Task stopped route outcome from recent turn markers when the runtime snapshot is missing", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+      mkdirSync(path.dirname(markerPath), { recursive: true });
+      writeFileSync(markerPath, `${JSON.stringify(createRuntimeTurnMarker({
+        currentTurn: {
+          status: "cancelled",
+          command: "stop Chrome token=secret-token",
+          route: "chrome",
+          routeReason: "Task stopped.",
+          stopTurnBehavior: {
+            source: "hotkey",
+            command: "stop Chrome token=secret-token at /Users/tester/Profile",
+            beforeStatus: "executing",
+            beforeMessage: "Chrome action running with token=secret-token.",
+            afterStatus: "cancelled",
+            afterMessage: "Task stopped."
+          }
+        },
+        observedAt: "2026-07-07T00:01:30.000Z"
+      }), null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:01:30.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "missing-after-turn",
+        currentTurn: {
+          state: "cancelled",
+          source: "runtime-turn-marker",
+          route: "chrome",
+          routeReason: "Task stopped.",
+          stopTurnBehavior: {
+            source: "hotkey",
+            command: "stop Chrome redacted=[redacted] at [path]",
+            beforeStatus: "executing",
+            beforeMessage: "Chrome action running with redacted=[redacted]",
+            afterStatus: "cancelled",
+            afterMessage: "Task stopped."
+          }
+        },
+        routeOutcome: {
+          kind: "stopped",
+          title: "Route stopped",
+          value: "stopped",
+          state: "cancelled",
+          routeLabel: "chrome",
+          detail: "Task stopped."
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
       rmSync(homeDir, { recursive: true, force: true });
