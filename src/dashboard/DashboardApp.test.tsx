@@ -590,6 +590,10 @@ describe("DashboardApp", () => {
     expect(within(operatorEvidenceDetails).getByText("allowlisted-dashboard-summary")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("readiness")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("blocked")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("unknown")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getAllByText("idle").length).toBeGreaterThanOrEqual(2);
     expect(within(operatorEvidenceDetails).getByText("smoke artifacts")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("2")).toBeInTheDocument();
     expect(within(activity).getByRole("link", { name: "Operator evidence JSON" }))
@@ -801,6 +805,11 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
     expect(within(activity).getByText("denial app_policy")).toBeInTheDocument();
     expect(within(activity).getByText("policy app-policy")).toBeInTheDocument();
+    const operatorEvidenceDetails = within(activity).getByRole("list", { name: "Operator evidence details" });
+    expect(within(operatorEvidenceDetails).getByText("route")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("ghostty")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("app_policy_denied")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("App policy denied route").length).toBeGreaterThan(0);

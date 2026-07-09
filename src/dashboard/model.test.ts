@@ -841,6 +841,8 @@ describe("readOperatorEvidenceSummary", () => {
         { label: "token free", value: "yes", tone: "success" },
         { label: "source", value: "allowlisted-dashboard-summary", tone: "neutral" },
         { label: "turn", value: "approval_required", tone: "neutral" },
+        { label: "route", value: "unknown", tone: "neutral" },
+        { label: "route outcome", value: "approval_required", tone: "warning" },
         { label: "replay", value: "available", tone: "neutral" },
         { label: "readiness", value: "blocked", tone: "danger" },
         { label: "alerts", value: "1", tone: "warning" },

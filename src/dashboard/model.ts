@@ -3366,6 +3366,7 @@ export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): Dashbo
   const runtime = readRecord(snapshot.runtimeHealth) ?? {};
   const extension = readRecord(runtime.extension) ?? {};
   const nativeHost = readRecord(runtime.nativeHost) ?? {};
+  const routeOutcome = readRouteOutcome(snapshot);
   const readinessState = readString(snapshot.operatorReadiness.state) ?? "unknown";
   const alertCount = snapshot.alerts.length;
   const artifactCount = readRecordArray(snapshot.smokeEvidence.artifacts).length;
@@ -3395,6 +3396,16 @@ export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): Dashbo
       createStatusItem("token free", "yes", "success"),
       createStatusItem("source", "allowlisted-dashboard-summary"),
       createStatusItem("turn", readString(snapshot.currentTurn.state) ?? "unknown"),
+      createStatusItem(
+        "route",
+        routeOutcome.routeLabel,
+        routeOutcome.routeLabel === "unknown" ? "neutral" : routeOutcome.tone
+      ),
+      createStatusItem(
+        "route outcome",
+        routeOutcome.value,
+        routeOutcome.kind === "idle" ? "neutral" : routeOutcome.tone
+      ),
       createStatusItem("replay", readString(snapshot.replay.state) ?? "unknown"),
       createStatusItem("readiness", readinessState, readReadinessTone(readinessState)),
       createStatusItem("alerts", alertCount, alertCount > 0 ? (hasError ? "danger" : "warning") : "success"),
