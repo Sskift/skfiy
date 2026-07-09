@@ -276,6 +276,48 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("infers blocked route state from replay latest tool call status without replay outcome", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "finder",
+          status: "blocked",
+          summary: "Configured policy blocked Finder.",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        }
+      }
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      value: "app_policy_denied",
+      detail: "Configured policy blocked Finder.",
+      routeLabel: "finder",
+      state: "blocked",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+  });
+
+  it("infers failed route state from replay latest tool call status without replay outcome", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "failed",
+          summary: "Chrome action failed."
+        }
+      }
+    })).toMatchObject({
+      kind: "failed",
+      value: "failed",
+      detail: "Chrome action failed.",
+      routeLabel: "chrome",
+      state: "failed"
+    });
+  });
+
   it("keeps policy denial metadata distinct even when the route state is denied", () => {
     expect(readRouteOutcome({
       currentTurn: {

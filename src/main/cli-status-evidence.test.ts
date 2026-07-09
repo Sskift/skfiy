@@ -251,6 +251,72 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("infers route outcome state from latest tool call status when replay outcome is absent", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-07-07T00:00:12.000Z",
+        currentTurn: {},
+        replay: {
+          state: "available",
+          source: "runtime-snapshot",
+          latestToolCall: {
+            type: "tool_result",
+            route: "chrome",
+            status: "failed",
+            summary: "Chrome action failed token=secret-token at /Users/tester/Profile.",
+            artifactCount: 0
+          }
+        }
+      }, null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:12.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        routeOutcome: {
+          kind: "failed",
+          state: "failed",
+          routeLabel: "chrome",
+          detail: "Chrome action failed redacted=[redacted] at [path]"
+        },
+        replay: {
+          state: "available",
+          latestToolCall: {
+            type: "tool_result",
+            route: "chrome",
+            status: "failed",
+            summary: "Chrome action failed redacted=[redacted] at [path]",
+            artifactCount: 0
+          }
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("validates explicit runtime snapshot route outcome before exposing CLI evidence", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));

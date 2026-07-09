@@ -84,7 +84,7 @@ export function readRouteOutcome({
   const latestReplayEvent = readLatestReplayEvent(replay);
   const latestToolCall = readRecord(replay?.latestToolCall);
   const state = readString(currentTurn?.state, sanitizeString)
-    ?? readReplayRouteState(replay, latestReplayEvent, sanitizeString)
+    ?? readReplayRouteState(replay, latestReplayEvent, latestToolCall, sanitizeString)
     ?? "idle";
   const approvalState = readString(currentTurn?.approvalState, sanitizeString);
   const approvalPending = isApprovalPending(currentTurn, approvalState);
@@ -571,11 +571,13 @@ function readRouteLabel(
 function readReplayRouteState(
   replay: Record<string, unknown> | undefined,
   latestReplayEvent: Record<string, unknown> | undefined,
+  latestToolCall: Record<string, unknown> | undefined,
   sanitizeString?: (value: string) => string | undefined
 ): string | undefined {
   return readString(latestReplayEvent?.status, sanitizeString)
     ?? readRouteStateFromReplayOutcome(readString(replay?.outcome, sanitizeString))
     ?? readRouteStateFromReplayOutcome(readString(readRecord(replay?.transcript)?.outcome, sanitizeString))
+    ?? readRouteStateValue(readString(latestToolCall?.status, sanitizeString))
     ?? readRouteStateValue(readString(replay?.state, sanitizeString));
 }
 
