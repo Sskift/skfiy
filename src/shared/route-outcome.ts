@@ -76,6 +76,7 @@ export function readRouteOutcome({
 }: RouteOutcomeInput): RouteOutcome {
   const state = readString(currentTurn?.state, sanitizeString) ?? "idle";
   const approvalState = readString(currentTurn?.approvalState, sanitizeString);
+  const approvalPending = isApprovalPending(currentTurn, approvalState);
   const routeSignal = readRouteLabel(currentTurn, replay, sanitizeString);
   const routeLabel = routeSignal ?? "unknown";
   const source = readString(currentTurn?.source, sanitizeString) ?? defaultSource;
@@ -90,7 +91,7 @@ export function readRouteOutcome({
     readString(currentTurn?.updateSource, sanitizeString)
   ].filter(Boolean).join(" ").toLowerCase();
 
-  if (state === "idle" && !routeSignal && !readString(currentTurn?.command, sanitizeString)) {
+  if (state === "idle" && !routeSignal && !readString(currentTurn?.command, sanitizeString) && !approvalPending) {
     return createRouteOutcome({
       kind: "idle",
       title: "No active route",
@@ -103,7 +104,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "approval_required") {
+  if (state === "approval_required" || (approvalPending && canApprovalOverrideState(state))) {
     return createRouteOutcome({
       kind: "approval_required",
       title: "Route approval required",
@@ -259,23 +260,6 @@ export function readRouteOutcome({
     });
   }
 
-  if (
-    approvalState === "required"
-    || approvalState === "pending"
-    || currentTurn?.approvalRequired === true
-  ) {
-    return createRouteOutcome({
-      kind: "approval_required",
-      title: "Route approval required",
-      state,
-      value: "approval_required",
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
   return createRouteOutcome({
     kind: "unknown",
     title: "Route state unknown",
@@ -290,6 +274,27 @@ export function readRouteOutcome({
 
 function createRouteOutcome(outcome: RouteOutcome): RouteOutcome {
   return outcome;
+}
+
+function isApprovalPending(
+  currentTurn: Record<string, unknown> | undefined,
+  approvalState: string | undefined
+): boolean {
+  return approvalState === "required"
+    || approvalState === "pending"
+    || currentTurn?.approvalRequired === true;
+}
+
+function canApprovalOverrideState(state: string): boolean {
+  return ![
+    "needs_confirmation",
+    "needs_clarification",
+    "blocked",
+    "denied",
+    "cancelled",
+    "failed",
+    "completed"
+  ].includes(state);
 }
 
 function isAppPolicyDenial(

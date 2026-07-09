@@ -2874,6 +2874,7 @@ export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSumma
       createStatusItem(
         "target",
         readString(snapshot.currentTurn.targetApp)
+          ?? readRouteOutcomeTargetLabel(routeOutcome)
           ?? readString(desktopSession.frontmostLocalizedName)
           ?? "None"
       ),
@@ -2926,6 +2927,8 @@ function readHomeAssistantStateFromRouteOutcome(
   routeOutcome: DashboardRouteOutcome
 ): { label: string; detail: string; tone: Tone } | undefined {
   switch (routeOutcome.kind) {
+    case "approval_required":
+      return { label: "Approval", detail: routeOutcome.title, tone: "warning" };
     case "needs_confirmation":
       return { label: "Confirm", detail: routeOutcome.title, tone: "warning" };
     case "needs_clarification":
@@ -2949,6 +2952,10 @@ function readHomeAssistantStateFromRouteOutcome(
     default:
       return undefined;
   }
+}
+
+function readRouteOutcomeTargetLabel(routeOutcome: DashboardRouteOutcome): string | undefined {
+  return routeOutcome.routeLabel !== "unknown" ? routeOutcome.routeLabel : undefined;
 }
 
 function readHomeNextAction(

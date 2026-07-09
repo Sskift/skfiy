@@ -1230,6 +1230,33 @@ describe("readHomeSummary", () => {
     });
   });
 
+  it("surfaces pending approval before treating a running route as in progress", () => {
+    const summary = readHomeSummary({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "running",
+        route: "finder",
+        approvalState: "pending",
+        approvalRequired: true,
+        latestMessage: "Finder file moves need review.",
+        command: "organize Downloads"
+      },
+      alerts: []
+    });
+
+    expect(summary).toMatchObject({
+      value: "Approval",
+      detail: "Route approval required",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "assistant", value: "Route approval required", tone: "warning" },
+        { label: "current task", value: "organize Downloads", tone: "neutral" },
+        { label: "target", value: "finder", tone: "neutral" },
+        { label: "next", value: "Review pending approval", tone: "warning" }
+      ])
+    });
+  });
+
   it("keeps app-policy denial visible in the Home next action", () => {
     const summary = readHomeSummary({
       ...createSnapshot(),
