@@ -419,7 +419,16 @@ function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string,
     latestAction: summarizeRuntimeAction(readRecordArray(replay.actions).at(-1)),
     latestToolCall: summarizeNamedStatusRecord(
       readRecord(replay.latestToolCall),
-      ["type", "route", "status", "summary", "evidenceSummary", "artifactCount"]
+      [
+        "type",
+        "route",
+        "status",
+        "summary",
+        "evidenceSummary",
+        "artifactCount",
+        "denialKind",
+        "policyKind"
+      ]
     )
   });
 }

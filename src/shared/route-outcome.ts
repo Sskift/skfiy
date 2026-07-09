@@ -82,6 +82,7 @@ export function readRouteOutcome({
   sanitizeString = sanitizeRouteOutcomeString
 }: RouteOutcomeInput): RouteOutcome {
   const latestReplayEvent = readLatestReplayEvent(replay);
+  const latestToolCall = readRecord(replay?.latestToolCall);
   const state = readString(currentTurn?.state, sanitizeString)
     ?? readReplayRouteState(replay, latestReplayEvent, sanitizeString)
     ?? "idle";
@@ -94,9 +95,11 @@ export function readRouteOutcome({
     ?? defaultSource;
   const detail = readRouteDetail({ currentTurn, replay, latestReplayEvent, includeCommandDetail, sanitizeString });
   const denialKind = readString(currentTurn?.denialKind, sanitizeString)
-    ?? readString(latestReplayEvent?.denialKind, sanitizeString);
+    ?? readString(latestReplayEvent?.denialKind, sanitizeString)
+    ?? readString(latestToolCall?.denialKind, sanitizeString);
   const policyKind = readString(currentTurn?.policyKind, sanitizeString)
-    ?? readString(latestReplayEvent?.policyKind, sanitizeString);
+    ?? readString(latestReplayEvent?.policyKind, sanitizeString)
+    ?? readString(latestToolCall?.policyKind, sanitizeString);
   const createOutcome = (outcome: RouteOutcome): RouteOutcome => createRouteOutcome({
     ...outcome,
     ...(denialKind ? { denialKind } : {}),

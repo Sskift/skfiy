@@ -173,6 +173,84 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("preserves latest tool call route denial metadata from runtime snapshots", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-07-07T00:00:10.000Z",
+        currentTurn: {
+          state: "blocked",
+          source: "runtime-snapshot"
+        },
+        replay: {
+          state: "available",
+          source: "runtime-snapshot",
+          outcome: "blocked",
+          latestToolCall: {
+            type: "tool_result",
+            route: "finder",
+            status: "blocked",
+            summary: "Finder blocked by configured app rule token=secret-token at /Users/tester/Desktop.",
+            denialKind: "app_policy",
+            policyKind: "app-policy",
+            artifactCount: 0
+          }
+        }
+      }, null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:10.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        currentTurn: {
+          state: "blocked"
+        },
+        routeOutcome: {
+          kind: "app_policy_denied",
+          state: "blocked",
+          routeLabel: "finder",
+          detail: "Finder blocked by configured app rule redacted=[redacted] at [path]",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        },
+        replay: {
+          latestToolCall: {
+            type: "tool_result",
+            route: "finder",
+            status: "blocked",
+            summary: "Finder blocked by configured app rule redacted=[redacted] at [path]",
+            denialKind: "app_policy",
+            policyKind: "app-policy",
+            artifactCount: 0
+          }
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("validates explicit runtime snapshot route outcome before exposing CLI evidence", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
