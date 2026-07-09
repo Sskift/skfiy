@@ -360,10 +360,16 @@ function createFillWakeDirective(overrides = {}) {
   };
 }
 
+function createLocalhostWakeUrl(overrides = {}) {
+  return createWakeUrl({ targetTabId: 42, ...overrides });
+}
+
+function createLocalhostActionWakeUrl(wakeAction, overrides = {}) {
+  return createLocalhostWakeUrl({ wakeAction, ...overrides });
+}
+
 function createFillWakeUrl(overrides = {}) {
-  return createWakeUrl({
-    targetTabId: 42,
-    wakeAction: "fill",
+  return createLocalhostActionWakeUrl("fill", {
     selector: "#name",
     text: "skfiy",
     ...overrides
@@ -1726,7 +1732,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("routes extension wake tab heartbeats to the requested target tab", async () => {
-    const wakeUrl = createWakeUrl({ targetTabId: 42 });
+    const wakeUrl = createLocalhostWakeUrl();
     const mock = createChromeMock([
       createLocalhostPolicyResponse(),
       createPageObserveResponse()
@@ -1762,7 +1768,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("routes observe wake URLs through page observation native heartbeat", async () => {
-    const wakeUrl = createWakeUrl({ targetTabId: 42, wakeAction: "observe" });
+    const wakeUrl = createLocalhostActionWakeUrl("observe");
     const pageObserveSnapshot = {
       schemaVersion: 1,
       title: "skfiy observe smoke",
@@ -1817,11 +1823,11 @@ describe("Chrome extension background policy sync", () => {
     });
 
     const wakeUrls = [
-      createWakeUrl({ targetTabId: 42, wakeAction: "screenshot", requestId: "cli-screenshot-current" }),
-      createWakeUrl({ targetTabId: 42, wakeAction: "click", selector: "#submit", requestId: "cli-click-current" }),
+      createLocalhostActionWakeUrl("screenshot", { requestId: "cli-screenshot-current" }),
+      createLocalhostActionWakeUrl("click", { selector: "#submit", requestId: "cli-click-current" }),
       createFillWakeUrl({ requestId: "cli-fill-current" }),
-      createWakeUrl({ targetTabId: 42, wakeAction: "submit", selector: "form", requestId: "cli-submit-current" }),
-      createWakeUrl({ targetTabId: 42, wakeAction: "scroll", dy: 600, requestId: "cli-scroll-current" })
+      createLocalhostActionWakeUrl("submit", { selector: "form", requestId: "cli-submit-current" }),
+      createLocalhostActionWakeUrl("scroll", { dy: 600, requestId: "cli-scroll-current" })
     ];
 
     await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
@@ -1911,8 +1917,8 @@ describe("Chrome extension background policy sync", () => {
     });
 
     const wakeUrls = [
-      createWakeUrl({ wake: "submit-no-response", targetTabId: 42, wakeAction: "submit", requestId: "page-control-submit-cli-1", selector: "form" }),
-      createWakeUrl({ wake: "scroll-no-response", targetTabId: 42, wakeAction: "scroll", requestId: "page-control-scroll-cli-2", dy: 600 })
+      createLocalhostActionWakeUrl("submit", { wake: "submit-no-response", requestId: "page-control-submit-cli-1", selector: "form" }),
+      createLocalhostActionWakeUrl("scroll", { wake: "scroll-no-response", requestId: "page-control-scroll-cli-2", dy: 600 })
     ];
 
     await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
@@ -2017,7 +2023,7 @@ describe("Chrome extension background policy sync", () => {
     const now = Date.now();
     const mock = await loadLocalhostFillWakeBackground();
 
-    const staleUrl = createWakeUrl({ wake: now - 600_000, targetTabId: 42, wakeAction: "click", requestId: "page-control-click-cli-stale", selector: "#click-only" });
+    const staleUrl = createLocalhostActionWakeUrl("click", { wake: now - 600_000, requestId: "page-control-click-cli-stale", selector: "#click-only" });
     const currentUrl = createFillWakeUrl({ wake: now, requestId: "page-control-fill-cli-current" });
 
     dispatchWakeTabUpdated(mock, staleUrl);
@@ -2042,7 +2048,7 @@ describe("Chrome extension background policy sync", () => {
 
     dispatchWakeTabUpdated(
       mock,
-      createWakeUrl({ targetTabId: 42, wakeAction: "screenshot" })
+      createLocalhostActionWakeUrl("screenshot")
     );
     await waitForWakeProcessing();
 
@@ -2071,7 +2077,7 @@ describe("Chrome extension background policy sync", () => {
 
     dispatchWakeTabUpdated(
       mock,
-      createWakeUrl({ targetTabId: 42, wakeAction: "screenshot", requestId: "missing-capture-permission" })
+      createLocalhostActionWakeUrl("screenshot", { requestId: "missing-capture-permission" })
     );
     await waitForWakeProcessing();
 

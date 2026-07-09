@@ -83,15 +83,17 @@ import {
 import { createScreenshotPathFactory } from "./screenshot-path.js";
 import {
   calculatePetWindowBounds,
-  calculatePetWindowDragMove,
   readWindowPositionOverride,
   type Point,
   type Size
 } from "./window-position.js";
 import {
-  COMPACT_WINDOW_SIZE,
-  createPetWindowModeTransition
+  COMPACT_WINDOW_SIZE
 } from "./main-window-state.js";
+import {
+  applyPetWindowDragMove,
+  applyPetWindowMode
+} from "./main-window-controls.js";
 import {
   persistMainRuntimeSnapshot
 } from "./main-runtime-snapshot-writer.js";
@@ -99,12 +101,8 @@ import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
 import {
   isEnabledEnvFlag,
-  readFiniteNumber,
   readPermissionSettingsTarget,
-  readPetWindowMode,
-  readRunCommandRequest,
-  readVisiblePetRect,
-  type PetWindowMode
+  readRunCommandRequest
 } from "./main-ipc-payload.js";
 import {
   createToolResult
@@ -943,57 +941,30 @@ async function createWindow() {
   }
 }
 
-function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
-  const transition = createPetWindowModeTransition({
-    mode,
-    currentBounds: window.getBounds(),
-    currentPetAnchor,
-    currentPetSize,
-    displays: screen.getAllDisplays()
-  });
-
-  if (transition.kind === "set-bounds") {
-    window.setBounds(transition.bounds);
-  }
-}
-
 ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, visibleRectValue: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const x = readFiniteNumber(deltaX);
-  const y = readFiniteNumber(deltaY);
-
-  if (!window || window.isDestroyed() || x === undefined || y === undefined) {
-    return;
-  }
-
-  const bounds = window.getBounds();
-  const visibleRect = readVisiblePetRect(visibleRectValue);
-  const move = calculatePetWindowDragMove({
-    currentBounds: bounds,
-    delta: { x, y },
-    ...(visibleRect ? { visiblePetRect: visibleRect } : {}),
-    displays: screen.getAllDisplays()
+  const nextAnchorState = applyPetWindowDragMove({
+    currentPetAnchor,
+    currentPetSize,
+    deltaX,
+    deltaY,
+    displays: screen.getAllDisplays(),
+    visibleRectValue,
+    window
   });
-
-  if (move.kind === "visible-pet-bounds") {
-    currentPetAnchor = move.petAnchor;
-    currentPetSize = move.petSize;
-    window.setBounds(move.bounds);
-    return;
-  }
-
-  window.setPosition(move.position.x, move.position.y);
+  currentPetAnchor = nextAnchorState.currentPetAnchor;
+  currentPetSize = nextAnchorState.currentPetSize;
 });
 
 ipcMain.on("skfiy:set-window-mode", (event, mode: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const nextMode = readPetWindowMode(mode);
-
-  if (!window || window.isDestroyed() || !nextMode) {
-    return;
-  }
-
-  setPetWindowMode(window, nextMode);
+  applyPetWindowMode({
+    currentPetAnchor,
+    currentPetSize,
+    displays: screen.getAllDisplays(),
+    mode,
+    window
+  });
 });
 
 ipcMain.handle("skfiy:get-window-bounds", (event) => {
