@@ -9,12 +9,13 @@ describe("Chrome approval main-process wiring", () => {
     const importIndex = source.indexOf("applyApprovedChromeTaskHostPolicy");
     const approvalIndex = source.indexOf("if (approved && route.kind === \"chrome\")");
     const runIndex = source.indexOf("if (route.kind === \"chrome\")", approvalIndex + 1);
-    const taskIdIndex = source.indexOf("const taskId = currentTaskId + 1", approvalIndex);
+    const taskEpochIndex = source.indexOf("const { controller, taskId } = startComputerUseTaskEpoch();", approvalIndex);
 
     expect(importIndex).toBeGreaterThan(-1);
     expect(approvalIndex).toBeGreaterThan(importIndex);
-    expect(taskIdIndex).toBeGreaterThan(approvalIndex);
-    expect(runIndex).toBeGreaterThan(taskIdIndex);
+    expect(taskEpochIndex).toBeGreaterThan(approvalIndex);
+    expect(runIndex).toBeGreaterThan(taskEpochIndex);
+    expect(source).toContain("createStartedComputerUseTaskState");
     expect(source).toContain("createChromeHostPolicyAllowedTaskEvent");
     expect(source).toContain("createChromeHostPolicyBlockedTaskEvent");
     expect(source).toContain("createChromeHostPolicyApprovalFailedTaskEvent");

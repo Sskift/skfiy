@@ -137,6 +137,7 @@ import {
   createClearedPendingComputerUseTaskState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
+  createStartedComputerUseTaskState,
   readComputerUseRouteForToolCallState,
   readComputerUseToolCallIdentityToCancel,
   USER_DENIED_COMPUTER_USE_REASON,
@@ -287,6 +288,23 @@ function clearActiveComputerUseTask(): void {
   activeTaskController?.abort();
   activeTaskController = null;
   currentTaskId = nextState.currentTaskId;
+}
+
+function startComputerUseTaskEpoch() {
+  const nextState = createStartedComputerUseTaskState({
+    currentTaskId,
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
+  currentTaskId = nextState.currentTaskId;
+  pendingApproval = nextState.pendingApproval;
+  activeTaskController?.abort();
+
+  const controller = new AbortController();
+  activeTaskController = controller;
+
+  return { controller, taskId: nextState.taskId };
 }
 
 function resolveHelperPath(): string {
@@ -631,13 +649,7 @@ async function continueComputerUseTask({
     }
   }
 
-  const taskId = currentTaskId + 1;
-  currentTaskId = taskId;
-  pendingApproval = null;
-  activeTaskController?.abort();
-
-  const controller = new AbortController();
-  activeTaskController = controller;
+  const { controller, taskId } = startComputerUseTaskEpoch();
 
   try {
     if (route.kind === "finder") {
@@ -796,13 +808,7 @@ async function runTmuxSupervisionCommandTask(
     toolIdentity: AssistantComputerUseToolIdentity;
   }
 ): Promise<void> {
-  const taskId = currentTaskId + 1;
-  currentTaskId = taskId;
-  pendingApproval = null;
-  activeTaskController?.abort();
-
-  const controller = new AbortController();
-  activeTaskController = controller;
+  const { controller, taskId } = startComputerUseTaskEpoch();
 
   try {
     for await (const taskEvent of runTmuxSupervisionTask(

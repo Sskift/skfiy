@@ -4,6 +4,7 @@ import {
   cancelComputerUseToolCallState,
   createClearedActiveComputerUseTaskState,
   createClearedPendingComputerUseTaskState,
+  createStartedComputerUseTaskState,
   completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
@@ -273,6 +274,33 @@ describe("main pending approval helpers", () => {
       pendingApproval: null,
       activeToolIdentity: null,
       activeRoute: null
+    });
+  });
+
+  it("starts a task epoch while preserving the active Computer Use identity and route", () => {
+    const activeToolIdentity = { turnId: "turn-agent-13", toolCallId: "tool-call-13" };
+    const chromeRoute = {
+      kind: "chrome",
+      bundleId: CHROME_BUNDLE_ID
+    } as const;
+    const pendingApproval = createPendingApproval(
+      "open Chrome",
+      "active",
+      activeToolIdentity,
+      chromeRoute
+    );
+
+    expect(createStartedComputerUseTaskState({
+      currentTaskId: 13,
+      pendingApproval,
+      activeToolIdentity,
+      activeRoute: chromeRoute
+    })).toEqual({
+      taskId: 14,
+      currentTaskId: 14,
+      pendingApproval: null,
+      activeToolIdentity,
+      activeRoute: chromeRoute
     });
   });
 });
