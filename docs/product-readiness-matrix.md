@@ -88,7 +88,7 @@ Manual blocker policy:
 | Dashboard and settings | Dashboard answers whether skfiy can control desktop/browser now and exposes provider, permission, current turn, replay, dogfood, and bridge health. | `src/dashboard/*`, `src/main/dashboard-server.ts`, `src/main/dashboard-data.ts`, dashboard tests. | `npm run smoke:dashboard -- --cli dist/skfiy --require-passed`. |
 | Computer Use adapters | Agent tool layer can observe, act, verify, stop, and replay for supported Ghostty, Finder, and Chromium/Chrome routes. | `src/main/computer-use/*`, `src/main/task-routing.ts`, adapter tests, smoke artifacts. | UI, Ghostty, Finder, and Chrome packaged smokes pass or are blocked only by manual macOS/browser authorization. |
 | Browser bridge | Chromium extension and native host can observe, navigate, click, type, scroll, reload, and report permission/host failures. | `chrome-extension/*`, `src/main/chrome-native-host.ts`, `src/main/chrome-extension-page-control.ts`, Chrome tests. | `npm run smoke:chrome -- --app dist/skfiy.app --require-passed`. |
-| Release and dogfood SRE | Build, smoke, alpha artifact, issue body, dogfood report, cohort, and status gates all reference the same commit and artifacts. | `package.json`, `scripts/create-alpha-artifact.mjs`, `scripts/dogfood-status.mjs`, `docs/release-evidence/latest-alpha.json`. | Build passes; required smoke artifacts match current commit; alpha artifact and dogfood status do not point to stale evidence. |
+| Release and dogfood SRE | Build, smoke, alpha artifact, issue body, dogfood report, cohort, and status gates all reference the same commit and artifacts. | `package.json`, `scripts/create-alpha-artifact.mjs`, `scripts/dogfood-status.mjs`, generated local release evidence when a release/dogfood run is active. | Build passes; required smoke artifacts match current commit; alpha artifact and dogfood status do not point to stale evidence. |
 | Product boundary | Docs, tests, UI, and templates do not reintroduce obsolete audio/dictation/input-method product paths. | README, canonical docs, issue templates, package scripts, negative tests. | Boundary `rg` is manually reviewed; allowed hits are boundary docs, negative tests, Chrome's `Google Network Speech` diagnostic name, packaging removal of old macOS permission keys, and turn replay transcript context. |
 
 ## Readiness Acceptance
@@ -114,10 +114,11 @@ workstream is ready to claim:
 
 ## Release Evidence Policy
 
-`docs/release-evidence/latest-alpha.json` is the only checked-in release
-pointer. Local smoke artifacts, alpha zips, and dogfood downloads are
-workspace artifacts, not durable planning docs. Keep them ignored by git unless
-the release workflow explicitly records a new canonical pointer.
+Release/dogfood flows may generate `docs/release-evidence/latest-alpha.json` as
+a local pointer for dashboard and dogfood readiness checks. It is runtime
+evidence for the active release, not a durable planning doc. Keep stale pointers
+out of git; regenerate or refresh them only while preparing an explicit release
+or dogfood handoff.
 
 When preparing release or dogfood evidence, use commit-scoped artifact paths and
 record exact typed blockers such as `screen-recording-missing`,

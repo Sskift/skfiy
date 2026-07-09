@@ -567,9 +567,9 @@ treat locked console, `com.apple.loginwindow`, display sleep, or black-screen
 evidence as desktop-session blockers.
 `dogfood:status` validates that the tracking issue body still includes `Desktop Session Preflight`
 and adds a refresh command when that guidance is missing.
-A stale `docs/release-evidence/latest-alpha.json` now blocks collect readiness, so
-`dogfood:status` will keep returning waiting status until the release evidence
-points at the selected alpha.
+A stale local `docs/release-evidence/latest-alpha.json` blocks collect readiness,
+so `dogfood:status` will keep returning waiting status until the release
+evidence points at the selected alpha or is regenerated for the current release run.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.

@@ -2,21 +2,6 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-interface LatestAlphaEvidence {
-  appName: string;
-  tagName: string;
-  releaseUrl: string;
-  commitSha: string;
-  zipSha256: string;
-  smokeArtifacts: {
-    ui: string;
-    ghostty: string;
-    chrome: string;
-    finder: string;
-    moneyRun: string;
-  };
-}
-
 const activePlanPath = path.join(
   process.cwd(),
   "docs",
@@ -104,15 +89,6 @@ function collectRepositoryTextFiles(rootPath: string): string[] {
       ? [entryPath]
       : [];
   });
-}
-
-function readLatestAlphaEvidence(): LatestAlphaEvidence {
-  return JSON.parse(
-    readFileSync(
-      path.join(process.cwd(), "docs", "release-evidence", "latest-alpha.json"),
-      "utf8"
-    )
-  ) as LatestAlphaEvidence;
 }
 
 function findMarkdownBasenameDateStamp(docPath: string): string | null {
@@ -337,22 +313,6 @@ describe("implementation plan status docs", () => {
     expect(readiness).toContain("Add commit-scoped output paths only for explicit release, dogfood, or debugging");
     expect(readiness).not.toContain("--output .skfiy-smoke");
     expect(readiness).not.toContain("active handoff");
-  });
-
-  it("keeps latest published alpha release evidence internally consistent without voice artifacts", () => {
-    const evidence = readLatestAlphaEvidence();
-    const shortSha = evidence.commitSha.slice(0, 7);
-
-    expect(evidence.appName).toBe("skfiy");
-    expect(evidence.tagName).toBe(`skfiy-alpha-${shortSha}`);
-    expect(evidence.releaseUrl).toContain(evidence.tagName);
-    expect(evidence.zipSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(evidence.smokeArtifacts.ui).toContain(shortSha);
-    expect(evidence.smokeArtifacts.ghostty).toContain(shortSha);
-    expect(evidence.smokeArtifacts.chrome).toContain(shortSha);
-    expect(evidence.smokeArtifacts.finder).toContain(shortSha);
-    expect(evidence.smokeArtifacts.moneyRun).toContain(shortSha);
-    expect(JSON.stringify(evidence.smokeArtifacts)).not.toContain("voice");
   });
 
   it("documents the active alpha and dogfood workflow around Computer Use gates", () => {

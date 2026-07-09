@@ -21,8 +21,6 @@ plans, handoffs, checklists, and research notes belong in git history only.
   Messaging host install/status checks, and troubleshooting.
 - `product-readiness-matrix.md`: supervisor-facing product boundary,
   workstream ownership, real-scenario acceptance, and QA/SRE gate.
-- `release-evidence/latest-alpha.json`: latest published alpha pointer used by
-  dashboard and dogfood readiness checks.
 - `superpowers/plans/2026-07-07-code-health-cleanup.md`: the single
   active implementation plan for current plan hygiene, code-health slimming,
   route-state semantics, and safe Dashboard follow-up work.
@@ -44,5 +42,5 @@ Generated directories such as `.skfiy-smoke/`, `.skfiy-alpha/`,
 are ignored by git. Preserve current smoke/release evidence while an issue,
 release, or dogfood run is active. Old alpha packages, stale local smoke copies,
 dogfood downloads for superseded commits, `.DS_Store`, and helper build caches
-can be deleted locally once they are no longer referenced by
-`release-evidence/latest-alpha.json` or an active release/dogfood run.
+can be deleted locally once they are no longer referenced by an active
+release/dogfood run.

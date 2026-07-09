@@ -9,6 +9,7 @@ macos-helper/.build/
 .skfiy-cli-smoke/
 .skfiy-cli-policy-test/
 .chromium-skfiy-profile/
+docs/release-evidence/latest-alpha.json
 .DS_Store
 *.log
 .env
