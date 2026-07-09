@@ -399,6 +399,21 @@ function expectPostedFillActionResult(message, requestId) {
   });
 }
 
+function expectNoPageControlExecution(mock) {
+  expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+  expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+}
+
+function expectNoPageControlMutation(mock) {
+  expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+  expectNoPageControlExecution(mock);
+}
+
+function expectNoPermissionRequestOrScriptInjection(mock) {
+  expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+  expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+}
+
 function dispatchRuntimeInstalled(mock) {
   mock.chrome.runtime.onInstalled.listeners[0]();
 }
@@ -639,9 +654,7 @@ describe("Chrome extension background page routing", () => {
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
       origins: ["https://allowed.example/*"]
     });
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlMutation(mock);
   });
 
   it("preserves structured site-access blockers in wake action native evidence", async () => {
@@ -697,9 +710,7 @@ describe("Chrome extension background page routing", () => {
         })
       ]);
     });
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlMutation(mock);
   });
 
   it("returns bounded Chrome tab discovery blockers without page content", async () => {
@@ -856,8 +867,7 @@ describe("Chrome extension background page routing", () => {
     const responseJson = JSON.stringify(sendResponse.mock.calls[0][0]);
     expect(responseJson).not.toContain("must not be exported");
     expect(responseJson).not.toContain("/Users/tester/private");
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectNoPermissionRequestOrScriptInjection(mock);
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toEqual(expect.arrayContaining([
@@ -1066,8 +1076,7 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
       origins: ["https://allowed.example/*"]
     });
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlExecution(mock);
   });
 
   it("uses the requested target tab for popup policy status diagnostics", async () => {
@@ -1315,8 +1324,7 @@ describe("Chrome extension background policy sync", () => {
       }));
     });
 
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectNoPermissionRequestOrScriptInjection(mock);
   });
 
   it("reports missing content script readiness without injecting during status reads", async () => {
