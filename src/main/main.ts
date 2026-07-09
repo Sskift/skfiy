@@ -83,7 +83,7 @@ import {
 import {
   calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
-  movePetAnchorByDelta,
+  calculatePetWindowDragMove,
   readWindowPositionOverride,
   resizePetWindowBoundsKeepingBottom,
   resizePetWindowBoundsKeepingPetAnchor,
@@ -1010,38 +1010,22 @@ ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, vis
   }
 
   const bounds = window.getBounds();
-
   const visibleRect = readVisiblePetRect(visibleRectValue);
+  const move = calculatePetWindowDragMove({
+    currentBounds: bounds,
+    delta: { x, y },
+    ...(visibleRect ? { visiblePetRect: visibleRect } : {}),
+    displays: screen.getAllDisplays()
+  });
 
-  if (visibleRect) {
-    const anchor = {
-      x: bounds.x + visibleRect.x,
-      y: bounds.y + visibleRect.y
-    };
-    const nextAnchor = movePetAnchorByDelta({
-      anchor,
-      delta: { x, y },
-      petSize: {
-        width: visibleRect.width,
-        height: visibleRect.height
-      },
-      displays: screen.getAllDisplays()
-    });
-    currentPetAnchor = nextAnchor;
-    currentPetSize = {
-      width: visibleRect.width,
-      height: visibleRect.height
-    };
-
-    window.setBounds({
-      ...bounds,
-      x: Math.round(nextAnchor.x - visibleRect.x),
-      y: Math.round(nextAnchor.y - visibleRect.y)
-    });
+  if (move.kind === "visible-pet-bounds") {
+    currentPetAnchor = move.petAnchor;
+    currentPetSize = move.petSize;
+    window.setBounds(move.bounds);
     return;
   }
 
-  window.setPosition(Math.round(bounds.x + x), Math.round(bounds.y + y));
+  window.setPosition(move.position.x, move.position.y);
 });
 
 ipcMain.on("skfiy:set-window-mode", (event, mode: unknown) => {

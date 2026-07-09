@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
+  calculatePetWindowDragMove,
   movePetAnchorByDelta,
   readWindowPositionOverride,
   resizePetWindowBoundsKeepingBottom,
@@ -134,5 +135,40 @@ describe("calculatePetWindowBounds", () => {
     });
 
     expect(anchor).toEqual({ x: 2630, y: 654 });
+  });
+
+  it("calculates a plain window position drag when the visible pet rect is unavailable", () => {
+    expect(calculatePetWindowDragMove({
+      currentBounds: { x: 80, y: 120, width: 90, height: 66 },
+      delta: { x: 10.4, y: -20.6 },
+      displays: []
+    })).toEqual({
+      kind: "window-position",
+      position: {
+        x: 90,
+        y: 99
+      }
+    });
+  });
+
+  it("calculates clamped visible pet bounds and anchor for drag movement", () => {
+    const displays = [
+      {
+        bounds: { x: 0, y: 0, width: 1440, height: 900 },
+        workArea: { x: 0, y: 25, width: 1440, height: 875 }
+      }
+    ];
+
+    expect(calculatePetWindowDragMove({
+      currentBounds: { x: 20, y: 30, width: 320, height: 500 },
+      delta: { x: -100, y: -1000 },
+      visiblePetRect: { x: 1, y: 433, width: 90, height: 66 },
+      displays
+    })).toEqual({
+      kind: "visible-pet-bounds",
+      bounds: { x: -1, y: -433, width: 320, height: 500 },
+      petAnchor: { x: 0, y: 0 },
+      petSize: { width: 90, height: 66 }
+    });
   });
 });
