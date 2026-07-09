@@ -11,7 +11,7 @@
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
 - Plan/doc hygiene is a standing invariant, not a cleanup backlog: the repo keeps one active plan file, no pre-active-plan dated Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
-- The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
+- The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and extracted the renderer app shell view-model into pure helpers. Remaining slimming should focus on low-value Chrome background fixtures and safe `main.ts` pure helpers.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
@@ -62,7 +62,7 @@ references to old plan paths.
 
 1. Re-check plan hygiene first. If the guard is green, do not spend the cut on old plan archaeology; keep the tree clean and move on.
 2. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-3. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+3. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, renderer view-model decisions that belong in `src/renderer/app-view-model.ts`, and pure logic that can leave `src/main/main.ts` without changing UI behavior.
 4. Finish only the remaining safe Dashboard P1 migrations where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage. If no safe API gap remains, do not invent one.
 5. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
 6. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
@@ -141,13 +141,14 @@ Keep slimming scoped to product-owned hotspots and pure logic extraction:
 
 - keep `src/main/cli-command-surface.ts` as a thin export surface; do not move command dispatch or status assembly back into it,
 - remove repeated fixtures and low-value coverage from `src/main/chrome-extension-background.test.js`,
-- extract pure helpers from `src/renderer/App.tsx` and `src/main/main.ts` without changing UI behavior,
+- keep `src/renderer/App.tsx` shell state aggregation in `src/renderer/app-view-model.ts` when it can be covered without React,
+- extract pure helpers from `src/main/main.ts` without changing UI behavior,
 - keep default smoke runs silent and avoid new evidence/artifact output unless explicitly requested.
 
 Focused verification:
 
 ```bash
-npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/main/screenshot-path.test.ts src/renderer/App.test.tsx --reporter=dot
+npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-background.test.js src/main/screenshot-path.test.ts src/renderer/App.test.tsx src/renderer/app-view-model.test.ts --reporter=dot
 npm run typecheck -- --pretty false
 ```
 
