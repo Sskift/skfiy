@@ -555,12 +555,24 @@ async function loadAllowedExampleStatusBackground(options = {}) {
 }
 
 async function loadLocalhostWakeBackground(nativeResponses = createPageObserveResponses(), options = {}) {
-  const mock = createChromeMock(nativeResponses, options);
+  const { wakeUrl, wakeTabId, targetTabId = 42, targetWindowId = 7, ...mockOptions } = options;
+  const mock = createChromeMock(nativeResponses, mockOptions);
   storeLocalhostHostPolicy(mock);
-  mockLocalhostTargetTab(mock);
+  if (wakeUrl) {
+    mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId, targetTabId });
+  } else {
+    mockLocalhostTargetTab(mock, { tabId: targetTabId, windowId: targetWindowId });
+  }
   await loadBackground(mock);
 
   return mock;
+}
+
+async function loadLocalhostPolicyHeartbeatWakeBackground(options = {}) {
+  return loadLocalhostWakeBackground([
+    createLocalhostPolicyResponse(),
+    createPageObserveResponse()
+  ], options);
 }
 
 async function loadLocalhostPageControlWakeBackground(options = {}) {
@@ -1715,13 +1727,9 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
-    const mock = createChromeMock([
-      createLocalhostPolicyResponse(),
-      createPageObserveResponse()
-    ], {
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
       activeTab: createLocalhostTab()
     });
-    await loadBackground(mock);
 
     dispatchTabUpdated(mock, 42, { status: "complete" });
     await waitForWakeProcessing();
@@ -1750,18 +1758,11 @@ describe("Chrome extension background policy sync", () => {
 
   it("routes extension wake tab heartbeats to the requested target tab", async () => {
     const wakeUrl = createLocalhostWakeUrl();
-    const mock = createChromeMock([
-      createLocalhostPolicyResponse(),
-      createPageObserveResponse()
-    ], {
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
+      wakeUrl,
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSession: createReadyLocalhostContentScriptSession()
     });
-    mockWakeAndLocalhostTargetTabs(
-      mock,
-      wakeUrl
-    );
-    await loadBackground(mock);
 
     await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl, {
       expectedNewMessageCount: 2
@@ -1789,18 +1790,13 @@ describe("Chrome extension background policy sync", () => {
       url: LOCALHOST_TEST_URL,
       visibleText: "skfiy observe live smoke compiled binary path"
     };
-    const mock = createChromeMock([
+    const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
+      wakeUrl,
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       pageObserveSnapshot
     });
-    storeLocalhostHostPolicy(mock);
-    mockWakeAndLocalhostTargetTabs(
-      mock,
-      wakeUrl
-    );
-    await loadBackground(mock);
 
     await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl);
 
@@ -2205,10 +2201,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("injects the content script before page-control heartbeat when a granted page has no receiver yet", async () => {
-    const mock = createChromeMock([
-      createLocalhostPolicyResponse(),
-      createPageObserveResponse()
-    ], {
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
       activeTab: createLocalhostTab(),
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
@@ -2223,7 +2216,6 @@ describe("Chrome extension background policy sync", () => {
         })
       ]
     });
-    await loadBackground(mock);
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: NATIVE_HEARTBEAT,
