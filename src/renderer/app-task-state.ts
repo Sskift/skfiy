@@ -42,6 +42,29 @@ export function createTaskStatusView(
   };
 }
 
+export type TaskActionFailure =
+  | "approve-task"
+  | "deny-task"
+  | "open-permission-settings"
+  | "set-app-policy"
+  | "set-assistant-agent"
+  | "set-planner-provider"
+  | "stop-current-turn";
+
+const TASK_ACTION_FAILURE_MESSAGES: Record<TaskActionFailure, string> = {
+  "approve-task": "确认请求失败.",
+  "deny-task": "拒绝请求失败.",
+  "open-permission-settings": "打开系统设置失败.",
+  "set-app-policy": "切换应用策略失败.",
+  "set-assistant-agent": "切换 Background Agent 失败.",
+  "set-planner-provider": "切换规划模式失败.",
+  "stop-current-turn": "停止任务失败."
+};
+
+export function createTaskActionFailureView(action: TaskActionFailure): TaskView {
+  return createTaskStatusView("failed", TASK_ACTION_FAILURE_MESSAGES[action]);
+}
+
 export function createTaskViewFromEvent(event: TaskEvent): TaskView {
   return {
     status: event.status,

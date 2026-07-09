@@ -53,6 +53,7 @@ import {
   createAssistantInputSubmissionTransition,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
+  createTaskActionFailureView,
   createTaskEventUiTransition,
   createStopTurnUiTransition,
   createTaskStatusView,
@@ -588,7 +589,7 @@ export default function App() {
     try {
       await api.stopTask();
     } catch {
-      setTask(createTaskStatusView("failed", "停止任务失败."));
+      setTask(createTaskActionFailureView("stop-current-turn"));
     }
   }, [api, task.status, transitionPanelState]);
 
@@ -618,7 +619,7 @@ export default function App() {
     try {
       await api.approveTask();
     } catch {
-      setTask(createTaskStatusView("failed", "确认请求失败."));
+      setTask(createTaskActionFailureView("approve-task"));
     }
   }
 
@@ -628,7 +629,7 @@ export default function App() {
     try {
       await api.denyTask();
     } catch {
-      setTask(createTaskStatusView("failed", "拒绝请求失败."));
+      setTask(createTaskActionFailureView("deny-task"));
     }
   }
 
@@ -643,7 +644,7 @@ export default function App() {
         transitionPanelState({ type: "close-permission-onboarding" });
       }
     } catch {
-      setTask(createTaskStatusView("failed", "打开系统设置失败."));
+      setTask(createTaskActionFailureView("open-permission-settings"));
     }
   }
 
@@ -659,7 +660,7 @@ export default function App() {
     try {
       setAppPolicySettings(await api.setAppPolicy({ bundleId, policy }));
     } catch {
-      setTask(createTaskStatusView("failed", "切换应用策略失败."));
+      setTask(createTaskActionFailureView("set-app-policy"));
     }
   }
 
@@ -667,7 +668,7 @@ export default function App() {
     try {
       setAssistantAgentSettings(await api.setAssistantAgentSettings({ mode }));
     } catch {
-      setTask(createTaskStatusView("failed", "切换 Background Agent 失败."));
+      setTask(createTaskActionFailureView("set-assistant-agent"));
     }
   }
 
@@ -675,7 +676,7 @@ export default function App() {
     try {
       setPlannerProviderSettings(await api.setPlannerProviderSettings({ mode }));
     } catch {
-      setTask(createTaskStatusView("failed", "切换规划模式失败."));
+      setTask(createTaskActionFailureView("set-planner-provider"));
     }
   }
 

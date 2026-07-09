@@ -5,6 +5,7 @@ import {
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
   createAssistantInputSubmissionTransition,
+  createTaskActionFailureView,
   createTaskEventUiTransition,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
@@ -17,7 +18,8 @@ import {
   removePendingAssistantConversationMessages,
   updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
-  type AssistantConversationMessage
+  type AssistantConversationMessage,
+  type TaskActionFailure
 } from "./app-task-state";
 import type { ObserveAppReplayRecord } from "./app-types";
 
@@ -83,6 +85,28 @@ describe("app task state", () => {
       message: "权限已就绪.",
       finderPlanPreview: undefined
     });
+  });
+
+  it("creates centralized failure task views for renderer actions", () => {
+    const actions: TaskActionFailure[] = [
+      "stop-current-turn",
+      "approve-task",
+      "deny-task",
+      "open-permission-settings",
+      "set-app-policy",
+      "set-assistant-agent",
+      "set-planner-provider"
+    ];
+
+    expect(actions.map(createTaskActionFailureView)).toEqual([
+      { status: "failed", message: "停止任务失败." },
+      { status: "failed", message: "确认请求失败." },
+      { status: "failed", message: "拒绝请求失败." },
+      { status: "failed", message: "打开系统设置失败." },
+      { status: "failed", message: "切换应用策略失败." },
+      { status: "failed", message: "切换 Background Agent 失败." },
+      { status: "failed", message: "切换规划模式失败." }
+    ]);
   });
 
   it("preserves route metadata from task events", () => {
