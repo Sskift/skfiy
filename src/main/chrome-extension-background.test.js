@@ -120,6 +120,14 @@ function createLocalhostPolicyResponse(policy = {}) {
   });
 }
 
+function createAllowedOnlyPolicyResponse(host) {
+  return createPolicyResponse({
+    allowedHosts: [host],
+    currentTurnAllowedHosts: [],
+    blockedHosts: []
+  });
+}
+
 function createPageObserveResponse() {
   return createNativeResponse(PAGE_OBSERVE, "page-control-heartbeat-response");
 }
@@ -2141,7 +2149,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("lets the popup trigger a native heartbeat without changing the host protocol", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["heartbeat.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createAllowedOnlyPolicyResponse("heartbeat.example"),
       createPageObserveResponse()
     ]);
     await loadBackground(mock);
@@ -2259,7 +2267,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("schedules an extension reload after recording a diagnostic heartbeat", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["reload.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createAllowedOnlyPolicyResponse("reload.example"),
       createPageObserveResponse()
     ]);
     await loadBackground(mock);
@@ -2392,7 +2400,7 @@ describe("Chrome extension background policy sync", () => {
         requestId: "malformed-policy",
         result: "accepted"
       },
-      createPolicyResponse({ allowedHosts: ["recovered.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
+      createAllowedOnlyPolicyResponse("recovered.example")
     ]);
     const { background } = await loadBackground(mock);
 

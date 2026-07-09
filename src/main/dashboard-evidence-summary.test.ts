@@ -175,6 +175,8 @@ describe("dashboard evidence summary", () => {
       currentTurn: {
         state: "blocked",
         route: "ghostty",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
         reason: "Ghostty is denied by app policy. token=secret-token",
         latestMessage: "Ghostty is denied by app policy."
       },
@@ -208,6 +210,18 @@ describe("dashboard evidence summary", () => {
           label: "Route detail",
           state: "blocked",
           value: "Ghostty is denied by app policy. token=redacted-secret"
+        },
+        {
+          id: "route-denial",
+          label: "Route denial",
+          state: "blocked",
+          value: "app_policy"
+        },
+        {
+          id: "route-policy",
+          label: "Route policy",
+          state: "blocked",
+          value: "app-policy"
         }
       ])
     });
@@ -239,7 +253,8 @@ describe("dashboard evidence summary", () => {
         tone: "warning",
         source: "runtime-snapshot",
         routeLabel: "Ghostty",
-        state: "needs_confirmation"
+        state: "needs_confirmation",
+        policyKind: "route-policy"
       },
       replay: { state: "available" },
       smokeEvidence: { artifacts: [] },
@@ -270,6 +285,12 @@ describe("dashboard evidence summary", () => {
           label: "Route detail",
           state: "needs-evidence",
           value: "Runtime replay needs a human verification check for token=redacted-secret"
+        },
+        {
+          id: "route-policy",
+          label: "Route policy",
+          state: "needs-evidence",
+          value: "route-policy"
         }
       ])
     });

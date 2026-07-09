@@ -127,6 +127,7 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
     sanitizeString: sanitizeText
   });
   const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome);
+  const routeChecks = createRouteOutcomeEvidenceChecks(routeOutcome);
   const alertCounts = countAlerts(snapshot.alerts);
   const readinessState = mapReadinessState(readString(readiness.state));
   const checks: EvidenceCheck[] = [
@@ -144,24 +145,7 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         : readString(currentTurn.state) ? "needs-evidence" : "unknown",
       value: readString(currentTurn.state, "unknown")
     },
-    {
-      id: "route-outcome",
-      label: "Route outcome",
-      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
-      value: routeOutcome.value
-    },
-    {
-      id: "route-label",
-      label: "Route label",
-      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
-      value: routeOutcome.routeLabel
-    },
-    {
-      id: "route-detail",
-      label: "Route detail",
-      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
-      value: routeOutcome.detail
-    },
+    ...routeChecks,
     {
       id: "replay",
       label: "Replay evidence",
@@ -211,6 +195,8 @@ function readExplicitRouteOutcome(
   if (!record) {
     return fallback;
   }
+  const denialKind = readString(record.denialKind, fallback.denialKind);
+  const policyKind = readString(record.policyKind, fallback.policyKind);
 
   return {
     kind: readExplicitRouteOutcomeKind(record.kind) ?? fallback.kind,
@@ -220,7 +206,9 @@ function readExplicitRouteOutcome(
     tone: readExplicitRouteOutcomeTone(record.tone) ?? fallback.tone,
     source: readString(record.source, fallback.source) ?? fallback.source,
     routeLabel: readString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readString(record.state, fallback.state) ?? fallback.state
+    state: readString(record.state, fallback.state) ?? fallback.state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
   };
 }
 
@@ -262,6 +250,50 @@ function mapRouteOutcomeEvidenceState(kind: RouteOutcomeKind): EvidenceState {
   }
 
   return "unknown";
+}
+
+function createRouteOutcomeEvidenceChecks(routeOutcome: RouteOutcome): EvidenceCheck[] {
+  const state = mapRouteOutcomeEvidenceState(routeOutcome.kind);
+  const checks: EvidenceCheck[] = [
+    {
+      id: "route-outcome",
+      label: "Route outcome",
+      state,
+      value: routeOutcome.value
+    },
+    {
+      id: "route-label",
+      label: "Route label",
+      state,
+      value: routeOutcome.routeLabel
+    },
+    {
+      id: "route-detail",
+      label: "Route detail",
+      state,
+      value: routeOutcome.detail
+    }
+  ];
+
+  if (routeOutcome.denialKind) {
+    checks.push({
+      id: "route-denial",
+      label: "Route denial",
+      state,
+      value: routeOutcome.denialKind
+    });
+  }
+
+  if (routeOutcome.policyKind) {
+    checks.push({
+      id: "route-policy",
+      label: "Route policy",
+      state,
+      value: routeOutcome.policyKind
+    });
+  }
+
+  return checks;
 }
 
 function createCodexPluginLane(snapshot: DashboardSnapshot): EvidenceLane {
