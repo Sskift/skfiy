@@ -5,6 +5,7 @@ import {
   formatReplayPlanner,
   getAssistantInputPanelViewModel,
   getAppRootViewModel,
+  getAppShellViewModel,
   getFinderPlanPreviewSummaryViewModel,
   getLocalReplayViewModel,
   getPanelVisibilityState,
@@ -256,6 +257,97 @@ describe("app view model", () => {
       petState: "idle",
       selectedAssistantAgentProvider: claudeProvider,
       startupWarning,
+      status: {
+        label: "Idle",
+        message: "待命中.",
+        pulse: "Tucked"
+      }
+    });
+  });
+
+  it("derives the app shell view model without React state", () => {
+    const fallbackProvider = {
+      id: "codex",
+      label: "Codex",
+      readiness: "ready" as const
+    };
+    const claudeProvider = {
+      id: "claude-code",
+      label: "Claude Code",
+      readiness: "unavailable" as const
+    };
+
+    expect(getAppShellViewModel({
+      assistantAgentSettings: {
+        providers: [fallbackProvider, claudeProvider],
+        settings: { mode: "claude-code" }
+      },
+      assistantInput: "organize Downloads",
+      assistantInputSubmitting: false,
+      desktopSessionDiagnostics: {
+        state: "blocked",
+        reason: "Desktop is locked."
+      },
+      fallbackAssistantAgentProvider: fallbackProvider,
+      panelState: {
+        assistantPanelOpen: true,
+        detailsOpen: false,
+        permissionOnboardingOpen: false
+      },
+      permissions: {
+        screenRecording: { state: "not-determined" },
+        accessibility: { state: "denied" }
+      },
+      permissionsLoading: true,
+      plannerProviderSettings: {
+        mode: "external-cua",
+        externalProviderLabel: "External CUA"
+      },
+      startupWarnings: [{ title: "Launch warning", message: "Started outside bundle" }],
+      taskStatus: "idle"
+    })).toMatchObject({
+      assistantInputPanel: {
+        statusLabel: "Claude Code · unavailable",
+        submitDisabled: false,
+        submitLabel: "发送"
+      },
+      panelVisibility: {
+        bubbleAriaLabel: "skfiy assistant panel",
+        settingsBubble: false,
+        showPanel: true,
+        showStartupWarning: true
+      },
+      permissionOnboardingDisplayRows: [
+        {
+          key: "screenRecording",
+          label: "屏幕录制",
+          settingsTarget: "screen-recording",
+          state: "not-determined",
+          stateLabel: "检查中"
+        },
+        {
+          key: "accessibility",
+          label: "辅助功能",
+          settingsTarget: "accessibility",
+          state: "denied",
+          stateLabel: "检查中"
+        }
+      ],
+      permissionPanelViewModel: {
+        desktopSession: {
+          reason: "Desktop is locked.",
+          showReason: true,
+          state: "denied",
+          stateLabel: "检查中"
+        }
+      },
+      petState: "idle",
+      plannerProviderDisplay: {
+        runtimeLabel: "规划可用",
+        settingsHeading: "External CUA",
+        showExternalStatus: true
+      },
+      selectedAssistantAgentProvider: claudeProvider,
       status: {
         label: "Idle",
         message: "待命中.",

@@ -23,11 +23,7 @@ import {
   type PetAtlas
 } from "./pet-atlas";
 import {
-  getAssistantInputPanelViewModel,
-  getAppRootViewModel,
-  getPermissionDisplayRows,
-  getPermissionsPanelViewModel,
-  getPlannerProviderDisplayViewModel,
+  getAppShellViewModel,
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
   readExternalCuaStatusLabel
@@ -555,36 +551,28 @@ export default function App() {
   }
 
   const {
+    assistantInputPanel,
     panelVisibility,
-    permissionOnboardingRows,
+    permissionOnboardingDisplayRows,
+    permissionPanelViewModel,
     petState,
+    plannerProviderDisplay,
     selectedAssistantAgentProvider,
     startupWarning,
     status
-  } = getAppRootViewModel({
+  } = getAppShellViewModel({
     assistantAgentSettings,
+    assistantInput,
+    assistantInputSubmitting,
+    desktopSessionDiagnostics,
     fallbackAssistantAgentProvider: DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0],
     panelState,
     permissions,
+    permissionsLoading,
+    plannerProviderSettings,
     startupWarnings,
     taskStatus: task.status
   });
-  const permissionPanelViewModel = getPermissionsPanelViewModel({
-    desktopSessionDiagnostics,
-    permissions,
-    permissionsLoading
-  });
-  const permissionOnboardingDisplayRows = getPermissionDisplayRows({
-    loading: permissionsLoading,
-    permissions,
-    rows: permissionOnboardingRows
-  });
-  const assistantInputPanel = getAssistantInputPanelViewModel({
-    input: assistantInput,
-    provider: selectedAssistantAgentProvider,
-    submitting: assistantInputSubmitting
-  });
-  const plannerProviderDisplay = getPlannerProviderDisplayViewModel(plannerProviderSettings);
 
   useEffect(() => {
     api.setWindowMode(panelVisibility.showPanel ? "expanded" : "compact");

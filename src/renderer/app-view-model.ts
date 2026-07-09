@@ -885,6 +885,84 @@ export function getAppRootViewModel<
   };
 }
 
+export function getAppShellViewModel<
+  TProvider extends {
+    id: string;
+    label: string;
+    readiness: "ready" | "unconfigured" | "unavailable";
+    selected?: boolean;
+  },
+  TStartupWarning
+>({
+  assistantAgentSettings,
+  assistantInput,
+  assistantInputSubmitting,
+  desktopSessionDiagnostics,
+  fallbackAssistantAgentProvider,
+  panelState,
+  permissions,
+  permissionsLoading,
+  plannerProviderSettings,
+  startupWarnings,
+  taskStatus
+}: {
+  assistantAgentSettings: {
+    providers: TProvider[];
+    settings: { mode: string };
+  };
+  assistantInput: string;
+  assistantInputSubmitting: boolean;
+  desktopSessionDiagnostics: { state: DesktopSessionDiagnosticState; reason: string };
+  fallbackAssistantAgentProvider: TProvider;
+  panelState: {
+    assistantPanelOpen: boolean;
+    detailsOpen: boolean;
+    permissionOnboardingOpen: boolean;
+  };
+  permissions: Record<PermissionKey, { state: PermissionState }>;
+  permissionsLoading: boolean;
+  plannerProviderSettings: {
+    externalProviderLabel: string;
+    mode: string;
+  };
+  startupWarnings: TStartupWarning[];
+  taskStatus: TaskStatus;
+}): ReturnType<typeof getAppRootViewModel<TProvider, TStartupWarning>> & {
+  assistantInputPanel: ReturnType<typeof getAssistantInputPanelViewModel>;
+  permissionOnboardingDisplayRows: PermissionDisplayRow[];
+  permissionPanelViewModel: ReturnType<typeof getPermissionsPanelViewModel>;
+  plannerProviderDisplay: ReturnType<typeof getPlannerProviderDisplayViewModel>;
+} {
+  const root = getAppRootViewModel({
+    assistantAgentSettings,
+    fallbackAssistantAgentProvider,
+    panelState,
+    permissions,
+    startupWarnings,
+    taskStatus
+  });
+
+  return {
+    ...root,
+    assistantInputPanel: getAssistantInputPanelViewModel({
+      input: assistantInput,
+      provider: root.selectedAssistantAgentProvider,
+      submitting: assistantInputSubmitting
+    }),
+    permissionOnboardingDisplayRows: getPermissionDisplayRows({
+      loading: permissionsLoading,
+      permissions,
+      rows: root.permissionOnboardingRows
+    }),
+    permissionPanelViewModel: getPermissionsPanelViewModel({
+      desktopSessionDiagnostics,
+      permissions,
+      permissionsLoading
+    }),
+    plannerProviderDisplay: getPlannerProviderDisplayViewModel(plannerProviderSettings)
+  };
+}
+
 export function getLocalReplayViewModel(replay: {
   transcript?: {
     outcome: TurnTranscriptOutcome;
