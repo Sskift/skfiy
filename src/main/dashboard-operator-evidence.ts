@@ -85,6 +85,7 @@ export function createDashboardOperatorEvidence({
       currentTurnState: currentTurn.state,
       routeOutcomeKind: routeOutcome.kind,
       routeOutcomeState: routeOutcome.state,
+      routeOutcomeRouteLabel: routeOutcome.routeLabel,
       routeOutcomeDenialKind: routeOutcome.denialKind,
       routeOutcomePolicyKind: routeOutcome.policyKind,
       replayState: replay.state,

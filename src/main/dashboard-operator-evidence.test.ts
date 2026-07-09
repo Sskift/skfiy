@@ -45,6 +45,7 @@ describe("createDashboardOperatorEvidence", () => {
       currentTurnState: "executing",
       routeOutcomeKind: "needs_confirmation",
       routeOutcomeState: "needs_confirmation",
+      routeOutcomeRouteLabel: "Ghostty",
       routeOutcomePolicyKind: "route-policy"
     });
     expect(evidence.snapshot.currentTurn).not.toHaveProperty("command");
@@ -175,6 +176,7 @@ describe("createDashboardOperatorEvidence", () => {
       currentTurnState: currentTurn.state,
       routeOutcomeKind: expected.kind,
       routeOutcomeState: expected.state,
+      routeOutcomeRouteLabel: expected.routeLabel,
       ...(expectedMetadata.denialKind ? { routeOutcomeDenialKind: expectedMetadata.denialKind } : {}),
       ...(expectedMetadata.policyKind ? { routeOutcomePolicyKind: expectedMetadata.policyKind } : {})
     });

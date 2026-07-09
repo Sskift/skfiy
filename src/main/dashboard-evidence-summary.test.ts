@@ -126,6 +126,12 @@ describe("dashboard evidence summary", () => {
           value: "idle"
         },
         {
+          id: "route-label",
+          label: "Route label",
+          state: "unknown",
+          value: "unknown"
+        },
+        {
           id: "route-detail",
           label: "Route detail",
           state: "unknown",
@@ -192,6 +198,12 @@ describe("dashboard evidence summary", () => {
           value: "app_policy_denied"
         },
         {
+          id: "route-label",
+          label: "Route label",
+          state: "blocked",
+          value: "ghostty"
+        },
+        {
           id: "route-detail",
           label: "Route detail",
           state: "blocked",
@@ -248,6 +260,12 @@ describe("dashboard evidence summary", () => {
           value: "needs_confirmation"
         },
         {
+          id: "route-label",
+          label: "Route label",
+          state: "needs-evidence",
+          value: "Ghostty"
+        },
+        {
           id: "route-detail",
           label: "Route detail",
           state: "needs-evidence",
@@ -296,6 +314,12 @@ describe("dashboard evidence summary", () => {
           label: "Route outcome",
           state: "blocked",
           value: "chrome_host_policy_denied"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "blocked",
+          value: "chrome"
         },
         {
           id: "route-detail",
@@ -347,6 +371,12 @@ describe("dashboard evidence summary", () => {
           label: "Route outcome",
           state: "ready",
           value: "stopped"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "ready",
+          value: "chrome"
         },
         {
           id: "route-detail",

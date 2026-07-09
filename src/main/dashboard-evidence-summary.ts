@@ -151,6 +151,12 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
       value: routeOutcome.value
     },
     {
+      id: "route-label",
+      label: "Route label",
+      state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
+      value: routeOutcome.routeLabel
+    },
+    {
       id: "route-detail",
       label: "Route detail",
       state: mapRouteOutcomeEvidenceState(routeOutcome.kind),
