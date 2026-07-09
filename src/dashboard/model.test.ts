@@ -1185,6 +1185,84 @@ describe("readActivityFeedSummary", () => {
     expect(JSON.stringify(summary)).not.toContain("/repo/dist/skfiy");
     expect(JSON.stringify(summary)).not.toContain("typed-secret");
   });
+
+  it("summarizes route-level replay actions without leaking secrets or local paths", () => {
+    const summary = readActivityFeedSummary({
+      ...createActivityFeedSnapshotFixture(),
+      currentTurn: {
+        ...createActivityFeedSnapshotFixture().currentTurn,
+        latestAction: undefined,
+        latestVerification: undefined
+      },
+      replay: {
+        ...createActivityFeedSnapshotFixture().replay,
+        actions: [
+          {
+            type: "tool_call",
+            route: "finder",
+            status: "approval_required",
+            command: "organize /Users/tester/Downloads?token=secret-token"
+          },
+          {
+            type: "tool_result",
+            route: "finder",
+            status: "blocked",
+            summary: "Finder blocked /Users/tester/Downloads with token=secret-token and Bearer abc.def.",
+            evidenceSummary: "Fallback evidence should not be used.",
+            artifactCount: 2
+          },
+          {
+            type: "preview_finder_plan",
+            rootPath: "/Users/tester/Downloads",
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolderCount: 3,
+            moveFileCount: 3
+          }
+        ]
+      }
+    });
+
+    expect(summary.items).toEqual(expect.arrayContaining([
+      { label: "latest action", value: "preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves", tone: "neutral" }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("secret-token");
+    expect(JSON.stringify(summary)).not.toContain("abc.def");
+    expect(JSON.stringify(summary)).not.toContain("/Users/tester");
+  });
+
+  it("summarizes blocked tool results with redacted replay detail", () => {
+    const summary = readActivityFeedSummary({
+      ...createActivityFeedSnapshotFixture(),
+      currentTurn: {
+        ...createActivityFeedSnapshotFixture().currentTurn,
+        latestAction: undefined,
+        latestVerification: undefined
+      },
+      replay: {
+        ...createActivityFeedSnapshotFixture().replay,
+        actions: [
+          {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked",
+            summary: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+            artifactCount: 1
+          }
+        ]
+      }
+    });
+
+    expect(summary.items).toEqual(expect.arrayContaining([
+      {
+        label: "latest action",
+        value: "tool_result: chrome blocked Chrome host policy blocked token=[redacted] at [path] 1 artifacts",
+        tone: "neutral"
+      }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("secret-token");
+    expect(JSON.stringify(summary)).not.toContain("/Users/tester");
+  });
 });
 
 describe("readHomeSummary", () => {

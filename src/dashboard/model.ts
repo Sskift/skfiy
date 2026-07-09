@@ -3254,10 +3254,12 @@ function readApprovalQueueDetail(items: DashboardStatusItem[]): string {
 export function readActivityFeedSummary(snapshot: DashboardSnapshot): DashboardActivityFeedSummary {
   const turnState = readString(snapshot.currentTurn.state) ?? "idle";
   const replayState = readString(snapshot.replay.state) ?? "empty";
+  const latestAction = readRecord(snapshot.currentTurn.latestAction)
+    ?? readRecordArray(snapshot.replay.actions).at(-1);
   const active = Boolean(turnState && turnState !== "idle");
   const items = [
     ...readChromeControlActivityItems(snapshot),
-    createStatusItem("latest action", formatRuntimeAction(readRecord(snapshot.currentTurn.latestAction))),
+    createStatusItem("latest action", formatRuntimeAction(latestAction)),
     createStatusItem("verification", formatRuntimeVerification(readRecord(snapshot.currentTurn.latestVerification))),
     createStatusItem("screenshot", readRuntimeActivityScreenshot(snapshot)),
     createStatusItem("replay", replayState, replayState === "available" ? "success" : "neutral")
@@ -3725,7 +3727,55 @@ function formatRuntimeAction(action: Record<string, unknown> | undefined): strin
 
   const type = readString(action.type);
   if (type === "plan") {
-    return `plan: ${readString(action.providerLabel) ?? "planner"} ${readString(action.command) ?? ""}`.trim();
+    return `plan: ${readString(action.providerLabel) ?? "planner"} ${sanitizeDashboardActivityText(readString(action.command) ?? "")}`.trim();
+  }
+  if (type === "tool_call") {
+    return joinRuntimeActionParts([
+      "tool_call:",
+      readString(action.route) ?? "unknown",
+      readString(action.status) ?? "unknown"
+    ]);
+  }
+  if (type === "approval_decision") {
+    return joinRuntimeActionParts([
+      "approval_decision:",
+      readString(action.route) ?? "unknown",
+      readString(action.decision) ?? "unknown",
+      sanitizeDashboardActivityText(readString(action.reason) ?? "")
+    ]);
+  }
+  if (type === "tool_result") {
+    return joinRuntimeActionParts([
+      "tool_result:",
+      readString(action.route) ?? "unknown",
+      readString(action.status) ?? "unknown",
+      sanitizeDashboardActivityText(readString(action.summary) ?? readString(action.evidenceSummary) ?? ""),
+      formatRuntimeArtifactCount(readNumber(action.artifactCount))
+    ]);
+  }
+  if (type === "observe_finder_selection") {
+    return joinRuntimeActionParts([
+      "observe_finder_selection:",
+      formatRuntimeCount(readNumber(action.selectedCount), "selected"),
+      readString(action.source) ?? ""
+    ]);
+  }
+  if (type === "preview_finder_plan") {
+    return joinRuntimeActionParts([
+      "preview_finder_plan:",
+      formatRuntimeCount(readNumber(action.operationCount), "ops"),
+      formatRuntimeCount(readNumber(action.destructiveOperationCount), "destructive"),
+      formatRuntimeCount(readNumber(action.createFolderCount), "folders"),
+      formatRuntimeCount(readNumber(action.moveFileCount), "moves")
+    ]);
+  }
+  if (type === "confirm_finder_plan") {
+    return joinRuntimeActionParts([
+      "confirm_finder_plan:",
+      formatRuntimeCount(readNumber(action.operationCount), "ops"),
+      formatRuntimeCount(readNumber(action.destructiveOperationCount), "destructive"),
+      sanitizeDashboardActivityText(readString(action.reason) ?? "")
+    ]);
   }
   if (type === "type_text") {
     return `type_text: ${readNumber(action.textLength) ?? 0} chars`;
@@ -3743,12 +3793,24 @@ function formatRuntimeAction(action: Record<string, unknown> | undefined): strin
     const transition = [
       readString(action.action) ?? readString(action.from) ?? "",
       readString(action.to) ? `-> ${readString(action.to)}` : "",
-      readString(action.reason) ? `- ${readString(action.reason)}` : ""
+      readString(action.reason) ? `- ${sanitizeDashboardActivityText(readString(action.reason) ?? "")}` : ""
     ].filter(Boolean).join(" ");
     return `${type}: ${transition}`.trim();
   }
 
-  return `${type ?? "action"}${readString(action.message) ? `: ${readString(action.message)}` : ""}`;
+  return `${type ?? "action"}${readString(action.message) ? `: ${sanitizeDashboardActivityText(readString(action.message) ?? "")}` : ""}`;
+}
+
+function joinRuntimeActionParts(parts: string[]): string {
+  return parts.filter((part) => part.trim().length > 0).join(" ").trim();
+}
+
+function formatRuntimeCount(value: number | undefined, label: string): string {
+  return value === undefined ? "" : `${value} ${label}`;
+}
+
+function formatRuntimeArtifactCount(value: number | undefined): string {
+  return value !== undefined && value > 0 ? `${value} artifacts` : "";
 }
 
 function formatRuntimeVerification(verification: Record<string, unknown> | undefined): string {
@@ -3758,7 +3820,7 @@ function formatRuntimeVerification(verification: Record<string, unknown> | undef
 
   const action = readString(verification.actionType) ?? readString(verification.type) ?? "verification";
   const status = readString(verification.status) ?? "unknown";
-  const detail = readString(verification.message) ?? readString(verification.reason);
+  const detail = sanitizeDashboardActivityText(readString(verification.message) ?? readString(verification.reason) ?? "");
   return `${action}: ${status}${detail ? ` - ${detail}` : ""}`;
 }
 
@@ -4113,6 +4175,13 @@ function readSmokeDetailTone(state: string): Tone {
 
 function formatUnknownNumber(value: number | undefined): string {
   return value === undefined ? "unknown" : String(value);
+}
+
+function sanitizeDashboardActivityText(value: string): string {
+  return value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g, "[path]");
 }
 
 function formatBoolean(value: unknown): string {

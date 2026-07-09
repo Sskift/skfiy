@@ -946,6 +946,43 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Task stopped.")).toBeInTheDocument();
   });
 
+  it("shows route-level replay action summaries in Activity without leaking sensitive detail", async () => {
+    const replayActionSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "idle",
+        latestMessage: "Replay is available."
+      },
+      replay: {
+        state: "available",
+        actionCount: 2,
+        actions: [
+          {
+            type: "tool_call",
+            route: "chrome",
+            status: "approval_required",
+            command: "open https://example.test/?token=secret-token"
+          },
+          {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked",
+            summary: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+            artifactCount: 1
+          }
+        ]
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => replayActionSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("tool_result: chrome blocked Chrome host policy blocked token=[redacted] at [path] 1 artifacts").length).toBeGreaterThan(0);
+    expect(within(activity).queryByText(/secret-token/)).not.toBeInTheDocument();
+    expect(within(activity).queryByText(/\/Users\/tester/)).not.toBeInTheDocument();
+  });
+
   it.each([
     {
       label: "environment blocker",
