@@ -293,7 +293,7 @@ const snapshot: DashboardSnapshot = {
     ],
     memoryJournal: [
       {
-        id: "pmj-20260623T100000000Z-1",
+        id: "pmj-20260707T100000000Z-1",
         createdAt: "2026-07-07T10:00:00.000Z",
         source: "post-turn-review",
         stage: "durable",
@@ -305,7 +305,7 @@ const snapshot: DashboardSnapshot = {
         content: "User prefers concise Chinese updates."
       },
       {
-        id: "pmj-20260623T100500000Z-1",
+        id: "pmj-20260707T100500000Z-1",
         createdAt: "2026-07-07T10:05:00.000Z",
         source: "post-turn-review",
         stage: "pending",

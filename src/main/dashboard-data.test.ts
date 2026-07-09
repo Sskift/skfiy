@@ -224,7 +224,7 @@ describe("dashboard snapshot data", () => {
       ].join("\n"),
       "/Users/tester/Library/Application Support/skfiy/memory/memory-journal.jsonl": [
         JSON.stringify({
-          id: "pmj-20260623T100200000Z-1",
+          id: "pmj-20260707T100200000Z-1",
           createdAt: "2026-07-07T10:02:00.000Z",
           source: "post-turn-review",
           stage: "durable",
@@ -236,7 +236,7 @@ describe("dashboard snapshot data", () => {
           content: "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
         }),
         JSON.stringify({
-          id: "pmj-20260623T100500000Z-1",
+          id: "pmj-20260707T100500000Z-1",
           createdAt: "2026-07-07T10:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
@@ -323,7 +323,7 @@ describe("dashboard snapshot data", () => {
       ],
       memoryJournal: [
         {
-          id: "pmj-20260623T100500000Z-1",
+          id: "pmj-20260707T100500000Z-1",
           createdAt: "2026-07-07T10:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
@@ -336,7 +336,7 @@ describe("dashboard snapshot data", () => {
           content: "User prefers concise Chinese-first progress updates with verification evidence."
         },
         {
-          id: "pmj-20260623T100200000Z-1",
+          id: "pmj-20260707T100200000Z-1",
           createdAt: "2026-07-07T10:02:00.000Z",
           source: "post-turn-review",
           stage: "durable",

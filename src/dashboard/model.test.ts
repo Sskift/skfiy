@@ -187,7 +187,7 @@ describe("readKnowledgeGraph", () => {
         detail: "2 learning receipts across 2 providers"
       }),
       expect.objectContaining({
-        id: "memory:journal:pmj-20260623t120500000z-1",
+        id: "memory:journal:pmj-20260707t120500000z-1",
         kind: "memory",
         label: "Learning receipt",
         detail: "pending · replace user · User prefers concise Chinese-first progress updates with verification evidence. · learned from Hermes turn turn-2"
@@ -211,7 +211,7 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "profile:working", label: "summarizes habit" }),
       expect.objectContaining({
         from: "skill:memory-review",
-        to: "memory:journal:pmj-20260623t120500000z-1",
+        to: "memory:journal:pmj-20260707t120500000z-1",
         label: "records receipt"
       }),
       expect.objectContaining({
@@ -221,11 +221,11 @@ describe("readKnowledgeGraph", () => {
       }),
       expect.objectContaining({
         from: "memory:evolution",
-        to: "memory:journal:pmj-20260623t120500000z-1",
+        to: "memory:journal:pmj-20260707t120500000z-1",
         label: "orders receipt"
       }),
       expect.objectContaining({
-        from: "memory:journal:pmj-20260623t120500000z-1",
+        from: "memory:journal:pmj-20260707t120500000z-1",
         to: "memory:user",
         label: "awaits approval"
       }),
@@ -2909,7 +2909,7 @@ function createSnapshot(): DashboardSnapshot {
       ],
       memoryJournal: [
         {
-          id: "pmj-20260623T120000000Z-1",
+          id: "pmj-20260707T120000000Z-1",
           createdAt: "2026-07-07T12:00:00.000Z",
           source: "post-turn-review",
           stage: "durable",
@@ -2921,7 +2921,7 @@ function createSnapshot(): DashboardSnapshot {
           content: "User prefers concise Chinese updates."
         },
         {
-          id: "pmj-20260623T120500000Z-1",
+          id: "pmj-20260707T120500000Z-1",
           createdAt: "2026-07-07T12:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
