@@ -42,6 +42,16 @@ export type TurnTranscriptOutcome =
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type PetRouteOutcome = RouteOutcome;
 
+export interface PetStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
+}
+
 export interface PetRouteOutcomeSignal {
   label: string;
   detail: string;
@@ -537,9 +547,11 @@ export function readPetRouteOutcome({
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    stopTurnBehavior?: PetStopTurnBehavior;
   };
   turnReplay: {
     routeOutcome?: PetRouteOutcome;
+    stopTurnBehavior?: PetStopTurnBehavior;
     transcript?: {
       command?: string;
       actions?: Array<{
@@ -559,6 +571,7 @@ export function readPetRouteOutcome({
       routeReason?: string;
       denialKind?: string;
       policyKind?: string;
+      stopTurnBehavior?: PetStopTurnBehavior;
     }>;
   } | null;
 }): PetRouteOutcome {
@@ -576,6 +589,9 @@ export function readPetRouteOutcome({
   const routeReason = task.routeReason ?? latestTimelineEvent?.routeReason;
   const denialKind = task.denialKind ?? latestTimelineEvent?.denialKind;
   const policyKind = task.policyKind ?? latestTimelineEvent?.policyKind;
+  const stopTurnBehavior = task.stopTurnBehavior
+    ?? latestTimelineEvent?.stopTurnBehavior
+    ?? turnReplay?.stopTurnBehavior;
   const latestMessage = task.message || latestTimelineEvent?.message;
   const currentTurn = {
     state: task.status,
@@ -585,6 +601,7 @@ export function readPetRouteOutcome({
     ...(routeReason ? { routeReason } : {}),
     ...(denialKind ? { denialKind } : {}),
     ...(policyKind ? { policyKind } : {}),
+    ...(stopTurnBehavior ? { stopTurnBehavior } : {}),
     ...(latestMessage ? { latestMessage } : {}),
     ...(latestToolAction ? { latestAction: summarizePetRouteToolAction(latestToolAction) } : {})
   };
@@ -592,6 +609,7 @@ export function readPetRouteOutcome({
     source: "pet-ui-replay",
     ...(latestTimelineEvent?.message ? { latestMessage: latestTimelineEvent.message } : {}),
     ...(latestTimelineEvent?.routeReason ? { routeReason: latestTimelineEvent.routeReason } : {}),
+    ...(stopTurnBehavior ? { stopTurnBehavior } : {}),
     ...(latestToolAction ? { latestToolCall: summarizePetRouteToolAction(latestToolAction) } : {})
   };
 
@@ -620,9 +638,11 @@ export function getUserDashboardPanelViewModel({
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    stopTurnBehavior?: PetStopTurnBehavior;
   };
   turnReplay: {
     routeOutcome?: PetRouteOutcome;
+    stopTurnBehavior?: PetStopTurnBehavior;
     transcript: {
       outcome: TurnTranscriptOutcome;
       command?: string;
@@ -640,6 +660,7 @@ export function getUserDashboardPanelViewModel({
       routeReason?: string;
       denialKind?: string;
       policyKind?: string;
+      stopTurnBehavior?: PetStopTurnBehavior;
     }>;
   } | null;
 }): {

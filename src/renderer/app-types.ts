@@ -171,6 +171,7 @@ export interface TurnReplay {
     routeReason?: string;
     denialKind?: string;
     policyKind?: string;
+    stopTurnBehavior?: TaskEventStopTurnBehavior;
   }>;
 }
 

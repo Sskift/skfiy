@@ -608,6 +608,40 @@ describe("app view model", () => {
     });
   });
 
+  it("uses structured stopTurnBehavior for pet stopped routes without matching message text", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "cancelled",
+        message: "Operator interrupted the current turn.",
+        route: "chrome",
+        stopTurnBehavior: {
+          result: "stopped",
+          source: "hotkey",
+          command: "stop-current-turn",
+          beforeStatus: "running",
+          beforeMessage: "Observing Chrome.",
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      turnReplay: null
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      tone: "neutral",
+      routeLabel: "chrome",
+      detail: "Operator interrupted the current turn."
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "路由已停止",
+      detail: "chrome · Operator interrupted the current turn.",
+      tone: "neutral"
+    });
+  });
+
   it("uses task event route metadata before falling back to message text", () => {
     const outcome = readPetRouteOutcome({
       task: {

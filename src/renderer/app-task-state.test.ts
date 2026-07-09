@@ -129,6 +129,36 @@ describe("app task state", () => {
     });
   });
 
+  it("preserves structured stop-turn behavior from task events", () => {
+    expect(createTaskViewFromEvent({
+      status: "cancelled",
+      message: "Operator interrupted the current turn.",
+      route: "chrome",
+      stopTurnBehavior: {
+        result: "stopped",
+        source: "hotkey",
+        command: "stop-current-turn",
+        beforeStatus: "running",
+        beforeMessage: "Observing Chrome.",
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
+    })).toMatchObject({
+      status: "cancelled",
+      message: "Operator interrupted the current turn.",
+      route: "chrome",
+      stopTurnBehavior: {
+        result: "stopped",
+        source: "hotkey",
+        command: "stop-current-turn",
+        beforeStatus: "running",
+        beforeMessage: "Observing Chrome.",
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
+    });
+  });
+
   it("updates replay records from reset, merge, and idle task events", () => {
     const before = createReplayRecord("before", "/tmp/before.png");
     const after = createReplayRecord("after", "/tmp/after.png");

@@ -2,6 +2,7 @@ import type {
   FinderPlanPreview,
   ObserveAppReplayRecord,
   TaskEvent,
+  TaskEventStopTurnBehavior,
   TaskStatus
 } from "./app-types";
 import { STATUS_COPY, canStopTurn } from "./app-view-model";
@@ -14,6 +15,7 @@ export interface TaskView {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  stopTurnBehavior?: TaskEventStopTurnBehavior;
   finderPlanPreview?: FinderPlanPreview;
 }
 
@@ -74,6 +76,7 @@ export function createTaskViewFromEvent(event: TaskEvent): TaskView {
     ...(event.routeReason ? { routeReason: event.routeReason } : {}),
     ...(event.denialKind ? { denialKind: event.denialKind } : {}),
     ...(event.policyKind ? { policyKind: event.policyKind } : {}),
+    ...(event.stopTurnBehavior ? { stopTurnBehavior: event.stopTurnBehavior } : {}),
     finderPlanPreview: event.finderPlanPreview
   };
 }
