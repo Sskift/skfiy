@@ -11,6 +11,7 @@ export function formatStatusTextOutput(output: Record<string, unknown>): string 
   const pageControl = readRecord(evidence?.extensionPageControl);
   const runtimeSnapshot = readRecord(evidence?.runtimeSnapshot);
   const currentTurn = readRecord(evidence?.currentTurn);
+  const routeOutcome = readRecord(runtimeSnapshot?.routeOutcome);
   const dashboardSmoke = readRecord(evidence?.dashboardSmoke);
   const lines = [
     "skfiy status",
@@ -19,6 +20,7 @@ export function formatStatusTextOutput(output: Record<string, unknown>): string 
     `extension page control: ${formatPageControlText(pageControl)}`,
     `runtime-snapshot: ${formatRuntimeSnapshotText(runtimeSnapshot)}`,
     `current-turn: ${formatCurrentTurnText(currentTurn)}`,
+    `route-outcome: ${formatRouteOutcomeText(routeOutcome)}`,
     `dashboard smoke: ${formatDashboardSmokeText(dashboardSmoke)}`
   ];
 
@@ -63,6 +65,29 @@ function formatCurrentTurnText(currentTurn: Record<string, unknown> | undefined)
     readString(currentTurn?.updateSource) ? `source=${readString(currentTurn?.updateSource)}` : undefined,
     command ? `command=${JSON.stringify(command)}` : undefined,
     latestMessage ? `message=${JSON.stringify(latestMessage)}` : undefined
+  ].filter(Boolean);
+
+  return parts.join(" ");
+}
+
+function formatRouteOutcomeText(routeOutcome: Record<string, unknown> | undefined): string {
+  const kind = readString(routeOutcome?.kind) ?? readString(routeOutcome?.value) ?? "unknown";
+  const state = readString(routeOutcome?.state);
+  const routeLabel = readString(routeOutcome?.routeLabel);
+  const tone = readString(routeOutcome?.tone);
+  const source = readString(routeOutcome?.source);
+  const denialKind = readString(routeOutcome?.denialKind);
+  const policyKind = readString(routeOutcome?.policyKind);
+  const detail = readString(routeOutcome?.detail);
+  const parts = [
+    kind,
+    state ? `state=${state}` : undefined,
+    routeLabel ? `route=${routeLabel}` : undefined,
+    tone ? `tone=${tone}` : undefined,
+    source ? `source=${source}` : undefined,
+    denialKind ? `denial=${denialKind}` : undefined,
+    policyKind ? `policy=${policyKind}` : undefined,
+    detail ? `detail=${JSON.stringify(detail)}` : undefined
   ].filter(Boolean);
 
   return parts.join(" ");

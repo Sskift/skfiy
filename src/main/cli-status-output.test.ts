@@ -23,7 +23,17 @@ describe("CLI status text output", () => {
           ageSeconds: 320,
           markerAgeSeconds: 5,
           path: "/tmp/runtime.json",
-          markerPath: "/tmp/turn-marker.json"
+          markerPath: "/tmp/turn-marker.json",
+          routeOutcome: {
+            kind: "app_policy_denied",
+            state: "blocked",
+            routeLabel: "ghostty",
+            tone: "danger",
+            source: "runtime-snapshot",
+            denialKind: "app_policy",
+            policyKind: "app-policy",
+            detail: "Configured app policy blocked Ghostty."
+          }
         },
         currentTurn: {
           state: "approval_required",
@@ -46,6 +56,7 @@ describe("CLI status text output", () => {
       "extension page control: state=blocked_by_chrome_host_permission source=extension.pageControl",
       "runtime-snapshot: stale-after-turn age=320s marker-age=5s path=/tmp/runtime.json marker=/tmp/turn-marker.json",
       "current-turn: approval_required target=Chrome approval=required stop=available source=runtime command=\"open https://example.test\" message=\"Approval required\"",
+      "route-outcome: app_policy_denied state=blocked route=ghostty tone=danger source=runtime-snapshot denial=app_policy policy=app-policy detail=\"Configured app policy blocked Ghostty.\"",
       "dashboard smoke: state=passed path=.skfiy-smoke/dashboard.json",
       ""
     ].join("\n"));

@@ -1619,6 +1619,7 @@ describe("CLI command surface", () => {
       expect(textOutput).toContain(
         'current-turn: observing stop=available source=live-task-event command="take screenshot" message="Capturing the desktop."'
       );
+      expect(textOutput).toContain("route-outcome: running state=observing");
       expect(stderr).toEqual([]);
     } finally {
       rmSync(homeDir, { recursive: true, force: true });
@@ -1750,6 +1751,7 @@ describe("CLI command surface", () => {
       });
       expect(textStdout.join("")).toContain(`runtime-snapshot: missing-after-turn marker-age=5s path=${snapshotPath} marker=${markerPath}`);
       expect(textStdout.join("")).toContain("current-turn: observing target=Finder source=live-task-event command=\"capture screen redacted=[redacted]\"");
+      expect(textStdout.join("")).toContain("route-outcome: running state=observing");
       expect(`${jsonStdout.join("")}\n${textStdout.join("")}`).not.toContain("marker-secret");
       expect(stderr).toEqual([]);
     } finally {
