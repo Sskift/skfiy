@@ -3157,6 +3157,10 @@ function readOperatorEvidencePayloadItems(
     createOperatorEvidenceItem("state", status.state, readEvidenceSummaryTone(readPayloadString(status.state))),
     createOperatorEvidenceItem("current turn", status.currentTurnState),
     createOperatorEvidenceItem("route outcome", status.routeOutcomeKind),
+    createOperatorEvidenceItem("route state", status.routeOutcomeState),
+    createOperatorEvidenceItem("route", status.routeOutcomeRouteLabel),
+    createOperatorEvidenceItem("denial", status.routeOutcomeDenialKind),
+    createOperatorEvidenceItem("policy", status.routeOutcomePolicyKind),
     createOperatorEvidenceItem("readiness", status.readinessState),
     createOperatorEvidenceItem("alerts", status.alertCount),
     createOperatorEvidenceItem("smoke artifacts", status.smokeArtifactCount)

@@ -1779,6 +1779,10 @@ describe("DashboardApp", () => {
         state: "blocked",
         currentTurnState: "executing",
         routeOutcomeKind: "app_policy_denied",
+        routeOutcomeState: "blocked",
+        routeOutcomeRouteLabel: "ghostty",
+        routeOutcomeDenialKind: "app_policy",
+        routeOutcomePolicyKind: "app-policy",
         readinessState: "blocked",
         alertCount: 2,
         smokeArtifactCount: 3
@@ -1826,6 +1830,13 @@ describe("DashboardApp", () => {
     expect(within(status).getByText("executing")).toBeInTheDocument();
     expect(within(status).getByText("route outcome")).toBeInTheDocument();
     expect(within(status).getByText("app_policy_denied")).toBeInTheDocument();
+    expect(within(status).getByText("route state")).toBeInTheDocument();
+    expect(within(status).getByText("route")).toBeInTheDocument();
+    expect(within(status).getByText("ghostty")).toBeInTheDocument();
+    expect(within(status).getByText("denial")).toBeInTheDocument();
+    expect(within(status).getByText("app_policy")).toBeInTheDocument();
+    expect(within(status).getByText("policy")).toBeInTheDocument();
+    expect(within(status).getByText("app-policy")).toBeInTheDocument();
     expect(within(status).getByText("readiness")).toBeInTheDocument();
     expect(within(status).getByText("alerts")).toBeInTheDocument();
     expect(within(status).getByText("2")).toBeInTheDocument();
