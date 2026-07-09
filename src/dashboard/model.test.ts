@@ -24,6 +24,7 @@ import {
   readRouteOutcome,
   readRuntimeSnapshotDetails,
   readRuntimeHealthSummary,
+  readSnapshotState,
   readSmokeArtifactInventory,
   readSmokeArtifactDetails
 } from "./model";
@@ -597,6 +598,54 @@ describe("readRuntimeHealthSummary", () => {
       ])
     });
     expect(JSON.stringify(summary)).not.toContain("/Users/me");
+  });
+});
+
+describe("readSnapshotState", () => {
+  it.each([
+    {
+      label: "route blocker",
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        latestMessage: "Screen Recording permission is denied."
+      },
+      expected: { label: "Turn", value: "blocked", tone: "danger" }
+    },
+    {
+      label: "route failure",
+      currentTurn: {
+        state: "failed",
+        route: "ghostty",
+        latestMessage: "Ghostty command failed."
+      },
+      expected: { label: "Turn", value: "failed", tone: "danger" }
+    },
+    {
+      label: "route cancellation",
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Browser task cancelled before execution."
+      },
+      expected: { label: "Turn", value: "cancelled", tone: "neutral" }
+    },
+    {
+      label: "route completion",
+      currentTurn: {
+        state: "completed",
+        route: "tmux_supervision",
+        latestMessage: "money-run supervision completed."
+      },
+      expected: { label: "Turn", value: "completed", tone: "success" }
+    }
+  ])("uses route outcome tone for $label", ({ currentTurn, expected }) => {
+    const state = readSnapshotState({
+      ...createSnapshot(),
+      currentTurn
+    });
+
+    expect(state).toEqual(expect.arrayContaining([expected]));
   });
 });
 

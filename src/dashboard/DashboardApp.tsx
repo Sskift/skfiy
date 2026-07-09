@@ -2978,7 +2978,7 @@ function LatestSignalCard({ signal }: { signal: DashboardLatestTaskSignal }) {
           <Card.Title>{signal.title}</Card.Title>
           <Card.Description>{signal.source}</Card.Description>
         </div>
-        <TriangleAlert size={18} aria-hidden="true" />
+        <CircleForTone tone={signal.tone} />
       </Card.Header>
       <Card.Content className="skfiy-dashboard-card-content">
         <p className="skfiy-dashboard-message">{signal.detail}</p>

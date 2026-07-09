@@ -935,6 +935,103 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Task stopped.")).toBeInTheDocument();
   });
 
+  it.each([
+    {
+      label: "environment blocker",
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        latestMessage: "Screen Recording permission is denied."
+      },
+      latestHeading: "Latest blocker",
+      outcomeTitle: "Route blocked",
+      outcomeValue: "blocked",
+      outcomeState: "state blocked",
+      graphEdge: "blocked route",
+      nextActionTitle: "Resolve route blocker",
+      progressValue: "blocked"
+    },
+    {
+      label: "route failure",
+      currentTurn: {
+        state: "failed",
+        route: "ghostty",
+        latestMessage: "Ghostty command failed."
+      },
+      latestHeading: "Latest blocker",
+      outcomeTitle: "Route failed",
+      outcomeValue: "failed",
+      outcomeState: "state failed",
+      graphEdge: "failed route",
+      nextActionTitle: "Review route failure",
+      progressValue: "failed"
+    },
+    {
+      label: "route cancellation",
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Browser task cancelled before execution."
+      },
+      latestHeading: "Latest outcome",
+      outcomeTitle: "Route cancelled",
+      outcomeValue: "cancelled",
+      outcomeState: "state cancelled",
+      graphEdge: "cancelled route",
+      nextActionTitle: "Route cancelled",
+      progressValue: "cancelled"
+    },
+    {
+      label: "route completion",
+      currentTurn: {
+        state: "completed",
+        route: "tmux_supervision",
+        latestMessage: "money-run supervision completed."
+      },
+      latestHeading: "Latest outcome",
+      outcomeTitle: "Route completed",
+      outcomeValue: "completed",
+      outcomeState: "state completed",
+      graphEdge: "completed route",
+      nextActionTitle: "Route completed",
+      progressValue: "completed"
+    }
+  ])("shows $label as a distinct terminal route outcome", async ({
+    currentTurn,
+    graphEdge,
+    latestHeading,
+    nextActionTitle,
+    outcomeState,
+    outcomeTitle,
+    outcomeValue,
+    progressValue
+  }) => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...snapshot,
+      alerts: [],
+      currentTurn
+    }))} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: latestHeading })).toBeInTheDocument();
+    expect(within(activity).getByText(outcomeTitle)).toBeInTheDocument();
+    expect(within(activity).getAllByText(outcomeValue).length).toBeGreaterThan(0);
+    expect(within(activity).getByText(outcomeState)).toBeInTheDocument();
+    expect(within(activity).getAllByText(currentTurn.latestMessage).length).toBeGreaterThan(0);
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText(outcomeTitle).length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText(graphEdge).length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent(progressValue);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: nextActionTitle })).toBeInTheDocument();
+    expect(within(nextAction).getByText(currentTurn.latestMessage)).toBeInTheDocument();
+  });
+
   it("shows the fallback Home summary in Overview without provider secrets", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createHomeSummaryDashboardSnapshot())} />);
 

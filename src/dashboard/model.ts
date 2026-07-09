@@ -782,6 +782,8 @@ function createSessionNodeDetail(
 }
 
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {
+  const routeOutcome = readRouteOutcome(snapshot);
+  const turnState = readString(snapshot.currentTurn.state) ?? "idle";
   return [
     {
       label: "Desktop",
@@ -801,8 +803,8 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
     },
     {
       label: "Turn",
-      value: readString(snapshot.currentTurn.state) ?? "idle",
-      tone: snapshot.currentTurn.state === "failed" ? "danger" : "neutral"
+      value: turnState,
+      tone: routeOutcome.kind === "idle" ? "neutral" : routeOutcome.tone
     }
   ];
 }
