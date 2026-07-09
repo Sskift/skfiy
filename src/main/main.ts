@@ -124,6 +124,12 @@ import {
 } from "./main-assistant-agent-settings-response.js";
 import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
+  createManualScreenshotCompletedTaskEvent,
+  createManualScreenshotFailedTaskEvent,
+  createManualScreenshotStartedTaskEvent,
+  createRejectedRunCommandTaskEvent
+} from "./main-manual-task-events.js";
+import {
   cancelComputerUseToolCallState,
   completeComputerUseToolCallState,
   createPendingApproval,
@@ -1047,10 +1053,7 @@ ipcMain.handle(
     const request = readRunCommandRequest(command, options);
 
     if (!request.ok) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: request.message
-      });
+      emitTaskEvent(window, createRejectedRunCommandTaskEvent(request.message));
       return;
     }
 
@@ -1063,10 +1066,7 @@ ipcMain.handle("skfiy:approve-task", async (event) => {
   const approval = pendingApproval;
 
   if (!approval) {
-    emitTaskEvent(window, {
-      status: "idle",
-      message: "No task is waiting for approval."
-    });
+    emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(null));
     return;
   }
 
@@ -1100,22 +1100,13 @@ ipcMain.handle("skfiy:take-screenshot", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const helper = createDesktopHelper();
 
-  emitTaskEvent(window, {
-    status: "observing",
-    message: "Capturing the desktop."
-  });
+  emitTaskEvent(window, createManualScreenshotStartedTaskEvent());
 
   try {
     const screenshot = await helper.screenshot(createScreenshotPath("manual"));
-    emitTaskEvent(window, {
-      status: "completed",
-      message: `Screenshot saved: ${screenshot.outputPath}`
-    });
+    emitTaskEvent(window, createManualScreenshotCompletedTaskEvent(screenshot.outputPath));
   } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Screenshot failed."
-    });
+    emitTaskEvent(window, createManualScreenshotFailedTaskEvent(error));
   }
 });
 
