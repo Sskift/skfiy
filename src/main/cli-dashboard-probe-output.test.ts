@@ -104,4 +104,47 @@ describe("CLI dashboard probe output", () => {
       alerts: ["ok"]
     });
   });
+
+  it("completes partial explicit route outcomes from snapshot route evidence", () => {
+    const summary = createDashboardStatusSnapshotSummary(
+      { state: "reachable", status: 200 },
+      {
+        schemaVersion: 1,
+        generatedAt: "2026-07-07T00:00:00.000Z",
+        runtimeHealth: {
+          dashboard: { state: "running" }
+        },
+        operatorReadiness: { state: "blocked" },
+        currentTurn: {
+          state: "blocked",
+          route: "chrome",
+          routeReason: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+          policyKind: "chrome-host-policy"
+        },
+        replay: {
+          state: "available",
+          source: "runtime-snapshot"
+        },
+        routeOutcome: {
+          kind: "chrome_host_policy_denied"
+        },
+        smokeEvidence: { artifacts: [] },
+        alerts: []
+      }
+    );
+
+    expect(summary.routeOutcome).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked redacted=[redacted] at [path]",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(summary.routeOutcome)).not.toContain("secret-token");
+    expect(JSON.stringify(summary.routeOutcome)).not.toContain("/Users/tester");
+  });
 });

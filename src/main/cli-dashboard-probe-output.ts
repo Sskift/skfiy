@@ -5,7 +5,12 @@ import {
   sanitizeTokenFree
 } from "./cli-output-sanitize.js";
 import type { CliCommandInvocation } from "./cli-command-normalization.js";
-import { readRouteOutcome } from "../shared/route-outcome.js";
+import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export function createDashboardProbeNotRunOutput({
   invocation,
@@ -68,16 +73,57 @@ export function createDashboardRouteOutcomeSummary(
   snapshot: Record<string, unknown>
 ): Record<string, unknown> {
   const explicit = readRecord(snapshot.routeOutcome);
+  const hasRouteEvidence = hasDashboardRouteEvidence(snapshot);
 
   if (explicit) {
-    return sanitizeTokenFree(explicit) as Record<string, unknown>;
+    if (!hasRouteEvidence) {
+      return sanitizeTokenFree(explicit) as Record<string, unknown>;
+    }
+
+    return sanitizeTokenFree(mergeDashboardRouteOutcomeSummary(
+      explicit,
+      readDashboardRouteOutcomeFallback(snapshot)
+    )) as Record<string, unknown>;
   }
 
-  return sanitizeTokenFree(readRouteOutcome({
+  return sanitizeTokenFree(readDashboardRouteOutcomeFallback(snapshot)) as Record<string, unknown>;
+}
+
+function readDashboardRouteOutcomeFallback(snapshot: Record<string, unknown>): RouteOutcome {
+  return readRouteOutcome({
     currentTurn: readRecord(snapshot.currentTurn),
     replay: readRecord(snapshot.replay),
     defaultSource: "dashboard-snapshot"
-  })) as Record<string, unknown>;
+  });
+}
+
+function mergeDashboardRouteOutcomeSummary(
+  explicit: Record<string, unknown>,
+  fallback: RouteOutcome
+): RouteOutcome {
+  const denialKind = readString(explicit.denialKind) ?? fallback.denialKind;
+  const policyKind = readString(explicit.policyKind) ?? fallback.policyKind;
+
+  return {
+    kind: isRouteOutcomeKind(explicit.kind) ? explicit.kind : fallback.kind,
+    title: readString(explicit.title) ?? fallback.title,
+    value: readString(explicit.value) ?? fallback.value,
+    detail: readString(explicit.detail) ?? fallback.detail,
+    tone: isRouteOutcomeTone(explicit.tone) ? explicit.tone : fallback.tone,
+    source: readString(explicit.source) ?? fallback.source,
+    routeLabel: readString(explicit.routeLabel) ?? fallback.routeLabel,
+    state: readString(explicit.state) ?? fallback.state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  };
+}
+
+function hasDashboardRouteEvidence(snapshot: Record<string, unknown>): boolean {
+  return hasRecordEntries(readRecord(snapshot.currentTurn)) || hasRecordEntries(readRecord(snapshot.replay));
+}
+
+function hasRecordEntries(value: Record<string, unknown> | undefined): boolean {
+  return value ? Object.keys(value).length > 0 : false;
 }
 
 export function createDashboardFetchSummary(probe: Record<string, unknown>): Record<string, unknown> {
