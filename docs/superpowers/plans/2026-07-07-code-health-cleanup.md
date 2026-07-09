@@ -16,7 +16,12 @@
 
 ## Plan Hygiene
 
-Status: complete as a cleanup task, still enforced as a standing guard before product work.
+Status: complete as a cleanup task; enforcement remains as a standing guard before product work.
+
+Current live-tree outcome: this repository should contain exactly one active
+plan file, no inactive plan-like Markdown, no retired dated Markdown, no stale
+handoff/checklist/backlog docs, no archive or parking folders for superseded
+plans, and no workflow references to older plan paths.
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
 - Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/`, root-level Markdown, parking folders, archive folders, or reference folders.
@@ -29,6 +34,7 @@ Status: complete as a cleanup task, still enforced as a standing guard before pr
 - Temporary notes, local release evidence, and scratch audit output must not become plan docs. Keep them ignored, delete them locally when stale, or fold durable decisions into this active plan or canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
+- If the guard is green, old plan cleanup is done. Do not create archaeology tasks or summarize deleted plans in docs; move to the current product/code-health order below.
 
 Verification:
 
@@ -54,10 +60,10 @@ a standing invariant, not a backlog task: one active plan, no retired dated
 implementation Markdown, no stale handoff/checklist Markdown, and no workflow
 references to old plan paths.
 
-1. Re-check plan hygiene first. The guard must prove there is still one active plan, no retired dated Markdown, no stale handoff/checklist/backlog docs, and no workflow reference to old plan paths.
-2. Finish only the remaining safe Dashboard P1 migrations where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage. If no safe API gap remains, do not invent one.
-3. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-4. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+1. Re-check plan hygiene first. If the guard is green, do not spend the cut on old plan archaeology; keep the tree clean and move on.
+2. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
+3. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+4. Finish only the remaining safe Dashboard P1 migrations where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage. If no safe API gap remains, do not invent one.
 5. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
 6. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
 7. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
