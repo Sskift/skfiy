@@ -5,6 +5,7 @@ import {
   sanitizeTokenFree
 } from "./cli-output-sanitize.js";
 import type { CliCommandInvocation } from "./cli-command-normalization.js";
+import { readRouteOutcome } from "../shared/route-outcome.js";
 
 export function createDashboardProbeNotRunOutput({
   invocation,
@@ -29,7 +30,8 @@ export function createDashboardProbeNotRunOutput({
     descriptor: { state: "unknown" },
     snapshot: { state: "unknown" },
     operatorEvidence: { state: "unknown" },
-    operatorReadiness: { state: "unknown" }
+    operatorReadiness: { state: "unknown" },
+    routeOutcome: { state: "unknown" }
   };
 }
 
@@ -42,6 +44,7 @@ export function createDashboardStatusSnapshotSummary(
   }
 
   const runtimeHealth = readRecord(snapshot.runtimeHealth);
+  const routeOutcome = createDashboardRouteOutcomeSummary(snapshot);
   const summary: Record<string, unknown> = {
     ...createDashboardFetchSummary(probe),
     schemaVersion: snapshot.schemaVersion,
@@ -53,11 +56,28 @@ export function createDashboardStatusSnapshotSummary(
       nativeHost: readRecord(runtimeHealth?.nativeHost) ?? { state: "unknown" }
     },
     operatorReadiness: readRecord(snapshot.operatorReadiness) ?? { state: "unknown" },
+    routeOutcome,
     smokeEvidence: readRecord(snapshot.smokeEvidence) ?? { artifacts: [] },
     alerts: Array.isArray(snapshot.alerts) ? snapshot.alerts : []
   };
 
   return sanitizeTokenFree(summary) as Record<string, unknown>;
+}
+
+export function createDashboardRouteOutcomeSummary(
+  snapshot: Record<string, unknown>
+): Record<string, unknown> {
+  const explicit = readRecord(snapshot.routeOutcome);
+
+  if (explicit) {
+    return sanitizeTokenFree(explicit) as Record<string, unknown>;
+  }
+
+  return sanitizeTokenFree(readRouteOutcome({
+    currentTurn: readRecord(snapshot.currentTurn),
+    replay: readRecord(snapshot.replay),
+    defaultSource: "dashboard-snapshot"
+  })) as Record<string, unknown>;
 }
 
 export function createDashboardFetchSummary(probe: Record<string, unknown>): Record<string, unknown> {

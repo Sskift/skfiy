@@ -678,7 +678,8 @@ describe("CLI command surface", () => {
       descriptor: { state: "unknown" },
       snapshot: { state: "unknown" },
       operatorEvidence: { state: "unknown" },
-      operatorReadiness: { state: "unknown" }
+      operatorReadiness: { state: "unknown" },
+      routeOutcome: { state: "unknown" }
     });
     expectJsonSafe(createCliOutput(status));
     expectJsonSafe(createCliOutput(snapshot));

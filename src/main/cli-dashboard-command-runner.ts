@@ -13,6 +13,7 @@ import {
   createDashboardFetchSummary,
   createDashboardOperatorEvidenceUrl,
   createDashboardProbeNotRunOutput,
+  createDashboardRouteOutcomeSummary,
   createDashboardSnapshotUrl,
   createDashboardStatusSnapshotSummary
 } from "./cli-dashboard-probe-output.js";
@@ -206,6 +207,9 @@ async function createDashboardProbeRunOutput({
   const operatorReadiness = sanitizeTokenFree(
     readRecord(snapshotBody?.operatorReadiness) ?? { state: "unknown" }
   );
+  const routeOutcome = snapshotBody
+    ? createDashboardRouteOutcomeSummary(snapshotBody)
+    : sanitizeTokenFree({ state: "unknown" });
   const commonOutput = {
     ...baseOutput,
     result,
@@ -220,7 +224,8 @@ async function createDashboardProbeRunOutput({
     operatorEvidence: operatorEvidenceBody
       ? sanitizeTokenFree(operatorEvidenceBody)
       : createDashboardFetchSummary(operatorEvidenceProbe),
-    operatorReadiness
+    operatorReadiness,
+    routeOutcome
   };
 
   if (invocation.subcommand === "snapshot") {

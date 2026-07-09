@@ -42,7 +42,8 @@ describe("CLI dashboard probe output", () => {
       descriptor: { state: "unknown" },
       snapshot: { state: "unknown" },
       operatorEvidence: { state: "unknown" },
-      operatorReadiness: { state: "unknown" }
+      operatorReadiness: { state: "unknown" },
+      routeOutcome: { state: "unknown" }
     });
   });
 
@@ -71,6 +72,12 @@ describe("CLI dashboard probe output", () => {
           dashboard: { state: "running", token: "secret" }
         },
         operatorReadiness: { state: "ready", token: "secret" },
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          value: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=secret.",
+          token: "secret"
+        },
         smokeEvidence: { artifacts: [{ target: "ui", token: "secret" }] },
         alerts: ["ok"],
         token: "secret"
@@ -87,6 +94,12 @@ describe("CLI dashboard probe output", () => {
         nativeHost: { state: "unknown" }
       },
       operatorReadiness: { state: "ready", token: "[redacted]" },
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        value: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked redacted=[redacted]",
+        token: "[redacted]"
+      },
       smokeEvidence: { artifacts: [{ target: "ui", token: "[redacted]" }] },
       alerts: ["ok"]
     });

@@ -56,6 +56,13 @@ describe("CLI dashboard command runner", () => {
               token: "operator-secret"
             }
           },
+          currentTurn: {
+            state: "blocked",
+            route: "ghostty",
+            routeReason: "Configured app policy blocked Ghostty token=snapshot-secret.",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          },
           smokeEvidence: {
             artifacts: [
               {
@@ -173,6 +180,14 @@ describe("CLI dashboard command runner", () => {
             extensionReadiness: {
               token: "[redacted]"
             }
+          },
+          routeOutcome: {
+            kind: "app_policy_denied",
+            state: "blocked",
+            routeLabel: "ghostty",
+            detail: "Configured app policy blocked Ghostty redacted=[redacted]",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
           }
         },
         operatorReadiness: {
@@ -180,6 +195,14 @@ describe("CLI dashboard command runner", () => {
           extensionReadiness: {
             token: "[redacted]"
           }
+        },
+        routeOutcome: {
+          kind: "app_policy_denied",
+          state: "blocked",
+          routeLabel: "ghostty",
+          detail: "Configured app policy blocked Ghostty redacted=[redacted]",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
         },
         operatorEvidence: {
           schemaVersion: 1,
@@ -198,6 +221,14 @@ describe("CLI dashboard command runner", () => {
         schemaVersion: 1,
         command: "dashboard snapshot",
         result: "ok",
+        routeOutcome: {
+          kind: "app_policy_denied",
+          state: "blocked",
+          routeLabel: "ghostty",
+          detail: "Configured app policy blocked Ghostty redacted=[redacted]",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        },
         snapshot: {
           schemaVersion: 1,
           operatorReadiness: {
