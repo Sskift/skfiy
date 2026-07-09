@@ -655,13 +655,30 @@ async function dispatchWakeUrlAndWait(mock, url, options) {
   await waitForWakeProcessing();
 }
 
+async function waitForPostedMessagesLength(mock, count) {
+  await waitForAssertion(() => {
+    expect(mock.postedMessages).toHaveLength(count);
+  });
+}
+
+async function dispatchWakeUrlAndWaitForPostedMessages(
+  mock,
+  url,
+  { expectedNewMessageCount = 1, ...options } = {}
+) {
+  const initialMessageCount = mock.postedMessages.length;
+  await dispatchWakeUrlAndWait(mock, url, options);
+  await waitForPostedMessagesLength(mock, initialMessageCount + expectedNewMessageCount);
+
+  return mock.postedMessages.slice(initialMessageCount);
+}
+
 async function dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls) {
-  for (const [index, url] of wakeUrls.entries()) {
-    await dispatchWakeUrlAndWait(mock, url);
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toHaveLength(index + 1);
-    });
+  const messages = [];
+  for (const url of wakeUrls) {
+    messages.push(...await dispatchWakeUrlAndWaitForPostedMessages(mock, url));
   }
+  return messages;
 }
 
 afterEach(() => {
@@ -1746,12 +1763,9 @@ describe("Chrome extension background policy sync", () => {
     );
     await loadBackground(mock);
 
-    dispatchWakeTabUpdated(
-      mock,
-      wakeUrl
-    );
-
-    await waitForWakeProcessing();
+    await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl, {
+      expectedNewMessageCount: 2
+    });
 
     expect(mock.postedMessages[1]).toMatchObject({
       type: "skfiy.page.observe",
@@ -1788,12 +1802,7 @@ describe("Chrome extension background policy sync", () => {
     );
     await loadBackground(mock);
 
-    dispatchWakeTabUpdated(
-      mock,
-      wakeUrl
-    );
-
-    await waitForWakeProcessing();
+    await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl);
 
     expect(mock.postedMessages).toEqual([
       expect.objectContaining({
@@ -2046,11 +2055,10 @@ describe("Chrome extension background policy sync", () => {
       captureVisibleTabError: "The active tab cannot be captured"
     });
 
-    dispatchWakeTabUpdated(
+    await dispatchWakeUrlAndWaitForPostedMessages(
       mock,
       createLocalhostActionWakeUrl("screenshot")
     );
-    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
@@ -2075,11 +2083,10 @@ describe("Chrome extension background policy sync", () => {
   it("does not call captureVisibleTab when the background wake lacks all-urls capture permission", async () => {
     const mock = await loadLocalhostPageControlWakeBackground();
 
-    dispatchWakeTabUpdated(
+    await dispatchWakeUrlAndWaitForPostedMessages(
       mock,
       createLocalhostActionWakeUrl("screenshot", { requestId: "missing-capture-permission" })
     );
-    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
