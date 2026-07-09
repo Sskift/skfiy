@@ -429,6 +429,12 @@ function expectPostedFillActionResult(message, requestId) {
   });
 }
 
+function expectSingleFillActionExecution(mock, requestId) {
+  expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
+  expect(mock.postedMessages).toHaveLength(1);
+  expectPostedFillActionResult(mock.postedMessages[0], requestId);
+}
+
 function expectNoPageControlExecution(mock) {
   expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
   expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
@@ -1976,14 +1982,12 @@ describe("Chrome extension background policy sync", () => {
         }
       }
     }));
-    expect(mock.postedMessages).toHaveLength(1);
-    expectPostedFillActionResult(mock.postedMessages[0], "page-control-fill-cli-1");
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-1");
 
     sendPageControlWake(mock, createFillWakeDirective());
     await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-1");
   });
 
   it("does not let scheduled wake dedupe suppress an immediate popup delegated action", async () => {
@@ -2006,9 +2010,7 @@ describe("Chrome extension background policy sync", () => {
     });
     await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expectPostedFillActionResult(mock.postedMessages[0], "page-control-fill-cli-race");
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-race");
   });
 
   it("deduplicates repeated tab update events for the same action wake URL", async () => {
@@ -2019,9 +2021,7 @@ describe("Chrome extension background policy sync", () => {
     dispatchWakeTabUpdated(mock, url);
     await waitForWakeProcessing(250);
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expectPostedFillActionResult(mock.postedMessages[0]);
+    expectSingleFillActionExecution(mock);
   });
 
   it("ignores stale timestamped action wake URLs when old extension tabs are still open", async () => {
@@ -2035,14 +2035,7 @@ describe("Chrome extension background policy sync", () => {
     dispatchWakeTabUpdated(mock, currentUrl, { tabId: 100 });
     await waitForWakeProcessing(250);
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expectPostedPageActionResult(mock.postedMessages[0], {
-      requestId: "page-control-fill-cli-current",
-      action: "fill",
-      targetTabId: 42,
-      selector: "#name"
-    });
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-current");
   });
 
   it("records a bounded screenshot blocker when Chrome captureVisibleTab fails", async () => {
