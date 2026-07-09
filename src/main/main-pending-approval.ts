@@ -25,6 +25,16 @@ export interface ComputerUseToolCallRouteState extends ComputerUseToolCallState 
   activeRoute: ComputerUseCommandRoute | null;
 }
 
+export interface ComputerUseTaskEpochState {
+  currentTaskId: number;
+  pendingApproval: PendingApproval | null;
+}
+
+export interface ActiveComputerUseTaskState extends ComputerUseTaskEpochState {
+  activeToolIdentity: AssistantComputerUseToolIdentity | null;
+  activeRoute: ComputerUseCommandRoute | null;
+}
+
 export const USER_DENIED_COMPUTER_USE_REASON = "User denied this Computer Use turn.";
 
 export function createPendingApproval(
@@ -98,4 +108,24 @@ export function readComputerUseRouteForToolCallState(
   }
 
   return state.activeToolIdentity ? state.activeRoute : null;
+}
+
+export function createClearedPendingComputerUseTaskState(
+  state: ComputerUseTaskEpochState
+): ComputerUseTaskEpochState {
+  return {
+    currentTaskId: state.currentTaskId + 1,
+    pendingApproval: null
+  };
+}
+
+export function createClearedActiveComputerUseTaskState(
+  state: ActiveComputerUseTaskState
+): ActiveComputerUseTaskState {
+  return {
+    currentTaskId: state.currentTaskId + 1,
+    pendingApproval: null,
+    activeToolIdentity: null,
+    activeRoute: null
+  };
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   cancelComputerUseToolCallState,
+  createClearedActiveComputerUseTaskState,
+  createClearedPendingComputerUseTaskState,
   completeComputerUseToolCallState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
@@ -219,5 +221,58 @@ describe("main pending approval helpers", () => {
       activeToolIdentity: null,
       activeRoute: chromeRoute
     })).toBeNull();
+  });
+
+  it("clears pending task epoch state without mutating tool identity state", () => {
+    const activeToolIdentity = { turnId: "turn-agent-11", toolCallId: "tool-call-11" };
+    const chromeRoute = {
+      kind: "chrome",
+      bundleId: CHROME_BUNDLE_ID
+    } as const;
+    const pendingApproval = createPendingApproval(
+      "open Chrome",
+      "active",
+      activeToolIdentity,
+      chromeRoute
+    );
+    const state = {
+      currentTaskId: 41,
+      pendingApproval,
+      activeToolIdentity,
+      activeRoute: chromeRoute
+    };
+
+    expect(createClearedPendingComputerUseTaskState(state)).toEqual({
+      currentTaskId: 42,
+      pendingApproval: null
+    });
+    expect(state.pendingApproval).toBe(pendingApproval);
+    expect(state.activeToolIdentity).toBe(activeToolIdentity);
+  });
+
+  it("clears active task state for explicit denial and stop outcomes", () => {
+    const activeToolIdentity = { turnId: "turn-agent-12", toolCallId: "tool-call-12" };
+    const finderRoute = {
+      kind: "finder",
+      bundleId: FINDER_BUNDLE_ID
+    } as const;
+    const pendingApproval = createPendingApproval(
+      "organize Downloads",
+      "active",
+      activeToolIdentity,
+      finderRoute
+    );
+
+    expect(createClearedActiveComputerUseTaskState({
+      currentTaskId: 8,
+      pendingApproval,
+      activeToolIdentity,
+      activeRoute: finderRoute
+    })).toEqual({
+      currentTaskId: 9,
+      pendingApproval: null,
+      activeToolIdentity: null,
+      activeRoute: null
+    });
   });
 });

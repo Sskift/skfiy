@@ -133,6 +133,8 @@ import {
 import {
   cancelComputerUseToolCallState,
   completeComputerUseToolCallState,
+  createClearedActiveComputerUseTaskState,
+  createClearedPendingComputerUseTaskState,
   createPendingApproval,
   createPendingApprovalDeniedTaskEvent,
   readComputerUseRouteForToolCallState,
@@ -259,6 +261,32 @@ function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
 function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent): void {
   turnReplayStore.recordTaskEvent(readTurnReplayTaskEvent(event));
   emitTaskEvent(window, event);
+}
+
+function clearPendingComputerUseTask(): void {
+  const nextState = createClearedPendingComputerUseTaskState({
+    currentTaskId,
+    pendingApproval
+  });
+  pendingApproval = nextState.pendingApproval;
+  activeTaskController?.abort();
+  activeTaskController = null;
+  currentTaskId = nextState.currentTaskId;
+}
+
+function clearActiveComputerUseTask(): void {
+  const nextState = createClearedActiveComputerUseTaskState({
+    currentTaskId,
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = nextState.activeRoute;
+  activeTaskController?.abort();
+  activeTaskController = null;
+  currentTaskId = nextState.currentTaskId;
 }
 
 function resolveHelperPath(): string {
@@ -529,10 +557,7 @@ async function continueComputerUseTask({
   const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
 
   if (appPolicy.decision === "deny") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     const taskEvent = createAppPolicyBlockedTaskEvent({
       command,
       reason: appPolicy.reason,
@@ -544,9 +569,7 @@ async function continueComputerUseTask({
   }
 
   if (appPolicy.decision === "ask" && !approved) {
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     requireComputerUseApproval({
       command,
       mode,
@@ -575,10 +598,7 @@ async function continueComputerUseTask({
         host: hostPolicyApproval.host,
         route
       });
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
+      clearPendingComputerUseTask();
       completeComputerUseToolCall(
         toolIdentity,
         createToolResult("blocked", taskEvent.message ?? `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
@@ -593,10 +613,7 @@ async function continueComputerUseTask({
         message: hostPolicyApproval.message,
         route
       });
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
+      clearPendingComputerUseTask();
       completeComputerUseToolCall(
         toolIdentity,
         createToolResult("failed", taskEvent.message ?? `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
@@ -686,10 +703,7 @@ async function continueComputerUseTask({
     const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
 
     if (plannerRuntime.decision === "unavailable") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
+      clearPendingComputerUseTask();
       completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
       emitTaskEvent(window, createPlannerUnavailableTaskEvent({
         command,
@@ -850,10 +864,7 @@ async function runCommandTask(
   });
 
   if (routeDecision.kind === "chat") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     emitTurnReplayTaskEvent(window, createAssistantChatRouteTaskEvent({
       status: assistantTurn.status,
       message: createAssistantAgentTaskMessage(assistantTurn)
@@ -862,10 +873,7 @@ async function runCommandTask(
   }
 
   if (routeDecision.kind === "assistant_failed") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     emitTurnReplayTaskEvent(window, createAssistantTurnFailedRouteTaskEvent({
       command,
       message: createAssistantAgentTaskMessage(assistantTurn),
@@ -875,19 +883,13 @@ async function runCommandTask(
   }
 
   if (routeDecision.kind === "needs_clarification") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     emitTurnReplayTaskEvent(window, createNeedsClarificationRouteTaskEvent(routeDecision.route));
     return;
   }
 
   if (routeDecision.kind === "terminal_route_state") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     emitTurnReplayTaskEvent(window, createTerminalRouteTaskEvent({
       command,
       route: routeDecision.route
@@ -911,9 +913,7 @@ async function runCommandTask(
   emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route);
 
   if (routeDecision.kind === "needs_confirmation") {
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+    clearPendingComputerUseTask();
     requireComputerUseApproval({
       command,
       mode,
@@ -1091,12 +1091,7 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
     });
   }
 
-  pendingApproval = null;
-  activeTaskController?.abort();
-  activeTaskController = null;
-  activeComputerUseToolIdentity = null;
-  activeComputerUseRoute = null;
-  currentTaskId += 1;
+  clearActiveComputerUseTask();
 
   emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(approval));
 });
@@ -1119,12 +1114,7 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const stopRoute = pendingApproval?.route ?? activeComputerUseRoute;
   cancelActiveComputerUseToolCall("Task stopped.");
-  pendingApproval = null;
-  activeTaskController?.abort();
-  activeTaskController = null;
-  activeComputerUseToolIdentity = null;
-  activeComputerUseRoute = null;
-  currentTaskId += 1;
+  clearActiveComputerUseTask();
 
   emitTaskEvent(window, createStopTurnTaskEvent(stopRoute));
 });
