@@ -115,9 +115,9 @@ import { createRunCommandRouteDecision } from "./main-command-routing.js";
 import { createComputerUseTaskEventDispatch } from "./main-task-event-dispatch.js";
 import {
   createAssistantAgentTaskMessage,
-  createRuntimeStatusResponse,
-  readAssistantComputerUseToolCall
+  createRuntimeStatusResponse
 } from "./main-renderer-payload.js";
+import { createAssistantComputerUseToolPlan } from "./main-assistant-computer-use-plan.js";
 import {
   readAssistantAgentSettingsResponse,
   updateAssistantAgentSettingsResponse
@@ -850,18 +850,10 @@ async function runCommandTask(
     return;
   }
 
-  const plannedToolCall = readAssistantComputerUseToolCall(assistantTurn);
-  const toolIdentity: AssistantComputerUseToolIdentity = {
-    turnId: assistantTurn.id,
-    toolCallId: plannedToolCall.id
-  };
+  const computerUsePlan = createAssistantComputerUseToolPlan(assistantTurn);
+  const toolIdentity = computerUsePlan.identity;
   activeComputerUseToolIdentity = toolIdentity;
-  assistantComputerUseExecutor.planToolCall({
-    ...toolIdentity,
-    command: plannedToolCall.input.command,
-    route: plannedToolCall.input.route,
-    createdAt: plannedToolCall.createdAt
-  });
+  assistantComputerUseExecutor.planToolCall(computerUsePlan.planInput);
 
   emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route);
 

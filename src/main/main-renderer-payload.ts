@@ -1,5 +1,4 @@
 import type {
-  AssistantAgentPlannedToolCall,
   AssistantAgentProviderState,
   AssistantAgentSettings,
   AssistantAgentTurnResult
@@ -10,6 +9,7 @@ import {
 } from "./stop-turn-hotkey.js";
 
 export { createBrowserPageContextReadFailure } from "./main-browser-context-reader.js";
+export { readAssistantComputerUseToolCall } from "./main-assistant-computer-use-plan.js";
 
 export interface AssistantAgentSettingsResponse {
   settings: AssistantAgentSettings;
@@ -44,17 +44,4 @@ export function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult):
   }
 
   return `Assistant agent failed: ${turn.error?.message ?? "unknown error"}`;
-}
-
-export function readAssistantComputerUseToolCall(
-  turn: AssistantAgentTurnResult
-): AssistantAgentPlannedToolCall {
-  const toolCall = turn.toolCalls.find((candidate) =>
-    candidate.type === "computer-use" && candidate.name === "desktop-control"
-  );
-  if (!toolCall) {
-    throw new Error(`Assistant turn ${turn.id} did not plan a Computer Use tool call.`);
-  }
-
-  return toolCall;
 }
