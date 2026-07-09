@@ -18,7 +18,7 @@ describe("assistant tool bridge main-process wiring", () => {
     const tmuxIndex = source.indexOf("if (route.kind === \"tmux_supervision\")");
 
     expect(source).toContain("AssistantAgentTurnRuntimeError");
-    expect(source).toContain("summarizeAssistantToolPlan");
+    expect(source).toContain("createAssistantToolPlanRouteTaskEvent");
     expect(source).toContain("createAssistantComputerUseExecutor({");
     expect(source).toContain("createRunCommandRouteDecision");
     expect(helperSource).toContain("assistantTurnStatus !== \"completed\"");

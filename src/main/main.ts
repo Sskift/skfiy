@@ -38,7 +38,6 @@ import {
   createSessionMemoryStore,
   searchSessionMemory
 } from "./session-memory.js";
-import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import type { BrowserPageContext } from "./browser-page-context.js";
 import { readLatestBrowserPageContext } from "./main-browser-context-reader.js";
 import {
@@ -148,6 +147,7 @@ import {
   createAppPolicyApprovalRequiredTaskEvent,
   createAppPolicyBlockedTaskEvent,
   createAssistantChatRouteTaskEvent,
+  createAssistantToolPlanRouteTaskEvent,
   createAssistantTurnFailedRouteTaskEvent,
   createChromeHostPolicyAllowedTaskEvent,
   createChromeHostPolicyApprovalFailedTaskEvent,
@@ -162,7 +162,6 @@ import {
 } from "./main-route-task-events.js";
 import {
   readTurnReplayTaskEvent,
-  withRouteTaskEventMetadata,
   type ComputerUseTaskEvent,
   type ManualMode,
   type TaskEvent
@@ -390,16 +389,12 @@ function emitAssistantToolPlanTaskEvent(
   command: string,
   route: CommandRoute
 ): void {
-  const summary = summarizeAssistantToolPlan(turn);
-  if (!summary) {
+  const event = createAssistantToolPlanRouteTaskEvent({ command, route, turn });
+  if (!event) {
     return;
   }
 
-  emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-    status: "observing",
-    message: summary.message,
-    command
-  }, route));
+  emitTurnReplayTaskEvent(window, event);
 }
 
 function dispatchComputerUseTaskEvent({

@@ -1,4 +1,5 @@
 import type { AssistantAgentTurnResult } from "./assistant-agent.js";
+import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import type { ResolvedPlannerCommand } from "./planner-command.js";
 import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
 import {
@@ -36,6 +37,27 @@ export function createAssistantTurnFailedRouteTaskEvent({
   }, route, {
     routeReason: message
   });
+}
+
+export function createAssistantToolPlanRouteTaskEvent({
+  command,
+  route,
+  turn
+}: {
+  command: string;
+  route: CommandRoute;
+  turn: AssistantAgentTurnResult;
+}): TaskEvent | undefined {
+  const summary = summarizeAssistantToolPlan(turn);
+  if (!summary) {
+    return undefined;
+  }
+
+  return withRouteTaskEventMetadata({
+    status: "observing",
+    message: summary.message,
+    command
+  }, route);
 }
 
 export function createNeedsClarificationRouteTaskEvent(

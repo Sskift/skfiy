@@ -4,6 +4,7 @@ import {
   createAppPolicyApprovalRequiredTaskEvent,
   createAppPolicyBlockedTaskEvent,
   createAssistantChatRouteTaskEvent,
+  createAssistantToolPlanRouteTaskEvent,
   createAssistantTurnFailedRouteTaskEvent,
   createChromeHostPolicyAllowedTaskEvent,
   createChromeHostPolicyApprovalFailedTaskEvent,
@@ -16,6 +17,7 @@ import {
   createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
 } from "./main-route-task-events";
+import type { AssistantAgentTurnResult } from "./assistant-agent";
 import {
   CHROME_BUNDLE_ID,
   FINDER_BUNDLE_ID,
@@ -65,6 +67,79 @@ describe("main route task event helpers", () => {
         source: "task-event"
       }
     });
+  });
+
+  it("creates route-aware Background Agent tool plan events", () => {
+    const route: CommandRoute = {
+      kind: "chrome",
+      bundleId: CHROME_BUNDLE_ID
+    };
+    const turn: AssistantAgentTurnResult = {
+      id: "turn-tool-plan",
+      createdAt: "2026-07-09T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Codex",
+      message: "Planning Chrome control.",
+      route,
+      toolCalls: [
+        {
+          id: "tool-call-1",
+          type: "computer-use",
+          name: "desktop-control",
+          status: "planned",
+          createdAt: "2026-07-09T10:00:00.000Z",
+          input: {
+            command: "open Chrome",
+            route
+          }
+        }
+      ],
+      cancellation: {
+        requested: false
+      }
+    };
+
+    expect(createAssistantToolPlanRouteTaskEvent({
+      command: "open Chrome",
+      route,
+      turn
+    })).toMatchObject({
+      status: "observing",
+      message: "Codex planned 1 Computer Use tool call for Chrome.",
+      command: "open Chrome",
+      route: "chrome",
+      routeOutcome: {
+        kind: "running",
+        value: "observing",
+        routeLabel: "chrome",
+        source: "task-event"
+      }
+    });
+  });
+
+  it("omits Background Agent tool plan events when no Computer Use tool is planned", () => {
+    expect(createAssistantToolPlanRouteTaskEvent({
+      command: "hello",
+      route: {
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      },
+      turn: {
+        id: "turn-chat",
+        createdAt: "2026-07-09T10:00:00.000Z",
+        status: "completed",
+        providerLabel: "Codex",
+        message: "你好",
+        route: {
+          kind: "chat",
+          reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+        },
+        toolCalls: [],
+        cancellation: {
+          requested: false
+        }
+      }
+    })).toBeUndefined();
   });
 
   it("keeps clarification route outcomes distinct from generic failures", () => {
