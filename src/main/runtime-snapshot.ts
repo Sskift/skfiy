@@ -78,6 +78,7 @@ export interface RuntimeSnapshotCurrentTurnInput {
   routeReason?: string;
   denialKind?: string;
   policyKind?: string;
+  routeOutcome?: RouteOutcome;
   stopTurnBehavior?: RuntimeSnapshotStopTurnBehaviorInput;
 }
 
@@ -116,6 +117,8 @@ export function createRuntimeSnapshotFromReplay({
   currentTurn,
   observedAt = new Date().toISOString()
 }: RuntimeSnapshotInput): RuntimeSnapshot {
+  const explicitRouteOutcome = readRuntimeRouteOutcomeRecord(currentTurn?.routeOutcome);
+
   if (!replay) {
     const snapshotCurrentTurn = createRuntimeCurrentTurnPanel(currentTurn);
     const snapshotReplay = {
@@ -127,7 +130,7 @@ export function createRuntimeSnapshotFromReplay({
       schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
       observedAt,
       currentTurn: snapshotCurrentTurn,
-      routeOutcome: createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+      routeOutcome: explicitRouteOutcome ?? createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
       replay: snapshotReplay
     };
   }
@@ -218,7 +221,7 @@ export function createRuntimeSnapshotFromReplay({
     schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
     observedAt,
     currentTurn: snapshotCurrentTurn,
-    routeOutcome: createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+    routeOutcome: explicitRouteOutcome ?? createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
     replay: snapshotReplay
   };
 }

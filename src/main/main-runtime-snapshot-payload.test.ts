@@ -11,6 +11,17 @@ describe("main runtime snapshot payload helpers", () => {
       route: "finder",
       routeReason: "Finder current-folder organization needs confirmation.",
       policyKind: "route-policy",
+      routeOutcome: {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        detail: "Finder current-folder organization needs confirmation.",
+        tone: "warning",
+        source: "task-event",
+        routeLabel: "finder",
+        state: "needs_confirmation",
+        policyKind: "route-policy"
+      },
       stopTurnBehavior: {
         beforeStatus: "approval_required",
         afterStatus: "cancelled",
@@ -24,6 +35,17 @@ describe("main runtime snapshot payload helpers", () => {
       route: "finder",
       routeReason: "Finder current-folder organization needs confirmation.",
       policyKind: "route-policy",
+      routeOutcome: {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        detail: "Finder current-folder organization needs confirmation.",
+        tone: "warning",
+        source: "task-event",
+        routeLabel: "finder",
+        state: "needs_confirmation",
+        policyKind: "route-policy"
+      },
       stopTurnBehavior: {
         beforeStatus: "approval_required",
         afterStatus: "cancelled",

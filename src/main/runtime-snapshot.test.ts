@@ -358,6 +358,52 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("uses explicit live task route outcomes for runtime snapshots without leaking tokens", () => {
+    const snapshot = createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent({
+        status: "blocked",
+        message: "Chrome route blocked.",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Fallback route reason should not replace explicit outcome.",
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=runtime-secret",
+          tone: "danger",
+          source: "task-event",
+          routeLabel: "chrome",
+          state: "blocked",
+          policyKind: "chrome-host-policy"
+        }
+      }),
+      observedAt: "2026-06-20T10:01:16.000Z"
+    });
+
+    expect(snapshot.currentTurn).toMatchObject({
+      state: "blocked",
+      command: "summarize current Chrome page",
+      route: "chrome",
+      routeReason: "Fallback route reason should not replace explicit outcome.",
+      latestMessage: "Chrome route blocked."
+    });
+    expect(snapshot.currentTurn).not.toHaveProperty("routeOutcome");
+    expect(snapshot.routeOutcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "task-event",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("runtime-secret");
+  });
+
   it("keeps replay timeline app-policy denial metadata in runtime route outcome", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: {
