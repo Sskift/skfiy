@@ -195,6 +195,30 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes replay verification failures to confirmation semantics", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        transcript: {
+          outcome: "verification_failed"
+        },
+        latestToolCall: {
+          route: "ghostty",
+          summary: "Completion marker was not observed."
+        }
+      }
+    })).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Completion marker was not observed.",
+      tone: "warning",
+      source: "turn-replay",
+      routeLabel: "ghostty",
+      state: "needs_confirmation"
+    });
+  });
+
   it("infers stopped route outcome from replay stop behavior without current turn text", () => {
     expect(readRouteOutcome({
       replay: {
@@ -491,6 +515,22 @@ describe("readExplicitRouteOutcome", () => {
       title: "Route needs confirmation",
       value: "needs_confirmation",
       detail: "Finder verification needs user confirmation.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "needs_confirmation"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "needs_confirmation",
+      value: "verification_failed",
+      state: "verification_failed",
+      detail: "Completion marker was not observed."
+    }, fallback)).toEqual({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Completion marker was not observed.",
       tone: "warning",
       source: "runtime-snapshot",
       routeLabel: "unknown",

@@ -2394,6 +2394,35 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("keeps replay verification failures as confirmation route outcomes", () => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        transcript: {
+          outcome: "verification_failed"
+        },
+        latestToolCall: {
+          route: "ghostty",
+          summary: "Completion marker was not observed."
+        }
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Completion marker was not observed.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "ghostty",
+      state: "needs_confirmation"
+    });
+  });
+
   it.each([
     [
       "app-policy denial",

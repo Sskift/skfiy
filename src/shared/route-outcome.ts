@@ -586,10 +586,6 @@ function readRouteStateFromReplayOutcome(outcome: string | undefined): string | 
     return undefined;
   }
 
-  if (outcome === "verification_failed") {
-    return "failed";
-  }
-
   return readRouteStateValue(outcome);
 }
 
@@ -599,6 +595,10 @@ function readRouteStateValue(value: string | undefined): string | undefined {
   }
 
   if (value === "needs_user_confirmation" || value === "needs-user-confirmation" || value === "needs-confirmation") {
+    return "needs_confirmation";
+  }
+
+  if (value === "verification_failed") {
     return "needs_confirmation";
   }
 

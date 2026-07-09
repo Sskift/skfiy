@@ -948,6 +948,54 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("renders replay verification failures as route confirmation in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        transcript: {
+          outcome: "verification_failed"
+        },
+        latestToolCall: {
+          route: "ghostty",
+          summary: "Completion marker was not observed."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Confirm");
+      expect(homePanel?.textContent).toContain("Route needs confirmation");
+      expect(homePanel?.textContent).toContain("Confirm route");
+      expect(homePanel?.textContent).toContain("Completion marker was not observed.");
+      expect(homePanel?.textContent).not.toContain("Route failed");
+      expect(homePanel?.textContent).not.toContain("Review route failure");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("redacts fallback route outcome details before rendering the Home panel", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
