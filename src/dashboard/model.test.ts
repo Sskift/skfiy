@@ -1263,6 +1263,41 @@ describe("readActivityFeedSummary", () => {
     expect(JSON.stringify(summary)).not.toContain("secret-token");
     expect(JSON.stringify(summary)).not.toContain("/Users/tester");
   });
+
+  it("redacts file-url private temp paths from route-level replay activity", () => {
+    const summary = readActivityFeedSummary({
+      ...createActivityFeedSnapshotFixture(),
+      currentTurn: {
+        ...createActivityFeedSnapshotFixture().currentTurn,
+        latestAction: undefined,
+        latestVerification: undefined
+      },
+      replay: {
+        ...createActivityFeedSnapshotFixture().replay,
+        actions: [
+          {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked",
+            summary: "Chrome host policy blocked file:///private/tmp/skfiy-form.html with token=secret-token and Bearer abc.def.",
+            artifactCount: 1
+          }
+        ]
+      }
+    });
+
+    expect(summary.items).toEqual(expect.arrayContaining([
+      {
+        label: "latest action",
+        value: "tool_result: chrome blocked Chrome host policy blocked [path] with token=[redacted] and Bearer [redacted] 1 artifacts",
+        tone: "neutral"
+      }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("secret-token");
+    expect(JSON.stringify(summary)).not.toContain("abc.def");
+    expect(JSON.stringify(summary)).not.toContain("file://");
+    expect(JSON.stringify(summary)).not.toContain("/private/tmp");
+  });
 });
 
 describe("readHomeSummary", () => {
