@@ -113,6 +113,61 @@ describe("createTurnReplayStore", () => {
     });
   });
 
+  it("lets structured route task events preserve policy metadata after generic terminal events", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "open Ghostty",
+      route: "ghostty",
+      status: "blocked",
+      summary: "Computer Use tool call blocked."
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Computer Use tool call blocked.",
+      route: "ghostty"
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Ghostty denied by app policy.",
+      route: "ghostty",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "blocked"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "Ghostty denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      },
+      timeline: [
+        {
+          status: "blocked",
+          message: "Computer Use tool call blocked.",
+          route: "ghostty"
+        },
+        {
+          status: "blocked",
+          message: "Ghostty denied by app policy.",
+          route: "ghostty",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        }
+      ]
+    });
+  });
+
   it("preserves unsupported route clarification as a terminal task timeline status", () => {
     const updates: unknown[] = [];
     const store = createTurnReplayStore({

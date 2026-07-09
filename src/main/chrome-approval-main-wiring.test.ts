@@ -27,4 +27,22 @@ describe("Chrome approval main-process wiring", () => {
     expect(routeEventSource).toContain("Chrome host policy blocked this approved task");
     expect(routeEventSource).toContain("Chrome host policy approval failed");
   });
+
+  it("records Chrome host policy terminal preflight events into replay", () => {
+    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const preflightStart = source.indexOf("const chromeHostPolicyPreflight = createChromeHostPolicyPreflightDecision({");
+    const terminalStart = source.indexOf(
+      "if (chromeHostPolicyPreflight.kind === \"blocked\" || chromeHostPolicyPreflight.kind === \"failed\")",
+      preflightStart
+    );
+    const allowedStart = source.indexOf("if (chromeHostPolicyPreflight.kind === \"allowed_current_turn\")", terminalStart);
+    const terminalBlock = source.slice(terminalStart, allowedStart);
+
+    expect(preflightStart).toBeGreaterThan(-1);
+    expect(terminalStart).toBeGreaterThan(preflightStart);
+    expect(allowedStart).toBeGreaterThan(terminalStart);
+    expect(terminalBlock).toContain("completeComputerUseToolCall(toolIdentity, chromeHostPolicyPreflight.toolResult)");
+    expect(terminalBlock).toContain("emitTurnReplayTaskEvent(window, chromeHostPolicyPreflight.taskEvent)");
+    expect(terminalBlock).not.toContain("emitTaskEvent(window, chromeHostPolicyPreflight.taskEvent)");
+  });
 });

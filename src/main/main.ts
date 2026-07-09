@@ -558,7 +558,7 @@ async function continueComputerUseTask({
   if (appPolicyPreflight.kind === "blocked") {
     clearPendingComputerUseTask();
     completeComputerUseToolCall(toolIdentity, appPolicyPreflight.toolResult);
-    emitTaskEvent(window, appPolicyPreflight.taskEvent);
+    emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
@@ -568,7 +568,7 @@ async function continueComputerUseTask({
       ...appPolicyPreflight.approvalRequest,
       toolIdentity
     });
-    emitTaskEvent(window, appPolicyPreflight.taskEvent);
+    emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
@@ -587,7 +587,7 @@ async function continueComputerUseTask({
     if (chromeHostPolicyPreflight.kind === "blocked" || chromeHostPolicyPreflight.kind === "failed") {
       clearPendingComputerUseTask();
       completeComputerUseToolCall(toolIdentity, chromeHostPolicyPreflight.toolResult);
-      emitTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
+      emitTurnReplayTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
       return;
     }
 
@@ -664,7 +664,7 @@ async function continueComputerUseTask({
     if (plannerRuntime.decision === "unavailable") {
       clearPendingComputerUseTask();
       completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
-      emitTaskEvent(window, createPlannerUnavailableTaskEvent({
+      emitTurnReplayTaskEvent(window, createPlannerUnavailableTaskEvent({
         command,
         message: plannerRuntime.message,
         route,
@@ -727,7 +727,7 @@ async function continueComputerUseTask({
 
     const message = error instanceof Error ? error.message : "Task failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, createComputerUseFailureTaskEvent({
+    emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({
       command,
       message,
       route
@@ -785,7 +785,7 @@ async function runTmuxSupervisionCommandTask(
 
     const message = error instanceof Error ? error.message : "tmux supervision failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, createComputerUseFailureTaskEvent({
+    emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({
       command,
       message,
       route
@@ -866,7 +866,7 @@ async function runCommandTask(
       toolIdentity,
       reason: routeDecision.route.reason
     });
-    emitTaskEvent(window, createNeedsConfirmationRouteTaskEvent({
+    emitTurnReplayTaskEvent(window, createNeedsConfirmationRouteTaskEvent({
       command,
       route: routeDecision.route
     }));
@@ -1011,7 +1011,12 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
 
   clearActiveComputerUseTask();
 
-  emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(approval));
+  const denialEvent = createPendingApprovalDeniedTaskEvent(approval);
+  if (approval) {
+    emitTurnReplayTaskEvent(window, denialEvent);
+  } else {
+    emitTaskEvent(window, denialEvent);
+  }
 });
 
 ipcMain.handle("skfiy:take-screenshot", async (event) => {
@@ -1034,7 +1039,12 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
   cancelActiveComputerUseToolCall("Task stopped.");
   clearActiveComputerUseTask();
 
-  emitTaskEvent(window, createStopTurnTaskEvent(stopRoute));
+  const stopEvent = createStopTurnTaskEvent(stopRoute);
+  if (stopRoute) {
+    emitTurnReplayTaskEvent(window, stopEvent);
+  } else {
+    emitTaskEvent(window, stopEvent);
+  }
 });
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {

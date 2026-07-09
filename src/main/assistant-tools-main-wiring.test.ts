@@ -80,4 +80,75 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(stopHandler).toContain("cancelActiveComputerUseToolCall(\"Task stopped.\")");
     expect(stopHandler).toContain("createStopTurnTaskEvent(stopRoute)");
   });
+
+  it("records structured route terminal and approval events into replay", () => {
+    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const appPolicyBlocked = sliceSource(
+      source,
+      "if (appPolicyPreflight.kind === \"blocked\")",
+      "if (appPolicyPreflight.kind === \"approval_required\")"
+    );
+    const appPolicyApproval = sliceSource(
+      source,
+      "if (appPolicyPreflight.kind === \"approval_required\")",
+      "if (approved && route.kind === \"chrome\")"
+    );
+    const plannerUnavailable = sliceSource(
+      source,
+      "if (plannerRuntime.decision === \"unavailable\")",
+      "const plannedCommand = await resolvePlannerCommand({"
+    );
+    const computerUseFailure = sliceSource(
+      source,
+      "const message = error instanceof Error ? error.message : \"Task failed.\"",
+      "async function runTmuxSupervisionCommandTask("
+    );
+    const tmuxFailure = sliceSource(
+      source,
+      "const message = error instanceof Error ? error.message : \"tmux supervision failed.\"",
+      "async function runCommandTask("
+    );
+    const routeConfirmation = sliceSource(
+      source,
+      "if (routeDecision.kind === \"needs_confirmation\")",
+      "if (approved) {"
+    );
+    const denyHandler = sliceSource(
+      source,
+      "ipcMain.handle(\"skfiy:deny-task\"",
+      "ipcMain.handle(\"skfiy:take-screenshot\""
+    );
+    const stopHandler = sliceSource(
+      source,
+      "ipcMain.handle(\"skfiy:stop-task\"",
+      "ipcMain.handle(\"skfiy:get-permissions\""
+    );
+
+    expect(appPolicyBlocked).toContain("emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent)");
+    expect(appPolicyBlocked).not.toContain("emitTaskEvent(window, appPolicyPreflight.taskEvent)");
+    expect(appPolicyApproval).toContain("emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent)");
+    expect(appPolicyApproval).not.toContain("emitTaskEvent(window, appPolicyPreflight.taskEvent)");
+    expect(plannerUnavailable).toContain("emitTurnReplayTaskEvent(window, createPlannerUnavailableTaskEvent({");
+    expect(plannerUnavailable).not.toContain("emitTaskEvent(window, createPlannerUnavailableTaskEvent({");
+    expect(computerUseFailure).toContain("emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({");
+    expect(tmuxFailure).toContain("emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({");
+    expect(routeConfirmation).toContain("emitTurnReplayTaskEvent(window, createNeedsConfirmationRouteTaskEvent({");
+    expect(routeConfirmation).not.toContain("emitTaskEvent(window, createNeedsConfirmationRouteTaskEvent({");
+    expect(denyHandler).toContain("const denialEvent = createPendingApprovalDeniedTaskEvent(approval)");
+    expect(denyHandler).toContain("if (approval) {\n    emitTurnReplayTaskEvent(window, denialEvent);");
+    expect(denyHandler).toContain("emitTaskEvent(window, denialEvent)");
+    expect(stopHandler).toContain("const stopEvent = createStopTurnTaskEvent(stopRoute)");
+    expect(stopHandler).toContain("if (stopRoute) {\n    emitTurnReplayTaskEvent(window, stopEvent);");
+    expect(stopHandler).toContain("emitTaskEvent(window, stopEvent)");
+  });
 });
+
+function sliceSource(source: string, startNeedle: string, endNeedle: string): string {
+  const start = source.indexOf(startNeedle);
+  const end = source.indexOf(endNeedle, start + startNeedle.length);
+
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+
+  return source.slice(start, end);
+}
