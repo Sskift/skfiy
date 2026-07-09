@@ -430,6 +430,23 @@ function expectNoPermissionRequestOrScriptInjection(mock) {
   expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
 }
 
+function expectPageControlHealthHeartbeat(message, pageControlMatcher = expect.any(Object)) {
+  expect(message).toMatchObject({
+    schemaVersion: 1,
+    type: PAGE_OBSERVE,
+    payload: expect.objectContaining({
+      source: "page_control_health",
+      pageControl: pageControlMatcher
+    })
+  });
+}
+
+function expectUnavailablePageControlHealthHeartbeat(message) {
+  expectPageControlHealthHeartbeat(message, expect.objectContaining({
+    state: "unavailable"
+  }));
+}
+
 function dispatchRuntimeInstalled(mock) {
   mock.chrome.runtime.onInstalled.listeners[0]();
 }
@@ -1515,16 +1532,7 @@ describe("Chrome extension background policy sync", () => {
       "skfiy.page.observe"
     ]);
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-runtime_installed-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
     expect(mock.postedMessages[2].requestId).toMatch(/^host-policy-sync-runtime_startup-/);
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["startup.example"]);
   });
@@ -1548,16 +1556,7 @@ describe("Chrome extension background policy sync", () => {
       "skfiy.page.observe"
     ]);
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-service_worker_loaded-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["loaded.example"]);
   });
 
@@ -2226,16 +2225,7 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.host_policy.request"
     });
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-popup_heartbeat-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
   });
 
   it("injects the content script before page-control heartbeat when a granted page has no receiver yet", async () => {
@@ -2363,16 +2353,7 @@ describe("Chrome extension background policy sync", () => {
       schemaVersion: 1,
       type: "skfiy.host_policy.request"
     });
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
     expect(mock.chrome.runtime.reload).not.toHaveBeenCalled();
 
     await new Promise((resolve) => setTimeout(resolve, 300));
