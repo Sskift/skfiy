@@ -1,4 +1,13 @@
 import type { PetAtlasManifest } from "./pet-atlas";
+import type {
+  RouteOutcomeKind,
+  RouteOutcomeTone
+} from "../shared/route-outcome.js";
+
+export type {
+  RouteOutcomeKind,
+  RouteOutcomeTone
+};
 
 export type TaskStatus =
   | "idle"
@@ -39,23 +48,6 @@ export type TurnTranscriptOutcome =
   | "cancelled"
   | "failed"
   | "running";
-export type RouteOutcomeKind =
-  | "idle"
-  | "running"
-  | "approval_required"
-  | "needs_confirmation"
-  | "needs_clarification"
-  | "app_policy_denied"
-  | "chrome_host_policy_denied"
-  | "user_denied"
-  | "blocked"
-  | "cancelled"
-  | "stopped"
-  | "failed"
-  | "completed"
-  | "unknown";
-export type RouteOutcomeTone = "success" | "warning" | "danger" | "neutral";
-
 export interface ControlledAppPolicyEntry {
   name: string;
   bundleId: string;

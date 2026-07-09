@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  ROUTE_OUTCOME_KINDS,
+  ROUTE_OUTCOME_TONES
+} from "../shared/route-outcome";
 
 const CANONICAL_TASK_STATUSES = [
   "idle",
@@ -56,5 +60,60 @@ describe("task status boundary contract", () => {
       expect(source, `${name} should preserve denial kind`).toContain("denialKind?: string");
       expect(source, `${name} should preserve policy kind`).toContain("policyKind?: string");
     }
+  });
+
+  it("keeps route outcome kinds on the shared contract across runtime, bridge, dashboard, and pet surfaces", () => {
+    const sources = {
+      sharedRouteOutcome: readFileSync(path.join(process.cwd(), "src/shared/route-outcome.ts"), "utf8"),
+      preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
+      rendererTypes: readFileSync(path.join(process.cwd(), "src/renderer/app-types.ts"), "utf8"),
+      rendererViewModel: readFileSync(path.join(process.cwd(), "src/renderer/app-view-model.ts"), "utf8"),
+      dashboardModel: readFileSync(path.join(process.cwd(), "src/dashboard/model.ts"), "utf8"),
+      runtimeSnapshot: readFileSync(path.join(process.cwd(), "src/main/runtime-snapshot.ts"), "utf8"),
+      operatorEvidence: readFileSync(path.join(process.cwd(), "src/main/dashboard-operator-evidence.ts"), "utf8"),
+      cliStatusEvidence: readFileSync(path.join(process.cwd(), "src/main/cli-status-evidence.ts"), "utf8")
+    };
+
+    expect(sources.rendererTypes).toContain("../shared/route-outcome.js");
+    expect(sources.rendererTypes).not.toContain("export type RouteOutcomeKind =\n  |");
+
+    for (const kind of ROUTE_OUTCOME_KINDS) {
+      expect(sources.sharedRouteOutcome, `shared route outcome should declare ${kind}`).toContain(`"${kind}"`);
+      expect(sources.preload, `preload validator should accept ${kind}`).toContain(`"${kind}"`);
+      expect(sources.rendererViewModel, `pet route signal labels should cover ${kind}`)
+        .toMatch(new RegExp(`\\b${kind}:`));
+      expect(sources.dashboardModel, `dashboard model should handle ${kind}`).toContain(`"${kind}"`);
+    }
+
+    for (const tone of ROUTE_OUTCOME_TONES) {
+      expect(sources.sharedRouteOutcome, `shared route outcome should declare tone ${tone}`).toContain(`"${tone}"`);
+      expect(sources.preload, `preload validator should accept tone ${tone}`).toContain(`"${tone}"`);
+    }
+
+    for (const [name, source] of Object.entries({
+      runtimeSnapshot: sources.runtimeSnapshot,
+      operatorEvidence: sources.operatorEvidence,
+      cliStatusEvidence: sources.cliStatusEvidence
+    })) {
+      expect(source, `${name} should validate route outcome kind with the shared predicate`)
+        .toContain("isRouteOutcomeKind");
+      expect(source, `${name} should validate route outcome tone with the shared predicate`)
+        .toContain("isRouteOutcomeTone");
+    }
+  });
+
+  it("keeps evidence summary route outcome state mapping aligned with the canonical outcome set", () => {
+    const evidenceSummary = readFileSync(
+      path.join(process.cwd(), "src/main/dashboard-evidence-summary.ts"),
+      "utf8"
+    );
+    const mappedKinds = new Set(
+      [...evidenceSummary.matchAll(/kind === "([^"]+)"/g)]
+        .map((match) => match[1])
+    );
+    const knownNonFallbackKinds = ROUTE_OUTCOME_KINDS.filter((kind) => kind !== "unknown");
+
+    expect([...mappedKinds].sort()).toEqual([...knownNonFallbackKinds].sort());
+    expect(evidenceSummary).toContain('return "unknown";');
   });
 });
