@@ -52,6 +52,8 @@ import {
   createTaskStatusView,
   updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
+  shouldStopCurrentTurnFromKeyboard,
+  shouldSubmitAssistantInputFromKeyboard,
   type AssistantConversationMessage,
   type TaskView
 } from "./app-task-state";
@@ -70,7 +72,9 @@ import {
 import {
   createPetDragState,
   createPetDragMoveTransition,
+  isMatchingPetDragPointer,
   readVisiblePetRect,
+  shouldStartPetDrag,
   shouldSuppressPetClickAfterDrag,
   type PetDragState
 } from "./app-pet-drag-state";
@@ -330,7 +334,7 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
+      if (!shouldStopCurrentTurnFromKeyboard({ key: event.key })) {
         return;
       }
 
@@ -458,14 +462,17 @@ export default function App() {
   }
 
   function submitAssistantInputFromKeyboard(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (shouldSubmitAssistantInputFromKeyboard({
+      key: event.key,
+      shiftKey: event.shiftKey
+    })) {
       event.preventDefault();
       void submitAssistantInput();
     }
   }
 
   function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
+    if (!shouldStartPetDrag({ button: event.button })) {
       return;
     }
 
@@ -480,7 +487,7 @@ export default function App() {
   function movePetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     const drag = petDragRef.current;
 
-    if (!drag || drag.pointerId !== event.pointerId) {
+    if (!isMatchingPetDragPointer(drag, event.pointerId)) {
       return;
     }
 
@@ -517,7 +524,7 @@ export default function App() {
   function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     const drag = petDragRef.current;
 
-    if (!drag || drag.pointerId !== event.pointerId) {
+    if (!isMatchingPetDragPointer(drag, event.pointerId)) {
       return;
     }
 

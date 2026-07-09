@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   createPetDragMoveTransition,
   createPetDragState,
+  isMatchingPetDragPointer,
   readVisiblePetRect,
+  shouldStartPetDrag,
   shouldSuppressPetClickAfterDrag,
   updatePetDragStateForPointerMove
 } from "./app-pet-drag-state";
@@ -40,6 +42,21 @@ describe("app pet drag state", () => {
       moved: false,
       visibleRect
     });
+  });
+
+  it("derives drag start and pointer matching without React event objects", () => {
+    const drag = createPetDragState({
+      pointerId: 7,
+      screenX: 100,
+      screenY: 120
+    }, visibleRect);
+
+    expect(shouldStartPetDrag({ button: 0 })).toBe(true);
+    expect(shouldStartPetDrag({ button: 1 })).toBe(false);
+    expect(shouldStartPetDrag({ button: 2 })).toBe(false);
+    expect(isMatchingPetDragPointer(drag, 7)).toBe(true);
+    expect(isMatchingPetDragPointer(drag, 8)).toBe(false);
+    expect(isMatchingPetDragPointer(null, 7)).toBe(false);
   });
 
   it("ignores moves from other pointers and zero-delta moves", () => {

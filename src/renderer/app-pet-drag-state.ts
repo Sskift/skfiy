@@ -56,6 +56,21 @@ export function createPetDragState(
   };
 }
 
+export function shouldStartPetDrag({
+  button
+}: {
+  button: number;
+}): boolean {
+  return button === 0;
+}
+
+export function isMatchingPetDragPointer(
+  drag: PetDragState | null | undefined,
+  pointerId: number
+): drag is PetDragState {
+  return drag !== null && drag !== undefined && drag.pointerId === pointerId;
+}
+
 export function updatePetDragStateForPointerMove(
   drag: PetDragState,
   pointer: PetDragPointer

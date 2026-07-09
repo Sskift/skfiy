@@ -277,6 +277,14 @@ export function createStopTurnUiTransition(status: TaskStatus): StopTurnUiTransi
   };
 }
 
+export function shouldStopCurrentTurnFromKeyboard({
+  key
+}: {
+  key: string;
+}): boolean {
+  return key === "Escape";
+}
+
 export type AssistantInputSubmissionTransition =
   | {
     type: "blocked";
@@ -288,6 +296,16 @@ export type AssistantInputSubmissionTransition =
     task: TaskView;
     panelAction: "open-assistant";
   };
+
+export function shouldSubmitAssistantInputFromKeyboard({
+  key,
+  shiftKey
+}: {
+  key: string;
+  shiftKey: boolean;
+}): boolean {
+  return key === "Enter" && !shiftKey;
+}
 
 export function createAssistantInputSubmissionTransition(
   input: string,

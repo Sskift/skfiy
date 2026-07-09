@@ -16,6 +16,8 @@ import {
   isAssistantConversationReplyEvent,
   readAssistantConversationReply,
   removePendingAssistantConversationMessages,
+  shouldStopCurrentTurnFromKeyboard,
+  shouldSubmitAssistantInputFromKeyboard,
   updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
   type AssistantConversationMessage,
@@ -355,6 +357,18 @@ describe("app task state", () => {
     });
     expect(createStopTurnUiTransition("idle")).toBeNull();
     expect(createStopTurnUiTransition("completed")).toBeNull();
+  });
+
+  it("derives stop-turn keyboard shortcuts without React event objects", () => {
+    expect(shouldStopCurrentTurnFromKeyboard({ key: "Escape" })).toBe(true);
+    expect(shouldStopCurrentTurnFromKeyboard({ key: "Enter" })).toBe(false);
+    expect(shouldStopCurrentTurnFromKeyboard({ key: "Esc" })).toBe(false);
+  });
+
+  it("derives assistant input submit shortcuts without React event objects", () => {
+    expect(shouldSubmitAssistantInputFromKeyboard({ key: "Enter", shiftKey: false })).toBe(true);
+    expect(shouldSubmitAssistantInputFromKeyboard({ key: "Enter", shiftKey: true })).toBe(false);
+    expect(shouldSubmitAssistantInputFromKeyboard({ key: "Escape", shiftKey: false })).toBe(false);
   });
 
   it("derives assistant input submission transitions from input and submitting state", () => {
