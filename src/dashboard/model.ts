@@ -3026,6 +3026,8 @@ function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | unde
   const source = readString(record.source);
   const routeLabel = readString(record.routeLabel);
   const state = readString(record.state);
+  const denialKind = readString(record.denialKind);
+  const policyKind = readString(record.policyKind);
   if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
     return undefined;
   }
@@ -3038,7 +3040,9 @@ function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | unde
     tone,
     source,
     routeLabel,
-    state
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
   };
 }
 
@@ -3433,6 +3437,8 @@ export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): Dashboa
         createStatusItem("state", readString(snapshot.currentTurn.state) ?? "idle"),
         createStatusItem("route outcome", routeOutcome.value, routeOutcome.tone),
         createStatusItem("route detail", routeOutcome.detail),
+        ...(routeOutcome.denialKind ? [createStatusItem("denial kind", routeOutcome.denialKind)] : []),
+        ...(routeOutcome.policyKind ? [createStatusItem("policy kind", routeOutcome.policyKind)] : []),
         createStatusItem(
           "snapshot freshness",
           currentTurnFreshness.state,

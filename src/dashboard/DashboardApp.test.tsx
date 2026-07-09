@@ -783,6 +783,8 @@ describe("DashboardApp", () => {
         state: "blocked",
         route: "ghostty",
         reason: "Ghostty is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
         latestMessage: "Ghostty is denied by app policy.",
         command: "run pwd in Ghostty"
       },
@@ -797,6 +799,8 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state blocked")).toBeInTheDocument();
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
+    expect(within(activity).getByText("denial app_policy")).toBeInTheDocument();
+    expect(within(activity).getByText("policy app-policy")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("App policy denied route").length).toBeGreaterThan(0);
@@ -822,6 +826,7 @@ describe("DashboardApp", () => {
         state: "denied",
         route: "chrome",
         routeReason: "User denied this desktop control request.",
+        denialKind: "user",
         latestMessage: "User denied this desktop control request.",
         command: "do not open Chrome"
       },
@@ -837,6 +842,7 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("user_denied").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state denied")).toBeInTheDocument();
     expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+    expect(within(activity).getByText("denial user")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User denied route").length).toBeGreaterThan(0);
@@ -876,6 +882,7 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("chrome_host_policy_denied").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state blocked")).toBeInTheDocument();
     expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+    expect(within(activity).getByText("policy chrome-host-policy")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("denied by Chrome host policy").length).toBeGreaterThan(0);

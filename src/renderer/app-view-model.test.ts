@@ -685,7 +685,9 @@ describe("app view model", () => {
           tone: "danger",
           source: "turn-replay",
           routeLabel: "ghostty",
-          state: "blocked"
+          state: "blocked",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
         },
         transcript: {
           actions: []
@@ -701,7 +703,9 @@ describe("app view model", () => {
       tone: "danger",
       source: "turn-replay",
       routeLabel: "ghostty",
-      state: "blocked"
+      state: "blocked",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
     });
     expect(getPetRouteOutcomeSignal(outcome)).toEqual({
       label: "应用策略拒绝",

@@ -23,7 +23,8 @@ describe("createDashboardOperatorEvidence", () => {
           tone: "warning",
           source: "runtime-snapshot",
           routeLabel: "Ghostty",
-          state: "needs_confirmation"
+          state: "needs_confirmation",
+          policyKind: "route-policy"
         },
         replay: { state: "available" }
       })
@@ -37,12 +38,14 @@ describe("createDashboardOperatorEvidence", () => {
       tone: "warning",
       source: "runtime-snapshot",
       routeLabel: "Ghostty",
-      state: "needs_confirmation"
+      state: "needs_confirmation",
+      policyKind: "route-policy"
     });
     expect(evidence.status).toMatchObject({
       currentTurnState: "executing",
       routeOutcomeKind: "needs_confirmation",
-      routeOutcomeState: "needs_confirmation"
+      routeOutcomeState: "needs_confirmation",
+      routeOutcomePolicyKind: "route-policy"
     });
     expect(evidence.snapshot.currentTurn).not.toHaveProperty("command");
     expect(JSON.stringify(evidence)).not.toContain("secret-token");
@@ -56,6 +59,8 @@ describe("createDashboardOperatorEvidence", () => {
         state: "blocked",
         route: "ghostty",
         reason: "Ghostty is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
         command: "run token=secret-token in Ghostty"
       },
       {
@@ -64,7 +69,9 @@ describe("createDashboardOperatorEvidence", () => {
         value: "app_policy_denied",
         state: "blocked",
         tone: "danger",
-        routeLabel: "ghostty"
+        routeLabel: "ghostty",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
       }
     ],
     [
@@ -84,7 +91,8 @@ describe("createDashboardOperatorEvidence", () => {
         state: "blocked",
         tone: "danger",
         routeLabel: "chrome",
-        detail: "Chrome host policy blocked this approved task: blocked.example"
+        detail: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
       }
     ],
     [
@@ -93,6 +101,7 @@ describe("createDashboardOperatorEvidence", () => {
         state: "denied",
         route: "chrome",
         routeReason: "User denied token=secret-token browser mutation.",
+        denialKind: "user",
         command: "open https://example.test/?token=secret-token"
       },
       {
@@ -102,7 +111,8 @@ describe("createDashboardOperatorEvidence", () => {
         state: "denied",
         tone: "neutral",
         routeLabel: "chrome",
-        detail: "User denied redacted-secret browser mutation."
+        detail: "User denied redacted-secret browser mutation.",
+        denialKind: "user"
       }
     ],
     [
@@ -146,6 +156,10 @@ describe("createDashboardOperatorEvidence", () => {
     ]
   ])("keeps %s distinct without exposing the raw command", (_label, currentTurn, expected) => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
+    const expectedMetadata = expected as typeof expected & {
+      denialKind?: string;
+      policyKind?: string;
+    };
     const evidence = createDashboardOperatorEvidence({
       descriptor,
       snapshot: createDashboardSnapshot({
@@ -160,7 +174,9 @@ describe("createDashboardOperatorEvidence", () => {
     expect(evidence.status).toMatchObject({
       currentTurnState: currentTurn.state,
       routeOutcomeKind: expected.kind,
-      routeOutcomeState: expected.state
+      routeOutcomeState: expected.state,
+      ...(expectedMetadata.denialKind ? { routeOutcomeDenialKind: expectedMetadata.denialKind } : {}),
+      ...(expectedMetadata.policyKind ? { routeOutcomePolicyKind: expectedMetadata.policyKind } : {})
     });
     expect(evidence.snapshot.currentTurn).not.toHaveProperty("command");
     expect(JSON.stringify(evidence)).not.toContain("secret-token");

@@ -447,7 +447,9 @@ function summarizeRouteOutcome(
     tone: readString(outcome.tone),
     source: sanitizeStatusEvidenceString(readString(outcome.source)),
     routeLabel: sanitizeStatusEvidenceString(readString(outcome.routeLabel)),
-    state: sanitizeStatusEvidenceString(readString(outcome.state))
+    state: sanitizeStatusEvidenceString(readString(outcome.state)),
+    denialKind: sanitizeStatusEvidenceString(readString(outcome.denialKind)),
+    policyKind: sanitizeStatusEvidenceString(readString(outcome.policyKind))
   });
 }
 
@@ -468,7 +470,9 @@ function readExplicitRouteOutcome(
     tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
     source: readSafeStatusEvidenceString(record.source, fallback.source) ?? fallback.source,
     routeLabel: readSafeStatusEvidenceString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readSafeStatusEvidenceString(record.state, fallback.state) ?? fallback.state
+    state: readSafeStatusEvidenceString(record.state, fallback.state) ?? fallback.state,
+    denialKind: readSafeStatusEvidenceString(record.denialKind, fallback.denialKind) ?? fallback.denialKind,
+    policyKind: readSafeStatusEvidenceString(record.policyKind, fallback.policyKind) ?? fallback.policyKind
   };
 }
 

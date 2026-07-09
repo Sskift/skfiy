@@ -270,6 +270,8 @@ interface RouteOutcome {
   source: string;
   routeLabel: string;
   state: string;
+  denialKind?: string;
+  policyKind?: string;
 }
 
 interface PermissionSummary {
@@ -937,6 +939,8 @@ function isRouteOutcome(value: unknown): value is RouteOutcome {
     && typeof outcome.source === "string"
     && typeof outcome.routeLabel === "string"
     && typeof outcome.state === "string"
+    && (outcome.denialKind === undefined || typeof outcome.denialKind === "string")
+    && (outcome.policyKind === undefined || typeof outcome.policyKind === "string")
   );
 }
 

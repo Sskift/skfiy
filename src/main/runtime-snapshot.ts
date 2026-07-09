@@ -337,6 +337,8 @@ function readRuntimeRouteOutcomeRecord(value: unknown): RouteOutcome | undefined
   const source = readRuntimeRouteOutcomeString(record.source);
   const routeLabel = readRuntimeRouteOutcomeString(record.routeLabel);
   const state = readRuntimeRouteOutcomeString(record.state);
+  const denialKind = readRuntimeRouteOutcomeString(record.denialKind);
+  const policyKind = readRuntimeRouteOutcomeString(record.policyKind);
 
   if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
     return undefined;
@@ -350,7 +352,9 @@ function readRuntimeRouteOutcomeRecord(value: unknown): RouteOutcome | undefined
     tone,
     source,
     routeLabel,
-    state
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
   };
 }
 

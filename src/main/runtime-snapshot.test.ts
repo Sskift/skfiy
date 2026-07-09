@@ -321,7 +321,8 @@ describe("runtime snapshot", () => {
         state: "blocked",
         source: "runtime-snapshot",
         routeLabel: "chrome",
-        detail: "Chrome host policy blocked this approved task: blocked.example"
+        detail: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
       }
     });
   });
@@ -367,7 +368,9 @@ describe("runtime snapshot", () => {
         state: "blocked",
         source: "runtime-snapshot",
         routeLabel: "finder",
-        detail: "Finder is denied by app policy. token=[redacted]"
+        detail: "Finder is denied by app policy. token=[redacted]",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
       },
       replay: {
         timelineTail: [
@@ -424,7 +427,8 @@ describe("runtime snapshot", () => {
         state: "denied",
         source: "runtime-snapshot",
         routeLabel: "chrome",
-        detail: "User denied this browser mutation."
+        detail: "User denied this browser mutation.",
+        denialKind: "user"
       }
     });
   });

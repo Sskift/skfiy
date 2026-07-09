@@ -85,6 +85,8 @@ export function createDashboardOperatorEvidence({
       currentTurnState: currentTurn.state,
       routeOutcomeKind: routeOutcome.kind,
       routeOutcomeState: routeOutcome.state,
+      routeOutcomeDenialKind: routeOutcome.denialKind,
+      routeOutcomePolicyKind: routeOutcome.policyKind,
       replayState: replay.state,
       readinessState: readiness.state,
       alertCount: alerts.total,
@@ -118,7 +120,9 @@ function readExplicitRouteOutcome(
     tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
     source: readSafeString(record.source, fallback.source) ?? fallback.source,
     routeLabel: readSafeString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readSafeString(record.state, fallback.state) ?? fallback.state
+    state: readSafeString(record.state, fallback.state) ?? fallback.state,
+    denialKind: readSafeString(record.denialKind, fallback.denialKind) ?? fallback.denialKind,
+    policyKind: readSafeString(record.policyKind, fallback.policyKind) ?? fallback.policyKind
   };
 }
 

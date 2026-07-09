@@ -758,6 +758,8 @@ function readExplicitPetRouteOutcome(outcome?: Partial<PetRouteOutcome>): PetRou
   const source = readSanitizedPetRouteOutcomeField(outcome.source);
   const routeLabel = readSanitizedPetRouteOutcomeField(outcome.routeLabel);
   const state = readSanitizedPetRouteOutcomeField(outcome.state);
+  const denialKind = readSanitizedPetRouteOutcomeField(outcome.denialKind);
+  const policyKind = readSanitizedPetRouteOutcomeField(outcome.policyKind);
   if (!title || !source || !state) {
     return null;
   }
@@ -770,7 +772,9 @@ function readExplicitPetRouteOutcome(outcome?: Partial<PetRouteOutcome>): PetRou
     tone: outcome.tone,
     source,
     routeLabel: routeLabel || "unknown",
-    state
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
   };
 }
 

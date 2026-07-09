@@ -108,6 +108,8 @@ describe("CLI status evidence", () => {
               route: "chrome",
               command: "Open Chrome with token=secret-token",
               message: "Chrome route denied by app policy for token=secret-token.",
+              denialKind: "app_policy",
+              policyKind: "app-policy",
               turnId: "turn-1",
               toolCallId: "tool-1"
             }
@@ -142,7 +144,9 @@ describe("CLI status evidence", () => {
           kind: "app_policy_denied",
           state: "blocked",
           routeLabel: "chrome",
-          detail: "Chrome route denied by app policy for redacted=[redacted]"
+          detail: "Chrome route denied by app policy for redacted=[redacted]",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
         },
         replay: {
           latestToolCall: {
@@ -218,7 +222,9 @@ describe("CLI status evidence", () => {
           tone: "danger",
           source: "runtime-snapshot redacted=[redacted]",
           routeLabel: "ghostty redacted=[redacted]",
-          state: "blocked redacted=[redacted]"
+          state: "blocked redacted=[redacted]",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
         }
       });
       expect(JSON.stringify(evidence)).not.toContain("secret-token");
@@ -277,7 +283,8 @@ describe("CLI status evidence", () => {
           value: "chrome_host_policy_denied",
           state: "blocked",
           routeLabel: "chrome",
-          detail: "Chrome host policy blocked this approved task: blocked.example"
+          detail: "Chrome host policy blocked this approved task: blocked.example",
+          policyKind: "chrome-host-policy"
         }
       });
       expect(JSON.stringify(evidence)).not.toContain("secret-token");
@@ -336,7 +343,8 @@ describe("CLI status evidence", () => {
           value: "user_denied",
           state: "denied",
           routeLabel: "chrome",
-          detail: "User denied this desktop control request."
+          detail: "User denied this desktop control request.",
+          denialKind: "user"
         }
       });
       expect(JSON.stringify(evidence)).not.toContain("secret-token");

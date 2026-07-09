@@ -697,6 +697,8 @@ describe("readRuntimeSnapshotDetails", () => {
         state: "blocked",
         route: "ghostty",
         reason: "Ghostty is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
         latestMessage: "Ghostty is denied by app policy."
       },
       alerts: []
@@ -706,7 +708,9 @@ describe("readRuntimeSnapshotDetails", () => {
     expect(currentTurn).toMatchObject({
       items: expect.arrayContaining([
         { label: "route outcome", value: "app_policy_denied", tone: "danger" },
-        { label: "route detail", value: "Ghostty is denied by app policy.", tone: "neutral" }
+        { label: "route detail", value: "Ghostty is denied by app policy.", tone: "neutral" },
+        { label: "denial kind", value: "app_policy", tone: "neutral" },
+        { label: "policy kind", value: "app-policy", tone: "neutral" }
       ])
     });
   });
@@ -2185,7 +2189,8 @@ describe("readRouteOutcome", () => {
         tone: "warning",
         source: "runtime-snapshot",
         routeLabel: "Ghostty",
-        state: "needs_confirmation"
+        state: "needs_confirmation",
+        policyKind: "route-policy"
       }
     });
 
@@ -2196,7 +2201,8 @@ describe("readRouteOutcome", () => {
       detail: "Runtime replay needs a human verification check.",
       source: "runtime-snapshot",
       routeLabel: "Ghostty",
-      state: "needs_confirmation"
+      state: "needs_confirmation",
+      policyKind: "route-policy"
     });
   });
 
@@ -2207,6 +2213,8 @@ describe("readRouteOutcome", () => {
         state: "blocked",
         route: "ghostty",
         reason: "Ghostty is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
         latestMessage: "Ghostty is denied by app policy."
       },
       {
@@ -2214,7 +2222,9 @@ describe("readRouteOutcome", () => {
         title: "App policy denied route",
         value: "app_policy_denied",
         tone: "danger",
-        routeLabel: "ghostty"
+        routeLabel: "ghostty",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
       }
     ],
     [
@@ -2245,7 +2255,8 @@ describe("readRouteOutcome", () => {
         title: "User denied route",
         value: "user_denied",
         tone: "neutral",
-        routeLabel: "finder"
+        routeLabel: "finder",
+        denialKind: "user"
       }
     ],
     [
@@ -2262,7 +2273,8 @@ describe("readRouteOutcome", () => {
         title: "Chrome host policy denied route",
         value: "chrome_host_policy_denied",
         tone: "danger",
-        routeLabel: "chrome"
+        routeLabel: "chrome",
+        policyKind: "chrome-host-policy"
       }
     ],
     [

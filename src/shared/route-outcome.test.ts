@@ -91,4 +91,23 @@ describe("readRouteOutcome", () => {
       state: "cancelled"
     });
   });
+
+  it("keeps route denial and policy metadata on the classified outcome", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        routeReason: "Finder is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      }
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      value: "app_policy_denied",
+      routeLabel: "finder",
+      state: "blocked",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+  });
 });

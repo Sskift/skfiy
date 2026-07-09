@@ -2958,6 +2958,12 @@ function RouteOutcomeCard({ outcome }: { outcome: DashboardRouteOutcome }) {
           <StatusChip tone={outcome.tone}>{outcome.value}</StatusChip>
           <StatusChip tone="neutral">state {outcome.state}</StatusChip>
           <StatusChip tone="neutral">route {outcome.routeLabel}</StatusChip>
+          {outcome.denialKind ? (
+            <StatusChip tone="neutral">denial {outcome.denialKind}</StatusChip>
+          ) : null}
+          {outcome.policyKind ? (
+            <StatusChip tone="neutral">policy {outcome.policyKind}</StatusChip>
+          ) : null}
         </div>
       </Card.Content>
     </Card.Root>

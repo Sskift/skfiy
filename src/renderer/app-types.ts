@@ -162,6 +162,8 @@ export interface TurnReplay {
     source: string;
     routeLabel: string;
     state: string;
+    denialKind?: string;
+    policyKind?: string;
   };
   timeline: Array<{
     status: TaskStatus;

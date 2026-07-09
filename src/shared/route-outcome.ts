@@ -49,6 +49,8 @@ export interface RouteOutcome {
   source: string;
   routeLabel: string;
   state: string;
+  denialKind?: string;
+  policyKind?: string;
 }
 
 export interface RouteOutcomeInput {
@@ -81,8 +83,16 @@ export function readRouteOutcome({
   const routeLabel = routeSignal ?? "unknown";
   const source = readString(currentTurn?.source, sanitizeString) ?? defaultSource;
   const detail = readRouteDetail({ currentTurn, replay, includeCommandDetail, sanitizeString });
+  const denialKind = readString(currentTurn?.denialKind, sanitizeString);
+  const policyKind = readString(currentTurn?.policyKind, sanitizeString);
+  const createOutcome = (outcome: RouteOutcome): RouteOutcome => createRouteOutcome({
+    ...outcome,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  });
   const classifierText = [
-    readString(currentTurn?.denialKind, sanitizeString),
+    denialKind,
+    policyKind,
     readString(currentTurn?.routeReason, sanitizeString),
     readString(currentTurn?.reason, sanitizeString),
     readString(currentTurn?.latestMessage, sanitizeString),
@@ -92,7 +102,7 @@ export function readRouteOutcome({
   ].filter(Boolean).join(" ").toLowerCase();
 
   if (state === "idle" && !routeSignal && !readString(currentTurn?.command, sanitizeString) && !approvalPending) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "idle",
       title: "No active route",
       state,
@@ -105,7 +115,7 @@ export function readRouteOutcome({
   }
 
   if (state === "approval_required" || (approvalPending && canApprovalOverrideState(state))) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "approval_required",
       title: "Route approval required",
       state,
@@ -118,7 +128,7 @@ export function readRouteOutcome({
   }
 
   if (state === "needs_confirmation") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "needs_confirmation",
       title: "Route needs confirmation",
       state,
@@ -131,7 +141,7 @@ export function readRouteOutcome({
   }
 
   if (state === "needs_clarification") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "needs_clarification",
       title: "Route needs clarification",
       state,
@@ -144,7 +154,7 @@ export function readRouteOutcome({
   }
 
   if (state === "blocked" && isAppPolicyDenial(classifierText, currentTurn, sanitizeString)) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "app_policy_denied",
       title: "App policy denied route",
       state,
@@ -157,7 +167,7 @@ export function readRouteOutcome({
   }
 
   if (state === "blocked" && isChromeHostPolicyDenial(classifierText, currentTurn, sanitizeString)) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "chrome_host_policy_denied",
       title: "Chrome host policy denied route",
       state,
@@ -170,7 +180,7 @@ export function readRouteOutcome({
   }
 
   if (state === "denied" || (state === "blocked" && isUserDenial(currentTurn, sanitizeString))) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "user_denied",
       title: "User denied route",
       state,
@@ -183,7 +193,7 @@ export function readRouteOutcome({
   }
 
   if (state === "blocked") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "blocked",
       title: classifierText.includes("route policy") ? "Route policy blocked" : "Route blocked",
       state,
@@ -196,7 +206,7 @@ export function readRouteOutcome({
   }
 
   if (state === "cancelled" && isStopTurnOutcome(classifierText, currentTurn, replay, sanitizeString)) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "stopped",
       title: "Route stopped",
       state,
@@ -209,7 +219,7 @@ export function readRouteOutcome({
   }
 
   if (state === "cancelled") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "cancelled",
       title: "Route cancelled",
       state,
@@ -222,7 +232,7 @@ export function readRouteOutcome({
   }
 
   if (state === "failed") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "failed",
       title: "Route failed",
       state,
@@ -235,7 +245,7 @@ export function readRouteOutcome({
   }
 
   if (state === "completed") {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "completed",
       title: "Route completed",
       state,
@@ -248,7 +258,7 @@ export function readRouteOutcome({
   }
 
   if (["planned", "observing", "executing", "running"].includes(state)) {
-    return createRouteOutcome({
+    return createOutcome({
       kind: "running",
       title: "Route running",
       state,
@@ -260,7 +270,7 @@ export function readRouteOutcome({
     });
   }
 
-  return createRouteOutcome({
+  return createOutcome({
     kind: "unknown",
     title: "Route state unknown",
     state,
