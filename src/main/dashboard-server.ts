@@ -2288,7 +2288,7 @@ function renderDashboardScript(): string {
     "    if (state === \"needs_clarification\") return \"needs_clarification\";",
     "    if (state === \"blocked\" && (turn.denialKind === \"app_policy\" || turn.policyKind === \"app-policy\" || classifier.includes(\"denied by app policy\"))) return \"app_policy_denied\";",
     "    if (state === \"blocked\" && (turn.policyKind === \"chrome-host-policy\" || classifier.includes(\"chrome host policy blocked\") || classifier.includes(\"chrome-host-policy\"))) return \"chrome_host_policy_denied\";",
-    "    if (state === \"denied\") return \"user_denied\";",
+    "    if (state === \"denied\" || (state === \"blocked\" && (turn.denialKind === \"user\" || turn.denialKind === \"user_denied\"))) return \"user_denied\";",
     "    if (state === \"blocked\") return \"blocked\";",
     "    if (state === \"cancelled\" && (classifier.includes(\"task stopped\") || classifier.includes(\"stop-turn\") || readStopTurnMessage(turn) === \"Task stopped.\")) return \"stopped\";",
     "    if (state === \"cancelled\") return \"cancelled\";",
