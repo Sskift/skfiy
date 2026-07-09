@@ -948,6 +948,67 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("redacts fallback route outcome details before rendering the Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        source: "runtime-snapshot",
+        route: "chrome",
+        targetApp: "/Users/tester/Profile token=target-secret"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied token=secret-token",
+        detail: "Chrome route denied by app policy at /Users/tester/Profile with token=secret-token and Bearer abc.def",
+        state: "blocked"
+      },
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        latestToolCall: {
+          route: "chrome",
+          summary: "Chrome route denied by app policy at /Users/tester/Profile with token=secret-token."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+      const text = homePanel?.textContent ?? "";
+
+      expect(text).toContain("Policy denied");
+      expect(text).toContain("App policy denied route");
+      expect(text).toContain("token=[redacted]");
+      expect(text).toContain("Bearer [redacted]");
+      expect(text).toContain("[path]");
+      expect(text).not.toContain("secret-token");
+      expect(text).not.toContain("target-secret");
+      expect(text).not.toContain("abc.def");
+      expect(text).not.toContain("/Users/tester");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("renders pending approval before running state in the fallback Home panel", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
