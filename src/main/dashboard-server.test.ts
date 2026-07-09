@@ -903,6 +903,51 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("renders replay-only route completion in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        outcome: "completed",
+        latestToolCall: {
+          route: "chrome",
+          summary: "Chrome page opened."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Done");
+      expect(homePanel?.textContent).toContain("Route completed");
+      expect(homePanel?.textContent).toContain("Chrome page opened.");
+      expect(homePanel?.textContent).not.toContain("Ready for an agent task");
+      expect(homePanel?.textContent).not.toContain("Ready for the next agent task");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("renders pending approval before running state in the fallback Home panel", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
