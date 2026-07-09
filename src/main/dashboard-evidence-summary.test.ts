@@ -409,6 +409,128 @@ describe("dashboard evidence summary", () => {
     });
   });
 
+  it("surfaces current-turn route action evidence without leaking commands or local paths", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        latestAction: {
+          type: "tool_result",
+          route: "finder",
+          status: "blocked",
+          command: "organize /Users/tester/Downloads?token=secret-token",
+          summary: "Finder blocked /Users/tester/Downloads with token=secret-token",
+          artifactCount: 1
+        }
+      },
+      replay: {
+        state: "available",
+        actions: [
+          {
+            type: "preview_finder_plan",
+            rootPath: "/Users/tester/Downloads",
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolderCount: 3,
+            moveFileCount: 3
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "latest-route-action",
+          label: "Latest route action",
+          state: "blocked",
+          value: "tool_result: finder blocked Finder blocked [path] with token=redacted-secret 1 artifacts"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+    expect(JSON.stringify(lane)).not.toContain("/Users/tester");
+    expect(JSON.stringify(lane)).not.toContain("organize ");
+  });
+
+  it("falls back to replay route actions when current turn has no latest action", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "completed",
+        route: "finder"
+      },
+      replay: {
+        state: "available",
+        actions: [
+          {
+            type: "tool_call",
+            route: "finder",
+            status: "approval_required",
+            command: "organize /Users/tester/Downloads?token=secret-token"
+          },
+          {
+            type: "preview_finder_plan",
+            rootPath: "/Users/tester/Downloads",
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolderCount: 3,
+            moveFileCount: 3
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "latest-route-action",
+          label: "Latest route action",
+          state: "ready",
+          value: "preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+    expect(JSON.stringify(lane)).not.toContain("/Users/tester");
+  });
+
   it("marks missing Codex plugin and broken Chrome host evidence as actionable blockers", () => {
     const descriptor = createDashboardDescriptor({ port: 0 });
     const snapshot: DashboardSnapshot = {
