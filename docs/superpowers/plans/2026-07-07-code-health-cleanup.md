@@ -1,6 +1,6 @@
 # skfiy Active Code Health Plan
 
-> **For agentic workers:** This is the only active implementation plan as of 2026-07-08. `docs/superpowers/plans/` must contain exactly one active plan file. Retired dated implementation plans, research notes, handoff logs, and cleanup checklists must stay out of repo docs; use git history or canonical docs instead.
+> **For agentic workers:** This is the only active implementation plan as of 2026-07-09. `docs/superpowers/plans/` must contain exactly one active plan file. Retired dated implementation plans, research notes, handoff logs, and cleanup checklists must stay out of repo docs; use git history or canonical docs instead.
 
 ## Current State
 
@@ -9,7 +9,8 @@
 - Background Agent provider selection remains separate from Computer Use Planner selection.
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
-- The current code-health pass has already removed the old retired-plan doc shape, deleted retired dated implementation plans from live docs, slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
+- Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
+- The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
@@ -22,6 +23,12 @@
 - Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
+
+Verification:
+
+```bash
+npx vitest run src/main/plan-doc-status.test.ts --reporter=dot
+```
 
 ## Active Scope
 
@@ -36,13 +43,14 @@ Keep changes product-facing but narrow:
 
 ## Next Work Order
 
-1. Keep plan/doc hygiene green before code-health work: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
-2. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
-3. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
-4. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-5. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
-6. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
-7. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
+1. Run the plan/doc hygiene guard before the next implementation cut and keep it green: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
+2. Do not reintroduce historical planning material through archive folders, parking folders, renamed Markdown, release notes, tests, scripts, or package metadata. Git history is the archive.
+3. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
+4. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+5. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
+6. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
+7. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
+8. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
 
 ## File Ownership Map
 
