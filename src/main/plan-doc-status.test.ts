@@ -70,6 +70,21 @@ function collectRepositoryMarkdownDocs(rootPath: string): string[] {
   });
 }
 
+function collectRepositoryDirectories(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (!entry.isDirectory() || repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    return [entryPath, ...collectRepositoryDirectories(entryPath)];
+  });
+}
+
 function collectRepositoryTextFiles(rootPath: string): string[] {
   if (!existsSync(rootPath)) {
     return [];
@@ -190,6 +205,18 @@ describe("implementation plan status docs", () => {
     });
 
     expect(inactivePlanLikeDocs).toEqual([]);
+  });
+
+  it("keeps retired planning container directories out of docs", () => {
+    const docsRoot = path.join(process.cwd(), "docs");
+    const docsDirectories = collectRepositoryDirectories(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const retiredPlanningContainers = docsDirectories.filter((docPath) => (
+      /(^|\/)(research|release-evidence|handoffs?|checklists?|backlogs?|archives?|parking)($|\/)/i.test(docPath)
+    ));
+
+    expect(retiredPlanningContainers).toEqual([]);
   });
 
   it("keeps pre-active-plan dated markdown out of repository docs except ADRs", () => {

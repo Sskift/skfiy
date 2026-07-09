@@ -24,6 +24,7 @@ Status: clean, re-audited, and guarded.
 - Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
 - Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
 - Plan-like Markdown filenames or directories outside this active plan and durable ADRs are retired implementation material even when they are not date-stamped.
+- Retired research, release-evidence, archive, parking, handoff, checklist, and backlog directories must not exist under `docs/`, even as empty placeholders.
 - Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Git history is the archive; do not create archive, parking, handoff, or reference folders for superseded plans. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
