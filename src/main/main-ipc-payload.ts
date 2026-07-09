@@ -1,6 +1,5 @@
 import type {
-  PermissionSettingsTarget,
-  PermissionState
+  PermissionSettingsTarget
 } from "./computer-use/types.js";
 import type { ManualMode } from "./task-event-view.js";
 
@@ -69,16 +68,6 @@ export function readPermissionSettingsTarget(value: unknown): PermissionSettings
     || value === "accessibility"
     ? value
     : undefined;
-}
-
-export function readElectronMediaPermissionState(
-  state: "not-determined" | "granted" | "denied" | "restricted" | "unknown"
-): PermissionState {
-  if (state === "restricted") {
-    return "denied";
-  }
-
-  return state;
 }
 
 export function readFiniteNumber(value: unknown): number | undefined {

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   isEnabledEnvFlag,
-  readElectronMediaPermissionState,
   readFiniteNumber,
   readMode,
   readPermissionSettingsTarget,
@@ -54,16 +53,12 @@ describe("main IPC payload helpers", () => {
     });
   });
 
-  it("normalizes env flags and media permission states", () => {
+  it("normalizes env flags", () => {
     expect(isEnabledEnvFlag("1")).toBe(true);
     expect(isEnabledEnvFlag("true")).toBe(true);
     expect(isEnabledEnvFlag("on")).toBe(true);
     expect(isEnabledEnvFlag("TRUE")).toBe(false);
     expect(isEnabledEnvFlag(undefined)).toBe(false);
-
-    expect(readElectronMediaPermissionState("granted")).toBe("granted");
-    expect(readElectronMediaPermissionState("restricted")).toBe("denied");
-    expect(readElectronMediaPermissionState("not-determined")).toBe("not-determined");
   });
 
   it("reads finite numbers and visible pet rectangles defensively", () => {

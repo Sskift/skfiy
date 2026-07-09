@@ -71,6 +71,7 @@ import {
 } from "./main-desktop-clients.js";
 import { runTmuxSupervisionTask } from "./orchestrator/tmux-supervision-task.js";
 import {
+  createAppProcessPermissionSummary,
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
@@ -101,7 +102,6 @@ import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
 import {
   isEnabledEnvFlag,
-  readElectronMediaPermissionState,
   readFiniteNumber,
   readPermissionSettingsTarget,
   readPetWindowMode,
@@ -268,14 +268,10 @@ function createDesktopHelper(): DesktopHelperClient {
 }
 
 function readAppProcessPermissions(): PermissionSummary {
-  return {
-    screenRecording: {
-      state: readElectronMediaPermissionState(systemPreferences.getMediaAccessStatus("screen"))
-    },
-    accessibility: {
-      state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
-    }
-  };
+  return createAppProcessPermissionSummary({
+    screenRecording: systemPreferences.getMediaAccessStatus("screen"),
+    accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false)
+  });
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
