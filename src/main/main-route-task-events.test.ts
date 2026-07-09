@@ -11,6 +11,7 @@ import {
   createComputerUseFailureTaskEvent,
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
+  createPlannerResolvedTaskEvent,
   createPlannerUnavailableTaskEvent,
   createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
@@ -320,6 +321,54 @@ describe("main route task event helpers", () => {
         value: "failed",
         routeLabel: "ghostty",
         source: "task-event"
+      }
+    });
+  });
+
+  it("creates route-aware planner resolved events", () => {
+    const route = {
+      kind: "ghostty",
+      bundleId: GHOSTTY_BUNDLE_ID
+    } as const;
+
+    expect(createPlannerResolvedTaskEvent({
+      command: "run pwd in Ghostty",
+      providerLabel: "External CUA",
+      plannedCommand: {
+        command: "pwd",
+        providerLabel: "External CUA",
+        rationale: "Read the current working directory."
+      },
+      route
+    })).toMatchObject({
+      status: "executing",
+      message: "External CUA planned: pwd (Read the current working directory.)",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      routeOutcome: {
+        kind: "running",
+        value: "executing",
+        detail: "External CUA planned: pwd (Read the current working directory.)",
+        routeLabel: "ghostty",
+        source: "task-event"
+      }
+    });
+
+    expect(createPlannerResolvedTaskEvent({
+      command: "run pwd in Ghostty",
+      providerLabel: "External CUA",
+      plannedCommand: {
+        command: "pwd",
+        providerLabel: "External CUA"
+      },
+      route
+    })).toMatchObject({
+      status: "executing",
+      message: "External CUA planned: pwd",
+      route: "ghostty",
+      routeOutcome: {
+        kind: "running",
+        detail: "External CUA planned: pwd"
       }
     });
   });

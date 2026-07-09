@@ -145,6 +145,7 @@ import {
   createComputerUseFailureTaskEvent,
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
+  createPlannerResolvedTaskEvent,
   createPlannerUnavailableTaskEvent,
   createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
@@ -707,13 +708,12 @@ async function continueComputerUseTask({
         command: plannedCommand.command,
         rationale: plannedCommand.rationale
       });
-      emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-        status: "executing",
-        message: plannedCommand.rationale
-          ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
-          : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`,
-        command
-      }, route));
+      emitTurnReplayTaskEvent(window, createPlannerResolvedTaskEvent({
+        command,
+        plannedCommand,
+        providerLabel: plannedCommand.providerLabel,
+        route
+      }));
     }
 
     const helper = createDesktopHelper();

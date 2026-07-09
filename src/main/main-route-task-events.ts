@@ -1,4 +1,5 @@
 import type { AssistantAgentTurnResult } from "./assistant-agent.js";
+import type { ResolvedPlannerCommand } from "./planner-command.js";
 import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
 import {
   withRouteTaskEventMetadata,
@@ -191,6 +192,28 @@ export function createPlannerUnavailableTaskEvent({
   }, route, {
     routeReason: message
   });
+}
+
+export function createPlannerResolvedTaskEvent({
+  command,
+  plannedCommand,
+  providerLabel,
+  route
+}: {
+  command: string;
+  plannedCommand: ResolvedPlannerCommand;
+  providerLabel: string;
+  route: ExecutableCommandRoute;
+}): TaskEvent {
+  const message = plannedCommand.rationale
+    ? `${providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
+    : `${providerLabel} planned: ${plannedCommand.command}`;
+
+  return withRouteTaskEventMetadata({
+    status: "executing",
+    message,
+    command
+  }, route);
 }
 
 export function createComputerUseFailureTaskEvent({
