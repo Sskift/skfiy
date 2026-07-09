@@ -249,7 +249,7 @@ function readSanitizedTurnReplayRouteOutcomeString(value: unknown): string | und
 
 function readRouteStateFromTranscriptOutcome(outcome: TurnTranscriptOutcome): string {
   if (outcome === "verification_failed") {
-    return "failed";
+    return "needs_confirmation";
   }
 
   return outcome;

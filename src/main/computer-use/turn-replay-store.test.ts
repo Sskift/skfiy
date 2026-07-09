@@ -179,6 +179,40 @@ describe("createTurnReplayStore", () => {
     });
   });
 
+  it("treats transcript verification failures as confirmable replay route outcomes", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_call",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "running"
+    });
+    store.recordComputerUseEvent({
+      type: "action_verified",
+      actionType: "completion_marker",
+      status: "failed",
+      message: "Completion marker was not observed.",
+      reason: "after screenshot did not include the marker"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "verification_failed"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        value: "needs_confirmation",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        state: "needs_confirmation"
+      }
+    });
+  });
+
   it("lets structured route task events preserve policy metadata after generic terminal events", () => {
     const store = createTurnReplayStore();
 
