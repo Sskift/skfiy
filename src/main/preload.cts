@@ -89,11 +89,22 @@ interface TaskEvent {
   denialKind?: string;
   policyKind?: string;
   routeOutcome?: RouteOutcome;
+  stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
   tmuxSupervisionReport?: unknown;
+}
+
+interface TaskEventStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 interface FinderPlanPreview {
@@ -260,6 +271,7 @@ interface TurnReplay {
     denialKind?: string;
     policyKind?: string;
     routeOutcome?: RouteOutcome;
+    stopTurnBehavior?: TaskEventStopTurnBehavior;
   }>;
 }
 
@@ -431,6 +443,10 @@ function isTaskEvent(value: unknown): value is TaskEvent {
     && (candidate.denialKind === undefined || typeof candidate.denialKind === "string")
     && (candidate.policyKind === undefined || typeof candidate.policyKind === "string")
     && (candidate.routeOutcome === undefined || isRouteOutcome(candidate.routeOutcome))
+    && (
+      candidate.stopTurnBehavior === undefined
+      || isTaskEventStopTurnBehavior(candidate.stopTurnBehavior)
+    )
   );
 }
 
@@ -955,6 +971,23 @@ function isRouteOutcomeTone(value: unknown): value is RouteOutcomeTone {
   return typeof value === "string" && routeOutcomeTones.has(value as RouteOutcomeTone);
 }
 
+function isTaskEventStopTurnBehavior(value: unknown): value is TaskEventStopTurnBehavior {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const behavior = value as Partial<TaskEventStopTurnBehavior>;
+  return (
+    (behavior.result === undefined || typeof behavior.result === "string")
+    && (behavior.source === undefined || typeof behavior.source === "string")
+    && (behavior.command === undefined || typeof behavior.command === "string")
+    && (behavior.beforeStatus === undefined || typeof behavior.beforeStatus === "string")
+    && (behavior.beforeMessage === undefined || typeof behavior.beforeMessage === "string")
+    && (behavior.afterStatus === undefined || typeof behavior.afterStatus === "string")
+    && (behavior.afterMessage === undefined || typeof behavior.afterMessage === "string")
+  );
+}
+
 function isTurnReplayTimelineEvent(
   value: unknown
 ): value is TurnReplay["timeline"][number] {
@@ -972,6 +1005,10 @@ function isTurnReplayTimelineEvent(
     && (event.denialKind === undefined || typeof event.denialKind === "string")
     && (event.policyKind === undefined || typeof event.policyKind === "string")
     && (event.routeOutcome === undefined || isRouteOutcome(event.routeOutcome))
+    && (
+      event.stopTurnBehavior === undefined
+      || isTaskEventStopTurnBehavior(event.stopTurnBehavior)
+    )
   );
 }
 

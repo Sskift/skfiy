@@ -60,7 +60,12 @@ describe("task status boundary contract", () => {
       expect(source, `${name} should preserve denial kind`).toContain("denialKind?: string");
       expect(source, `${name} should preserve policy kind`).toContain("policyKind?: string");
       expect(source, `${name} should preserve structured route outcomes`).toContain("routeOutcome?: RouteOutcome");
+      expect(source, `${name} should preserve stop-turn behavior`).toContain("stopTurnBehavior?:");
     }
+
+    expect(sources.preload).toContain("isTaskEventStopTurnBehavior");
+    expect(sources.preload).toContain("candidate.stopTurnBehavior === undefined");
+    expect(sources.preload).toContain("event.stopTurnBehavior === undefined");
   });
 
   it("keeps route outcome kinds on the shared contract across runtime, bridge, dashboard, and pet surfaces", () => {
