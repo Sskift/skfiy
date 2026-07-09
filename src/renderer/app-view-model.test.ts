@@ -895,7 +895,14 @@ describe("app view model", () => {
         },
         actions: [
           { type: "activate_app", appName: "Finder" },
-          { type: "press_key", key: "Enter" }
+          { type: "press_key", key: "Enter" },
+          {
+            type: "tool_result",
+            route: "finder",
+            status: "completed",
+            summary: "Finder organized files with token=secret-token.",
+            artifactCount: 1
+          }
         ],
         screenshots: [
           { stage: "before", path: "/tmp/before.png" },
@@ -913,7 +920,8 @@ describe("app view model", () => {
     })).toEqual({
       actionItems: [
         "activate_app: Finder",
-        "press_key: Enter"
+        "press_key: Enter",
+        "tool_result: finder completed Finder organized files with token=[redacted] 1 artifacts"
       ],
       command: "open Finder",
       hasTranscript: true,
@@ -943,6 +951,53 @@ describe("app view model", () => {
     })).toBe("Codex: observe");
 
     expect(formatReplayAction({ type: "plan", providerLabel: "Local", command: "click" })).toBe("plan: Local click");
+    expect(formatReplayAction({
+      type: "tool_call",
+      route: "chrome",
+      status: "approval_required",
+      command: "open https://example.test/?token=secret-token"
+    })).toBe("tool_call: chrome approval_required open https://example.test/?token=[redacted]");
+    expect(formatReplayAction({
+      type: "approval_decision",
+      route: "chrome",
+      decision: "denied",
+      reason: "User denied token=secret-token."
+    })).toBe("approval_decision: chrome denied User denied token=[redacted]");
+    expect(formatReplayAction({
+      type: "tool_result",
+      route: "ghostty",
+      status: "blocked",
+      evidenceSummary: "Ghostty blocked with Bearer abc.def.",
+      artifactCount: 2
+    })).toBe("tool_result: ghostty blocked Ghostty blocked with Bearer [redacted] 2 artifacts");
+    expect(formatReplayAction({
+      type: "switch_control",
+      from: "chrome",
+      to: "finder",
+      stage: "route-fallback",
+      reason: "Use Finder route."
+    })).toBe("switch_control: chrome -> finder route-fallback Use Finder route.");
+    expect(formatReplayAction({
+      type: "observe_finder_selection",
+      source: "finder-applescript",
+      targetPath: "/tmp/skfiy-finder-smoke",
+      selectedCount: 1
+    })).toBe("observe_finder_selection: 1 selected finder-applescript /tmp/skfiy-finder-smoke");
+    expect(formatReplayAction({
+      type: "preview_finder_plan",
+      rootPath: "/tmp/skfiy-finder-smoke",
+      operationCount: 6,
+      destructiveOperationCount: 0,
+      createFolderCount: 3,
+      moveFileCount: 3
+    })).toBe("preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves /tmp/skfiy-finder-smoke");
+    expect(formatReplayAction({
+      type: "confirm_finder_plan",
+      rootPath: "/tmp/skfiy-finder-smoke",
+      operationCount: 6,
+      destructiveOperationCount: 0,
+      reason: "Finder current-folder organization needs confirmation."
+    })).toBe("confirm_finder_plan: 6 ops 0 destructive Finder current-folder organization needs confirmation. /tmp/skfiy-finder-smoke");
     expect(formatReplayAction({ type: "type_text", text: "hello" })).toBe("type_text: hello");
     expect(formatReplayAction({ type: "press_key", key: "Enter" })).toBe("press_key: Enter");
     expect(formatReplayAction({ type: "activate_app", appName: "Finder" })).toBe("activate_app: Finder");

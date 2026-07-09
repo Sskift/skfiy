@@ -247,6 +247,9 @@ interface TurnTranscript {
     appName?: string;
     bundleId?: string;
     pid?: number;
+    turnId?: string;
+    toolCallId?: string;
+    route?: string;
     text?: string;
     key?: string;
     action?: string;
@@ -255,9 +258,24 @@ interface TurnTranscript {
     stage?: string;
     message?: string;
     reason?: string;
+    decision?: string;
+    summary?: string;
+    evidenceSummary?: string;
+    artifactCount?: number;
     providerLabel?: string;
     command?: string;
     rationale?: string;
+    from?: string;
+    to?: string;
+    source?: string;
+    frontmostBundleId?: string;
+    targetPath?: string;
+    selectedCount?: number;
+    rootPath?: string;
+    operationCount?: number;
+    destructiveOperationCount?: number;
+    createFolderCount?: number;
+    moveFileCount?: number;
   }>;
   outcome: TurnTranscriptOutcome;
 }
@@ -920,6 +938,9 @@ function isTurnTranscriptAction(value: unknown): value is TurnTranscript["action
     && (action.appName === undefined || typeof action.appName === "string")
     && (action.bundleId === undefined || typeof action.bundleId === "string")
     && (action.pid === undefined || typeof action.pid === "number")
+    && (action.turnId === undefined || typeof action.turnId === "string")
+    && (action.toolCallId === undefined || typeof action.toolCallId === "string")
+    && (action.route === undefined || typeof action.route === "string")
     && (action.text === undefined || typeof action.text === "string")
     && (action.key === undefined || typeof action.key === "string")
     && (action.action === undefined || typeof action.action === "string")
@@ -928,9 +949,24 @@ function isTurnTranscriptAction(value: unknown): value is TurnTranscript["action
     && (action.stage === undefined || typeof action.stage === "string")
     && (action.message === undefined || typeof action.message === "string")
     && (action.reason === undefined || typeof action.reason === "string")
+    && (action.decision === undefined || typeof action.decision === "string")
+    && (action.summary === undefined || typeof action.summary === "string")
+    && (action.evidenceSummary === undefined || typeof action.evidenceSummary === "string")
+    && (action.artifactCount === undefined || typeof action.artifactCount === "number")
     && (action.providerLabel === undefined || typeof action.providerLabel === "string")
     && (action.command === undefined || typeof action.command === "string")
     && (action.rationale === undefined || typeof action.rationale === "string")
+    && (action.from === undefined || typeof action.from === "string")
+    && (action.to === undefined || typeof action.to === "string")
+    && (action.source === undefined || typeof action.source === "string")
+    && (action.frontmostBundleId === undefined || typeof action.frontmostBundleId === "string")
+    && (action.targetPath === undefined || typeof action.targetPath === "string")
+    && (action.selectedCount === undefined || typeof action.selectedCount === "number")
+    && (action.rootPath === undefined || typeof action.rootPath === "string")
+    && (action.operationCount === undefined || typeof action.operationCount === "number")
+    && (action.destructiveOperationCount === undefined || typeof action.destructiveOperationCount === "number")
+    && (action.createFolderCount === undefined || typeof action.createFolderCount === "number")
+    && (action.moveFileCount === undefined || typeof action.moveFileCount === "number")
   );
 }
 

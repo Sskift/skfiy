@@ -898,6 +898,9 @@ export function getLocalReplayViewModel(replay: {
       type: string;
       appName?: string;
       bundleId?: string;
+      turnId?: string;
+      toolCallId?: string;
+      route?: string;
       text?: string;
       key?: string;
       action?: string;
@@ -906,8 +909,23 @@ export function getLocalReplayViewModel(replay: {
       stage?: string;
       message?: string;
       reason?: string;
+      decision?: string;
+      summary?: string;
+      evidenceSummary?: string;
+      artifactCount?: number;
       providerLabel?: string;
       command?: string;
+      from?: string;
+      to?: string;
+      source?: string;
+      frontmostBundleId?: string;
+      targetPath?: string;
+      selectedCount?: number;
+      rootPath?: string;
+      operationCount?: number;
+      destructiveOperationCount?: number;
+      createFolderCount?: number;
+      moveFileCount?: number;
     }>;
     screenshots: Array<{
       stage: string;
@@ -1070,11 +1088,58 @@ export function formatReplayAction(action: {
   stage?: string;
   message?: string;
   reason?: string;
+  route?: string;
+  decision?: string;
+  summary?: string;
+  evidenceSummary?: string;
+  artifactCount?: number;
   providerLabel?: string;
   command?: string;
+  from?: string;
+  to?: string;
+  source?: string;
+  frontmostBundleId?: string;
+  targetPath?: string;
+  selectedCount?: number;
+  rootPath?: string;
+  operationCount?: number;
+  destructiveOperationCount?: number;
+  createFolderCount?: number;
+  moveFileCount?: number;
 }): string {
   if (action.type === "plan") {
     return `${action.type}: ${action.providerLabel ?? ""} ${action.command ?? ""}`.trim();
+  }
+
+  if (action.type === "tool_call") {
+    return joinReplayActionParts([
+      "tool_call:",
+      action.route ?? "unknown",
+      action.status ?? "unknown",
+      sanitizePetRouteOutcomeString(action.command ?? "")
+    ]);
+  }
+
+  if (action.type === "approval_decision") {
+    return joinReplayActionParts([
+      "approval_decision:",
+      action.route ?? "unknown",
+      action.decision ?? "unknown",
+      sanitizePetRouteOutcomeString(action.reason ?? "")
+    ]);
+  }
+
+  if (action.type === "tool_result") {
+    const detail = sanitizePetRouteOutcomeString(action.summary ?? action.evidenceSummary ?? "");
+    return joinReplayActionParts([
+      "tool_result:",
+      action.route ?? "unknown",
+      action.status ?? "unknown",
+      detail,
+      typeof action.artifactCount === "number" && action.artifactCount > 0
+        ? `${action.artifactCount} artifacts`
+        : ""
+    ]);
   }
 
   if (action.type === "type_text") {
@@ -1093,10 +1158,55 @@ export function formatReplayAction(action: {
     return `${action.type}: ${action.action ?? ""} ${action.stage ?? ""}`.trim();
   }
 
+  if (action.type === "switch_control") {
+    return joinReplayActionParts([
+      "switch_control:",
+      action.from ?? "unknown",
+      "->",
+      action.to ?? "unknown",
+      action.stage ?? "",
+      sanitizePetRouteOutcomeString(action.reason ?? "")
+    ]);
+  }
+
+  if (action.type === "observe_finder_selection") {
+    return joinReplayActionParts([
+      "observe_finder_selection:",
+      typeof action.selectedCount === "number" ? `${action.selectedCount} selected` : "",
+      action.source ?? "",
+      sanitizePetRouteOutcomeString(action.targetPath ?? action.frontmostBundleId ?? "")
+    ]);
+  }
+
+  if (action.type === "preview_finder_plan") {
+    return joinReplayActionParts([
+      "preview_finder_plan:",
+      typeof action.operationCount === "number" ? `${action.operationCount} ops` : "",
+      typeof action.destructiveOperationCount === "number" ? `${action.destructiveOperationCount} destructive` : "",
+      typeof action.createFolderCount === "number" ? `${action.createFolderCount} folders` : "",
+      typeof action.moveFileCount === "number" ? `${action.moveFileCount} moves` : "",
+      sanitizePetRouteOutcomeString(action.rootPath ?? "")
+    ]);
+  }
+
+  if (action.type === "confirm_finder_plan") {
+    return joinReplayActionParts([
+      "confirm_finder_plan:",
+      typeof action.operationCount === "number" ? `${action.operationCount} ops` : "",
+      typeof action.destructiveOperationCount === "number" ? `${action.destructiveOperationCount} destructive` : "",
+      sanitizePetRouteOutcomeString(action.reason ?? ""),
+      sanitizePetRouteOutcomeString(action.rootPath ?? "")
+    ]);
+  }
+
   if (action.type === "verify") {
-    const detail = action.reason ?? action.message ?? "";
+    const detail = sanitizePetRouteOutcomeString(action.reason ?? action.message ?? "");
     return `${action.type}: ${action.actionType ?? ""} ${action.status ?? ""} ${detail}`.trim();
   }
 
   return action.type;
+}
+
+function joinReplayActionParts(parts: string[]): string {
+  return parts.filter((part) => part.trim().length > 0).join(" ").trim();
 }

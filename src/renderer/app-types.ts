@@ -138,6 +138,9 @@ export interface TurnTranscript {
     appName?: string;
     bundleId?: string;
     pid?: number;
+    turnId?: string;
+    toolCallId?: string;
+    route?: string;
     text?: string;
     key?: string;
     action?: string;
@@ -146,9 +149,24 @@ export interface TurnTranscript {
     stage?: string;
     message?: string;
     reason?: string;
+    decision?: string;
+    summary?: string;
+    evidenceSummary?: string;
+    artifactCount?: number;
     providerLabel?: string;
     command?: string;
     rationale?: string;
+    from?: string;
+    to?: string;
+    source?: string;
+    frontmostBundleId?: string;
+    targetPath?: string;
+    selectedCount?: number;
+    rootPath?: string;
+    operationCount?: number;
+    destructiveOperationCount?: number;
+    createFolderCount?: number;
+    moveFileCount?: number;
   }>;
   outcome: TurnTranscriptOutcome;
 }

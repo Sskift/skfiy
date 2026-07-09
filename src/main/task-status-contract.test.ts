@@ -87,6 +87,59 @@ describe("task status boundary contract", () => {
     expect(sources.preload).toContain("action.message === undefined");
   });
 
+  it("keeps replay route action summary fields across main, preload, and renderer surfaces", () => {
+    const sources = {
+      mainTranscript: readFileSync(path.join(process.cwd(), "src/main/computer-use/turn-transcript.ts"), "utf8"),
+      preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
+      rendererTypes: readFileSync(path.join(process.cwd(), "src/renderer/app-types.ts"), "utf8"),
+      rendererViewModel: readFileSync(path.join(process.cwd(), "src/renderer/app-view-model.ts"), "utf8")
+    };
+    const actionFields = [
+      "turnId",
+      "toolCallId",
+      "route",
+      "decision",
+      "summary",
+      "evidenceSummary",
+      "artifactCount",
+      "from",
+      "to",
+      "source",
+      "frontmostBundleId",
+      "targetPath",
+      "selectedCount",
+      "rootPath",
+      "operationCount",
+      "destructiveOperationCount",
+      "createFolderCount",
+      "moveFileCount"
+    ];
+
+    for (const [name, source] of Object.entries(sources)) {
+      for (const field of actionFields) {
+        expect(source, `${name} should preserve replay action field ${field}`).toContain(field);
+      }
+    }
+
+    for (const field of actionFields) {
+      expect(sources.preload, `preload should validate replay action field ${field}`)
+        .toContain(`action.${field} === undefined`);
+    }
+
+    for (const actionType of [
+      "tool_call",
+      "approval_decision",
+      "tool_result",
+      "switch_control",
+      "observe_finder_selection",
+      "preview_finder_plan",
+      "confirm_finder_plan"
+    ]) {
+      expect(sources.rendererViewModel, `renderer should format replay action ${actionType}`)
+        .toContain(`action.type === "${actionType}"`);
+    }
+  });
+
   it("keeps route outcome kinds on the shared contract across runtime, bridge, dashboard, and pet surfaces", () => {
     const sources = {
       sharedRouteOutcome: readFileSync(path.join(process.cwd(), "src/shared/route-outcome.ts"), "utf8"),
