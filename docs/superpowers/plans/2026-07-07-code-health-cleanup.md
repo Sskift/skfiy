@@ -10,10 +10,13 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
+- Plan/doc hygiene is currently clean: the repo keeps one active plan file, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
 - The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
+
+Status: clean and guarded.
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
 - Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/`, root-level Markdown, parking folders, archive folders, or reference folders.
@@ -43,14 +46,13 @@ Keep changes product-facing but narrow:
 
 ## Next Work Order
 
-1. Run the plan/doc hygiene guard before the next implementation cut and keep it green: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
-2. Do not reintroduce historical planning material through archive folders, parking folders, renamed Markdown, release notes, tests, scripts, or package metadata. Git history is the archive.
-3. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
+1. Keep the plan/doc hygiene guard green before each implementation cut: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths. Git history is the archive.
+2. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
+3. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
 4. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
-5. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-6. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
-7. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
-8. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
+5. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
+6. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
+7. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
 
 ## File Ownership Map
 
