@@ -17,6 +17,13 @@ const TABS_DISCOVER = "skfiy.tabs.discover";
 const EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
 const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const EXTENSION_POPUP_URL = `${EXTENSION_ORIGIN}/popup.html`;
+const ALLOWED_EXAMPLE_HOST = "allowed.example";
+const ALLOWED_EXAMPLE_URL = `https://${ALLOWED_EXAMPLE_HOST}/dashboard`;
+const ALLOWED_EXAMPLE_ORIGIN_PERMISSION = `https://${ALLOWED_EXAMPLE_HOST}/*`;
+const ALLOWED_EXAMPLE_PAGE_ACCESS = [ALLOWED_EXAMPLE_ORIGIN_PERMISSION];
+const ALLOWED_EXAMPLE_CAPTURE_ACCESS = [ALLOWED_EXAMPLE_ORIGIN_PERMISSION, "<all_urls>"];
+const ALLOWED_EXAMPLE_PERMISSION_MESSAGE =
+  `Missing optional Chrome host permission for https://${ALLOWED_EXAMPLE_HOST}/*. Grant site access before page diagnostics or actions can run.`;
 const LOCALHOST_TEST_HOST = "127.0.0.1:63852";
 const LOCALHOST_TEST_URL = `http://${LOCALHOST_TEST_HOST}/`;
 const LOCALHOST_ORIGIN_PERMISSION = "http://127.0.0.1/*";
@@ -489,6 +496,25 @@ function mockLocalhostTargetTab(mock, { tabId = 42, windowId = 7 } = {}) {
   mockTabsGet(mock, { [tabId]: targetTab });
 
   return targetTab;
+}
+
+function createAllowedExampleTab({ id = 42, windowId = 7 } = {}) {
+  return {
+    id,
+    windowId,
+    url: ALLOWED_EXAMPLE_URL
+  };
+}
+
+async function loadAllowedExampleStatusBackground(options = {}) {
+  const mock = createChromeMock([], {
+    activeTab: createAllowedExampleTab(),
+    ...options
+  });
+  storeHostPolicy(mock, { allowedHosts: [ALLOWED_EXAMPLE_HOST] });
+  await loadBackground(mock);
+
+  return mock;
 }
 
 async function loadLocalhostWakeBackground(nativeResponses = createPageObserveResponses(), options = {}) {
@@ -976,14 +1002,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("reports current tab host policy and missing optional host permission in diagnostics", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "https://allowed.example/dashboard"
-      }
-    });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
+    const mock = await loadAllowedExampleStatusBackground();
     mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
       schemaVersion: 1,
       state: "error",
@@ -991,7 +1010,6 @@ describe("Chrome extension background policy sync", () => {
       updatedAt: "2026-06-20T10:05:00.000Z",
       lastError: "Specified native messaging host not found."
     };
-    await loadBackground(mock);
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
@@ -1025,13 +1043,13 @@ describe("Chrome extension background policy sync", () => {
               state: "missing",
               reason: "chrome_host_permission_missing",
               code: "chrome_host_permission_missing",
-              origins: ["https://allowed.example/*"],
-              message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+              origins: ALLOWED_EXAMPLE_PAGE_ACCESS,
+              message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
             }),
             contentScript: expect.objectContaining({
               state: "blocked_by_chrome_host_permission",
               reason: "chrome_host_permission_missing",
-              lastError: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+              lastError: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
             }),
             pageControl: expect.objectContaining({
               capable: false,
@@ -1074,7 +1092,7 @@ describe("Chrome extension background policy sync", () => {
     });
 
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
-      origins: ["https://allowed.example/*"]
+      origins: ALLOWED_EXAMPLE_PAGE_ACCESS
     });
     expectNoPageControlExecution(mock);
   });
@@ -1135,17 +1153,13 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("queries existing content-script session diagnostics when policy and Chrome host permission allow it", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 43,
-        windowId: 8,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 43, windowId: 8 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        url: "https://allowed.example/dashboard",
-        host: "allowed.example",
+        url: ALLOWED_EXAMPLE_URL,
+        host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
         sensitivePaused: false,
         sensitivePauseReason: null,
@@ -1176,8 +1190,6 @@ describe("Chrome extension background policy sync", () => {
         observedAt: "2026-06-20T10:07:00.000Z"
       }
     });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
-    await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
@@ -1190,7 +1202,7 @@ describe("Chrome extension background policy sync", () => {
           currentTab: expect.objectContaining({
             chromeHostPermission: expect.objectContaining({
               state: "granted",
-              origins: ["https://allowed.example/*"]
+              origins: ALLOWED_EXAMPLE_PAGE_ACCESS
             }),
             contentScript: expect.objectContaining({
               state: "loaded",
@@ -1225,7 +1237,7 @@ describe("Chrome extension background policy sync", () => {
           }),
           session: expect.objectContaining({
             state: "loaded",
-            host: "allowed.example",
+            host: ALLOWED_EXAMPLE_HOST,
             pageControl: expect.objectContaining({
               state: "ready",
               capabilities: expect.objectContaining({
@@ -1263,24 +1275,18 @@ describe("Chrome extension background policy sync", () => {
       },
       blockers: []
     };
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 45,
-        windowId: 10,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        url: "https://allowed.example/dashboard",
-        host: "allowed.example",
+        url: ALLOWED_EXAMPLE_URL,
+        host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
         pageControl,
         observedAt: "2026-06-20T10:08:00.000Z"
       }
     });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
-    await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_HEALTH,
@@ -1328,16 +1334,10 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("reports missing content script readiness without injecting during status reads", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 44,
-        windowId: 9,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"]
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 44, windowId: 9 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS
     });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
-    await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
@@ -1380,16 +1380,12 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("reports DOM actions separately when screenshot permission is unavailable", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 45,
-        windowId: 10,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
+      grantedOrigins: ALLOWED_EXAMPLE_PAGE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        host: "allowed.example",
+        host: ALLOWED_EXAMPLE_HOST,
         pageControl: {
           capable: true,
           state: "ready",
@@ -1412,8 +1408,6 @@ describe("Chrome extension background policy sync", () => {
         }
       }
     });
-    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
-    await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
