@@ -2439,20 +2439,30 @@ describe("DashboardApp", () => {
     expect(within(form).getByText("Enter a host before setting policy.")).toBeInTheDocument();
     expect(policyRequests).toEqual([]);
 
-    fireEvent.change(hostInput, { target: { value: "https://example.test/path" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Use current host" }));
+    expect(hostInput).toHaveValue("127.0.0.1:52363");
+    expect(within(form).getByText("Current host selected: 127.0.0.1:52363")).toBeInTheDocument();
     fireEvent.click(within(form).getByRole("button", { name: "Always allow" }));
     await waitFor(() => expect(policyRequests).toHaveLength(1));
     expect(policyRequests[0]).toEqual({
       action: "always-allow",
-      host: "https://example.test/path"
+      host: "127.0.0.1:52363"
     });
     expect(within(form).getByText("Policy configured.")).toBeInTheDocument();
 
+    fireEvent.change(hostInput, { target: { value: "https://example.test/path" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Block" }));
+    await waitFor(() => expect(policyRequests).toHaveLength(2));
+    expect(policyRequests[1]).toEqual({
+      action: "block",
+      host: "https://example.test/path"
+    });
+
     fireEvent.change(hostInput, { target: { value: "" } });
     fireEvent.click(within(form).getByRole("button", { name: "Reset policy" }));
-    await waitFor(() => expect(policyRequests).toHaveLength(2));
-    expect(policyRequests[1]).toEqual({ action: "reset" });
-    expect(loadSnapshot).toHaveBeenCalledTimes(4);
+    await waitFor(() => expect(policyRequests).toHaveLength(3));
+    expect(policyRequests[2]).toEqual({ action: "reset" });
+    expect(loadSnapshot).toHaveBeenCalledTimes(5);
   });
 });
 

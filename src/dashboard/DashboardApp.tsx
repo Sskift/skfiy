@@ -2541,6 +2541,7 @@ function ChromeHostPolicyControls({
   const [busyAction, setBusyAction] = useState<ChromeHostPolicyControlAction | null>(null);
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<Tone>("neutral");
+  const currentHost = readChromeHostPolicyCurrentHost(chromeControl);
 
   const updatePolicy = async (action: ChromeHostPolicyControlAction) => {
     const trimmedHost = host.trim();
@@ -2598,6 +2599,21 @@ function ChromeHostPolicyControls({
         </div>
       </div>
       <div className="skfiy-dashboard-control-actions">
+        <button
+          className="skfiy-dashboard-button button"
+          disabled={busyAction !== null || !currentHost}
+          onClick={() => {
+            if (currentHost) {
+              setHost(currentHost);
+              setFeedbackTone("neutral");
+              setFeedback(`Current host selected: ${currentHost}`);
+            }
+          }}
+          type="button"
+        >
+          <MousePointer2 size={15} aria-hidden="true" />
+          Use current host
+        </button>
         {CHROME_HOST_POLICY_ACTIONS.map((item) => {
           const Icon = item.icon;
           return (
@@ -2623,6 +2639,13 @@ function ChromeHostPolicyControls({
       </p>
     </form>
   );
+}
+
+function readChromeHostPolicyCurrentHost(
+  chromeControl: DashboardChromeControlState
+): string | undefined {
+  const host = chromeControl.host.trim();
+  return host && host !== "No active ordinary page" ? host : undefined;
 }
 
 function EvidenceSummaryCard({
