@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readRouteOutcome } from "./route-outcome";
+import { readExplicitRouteOutcome, readRouteOutcome } from "./route-outcome";
 
 describe("readRouteOutcome", () => {
   it("preserves pending approval over a running route state", () => {
@@ -253,5 +253,46 @@ describe("readRouteOutcome", () => {
     expect(JSON.stringify(outcome)).not.toContain("secret-token");
     expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
     expect(JSON.stringify(outcome)).not.toContain("abc.def");
+  });
+});
+
+describe("readExplicitRouteOutcome", () => {
+  it("completes partial explicit route outcomes from their kind", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "chrome_host_policy_denied",
+      detail: "Blocked token=secret-token at /Users/tester/Profile",
+      policyKind: "chrome-host-policy"
+    }, fallback)).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Blocked token=[redacted] at [path]",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "chrome_host_policy_denied",
+      policyKind: "chrome-host-policy"
+    });
+  });
+
+  it("can ignore explicit records without a valid kind when a surface requires kind as the anchor", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {
+        state: "running",
+        route: "chrome",
+        latestMessage: "Chrome action is running."
+      }
+    });
+
+    expect(readExplicitRouteOutcome({
+      title: "Route failed",
+      tone: "danger"
+    }, fallback, { requireKind: true })).toBeUndefined();
   });
 });

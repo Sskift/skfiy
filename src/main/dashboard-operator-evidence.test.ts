@@ -53,6 +53,43 @@ describe("createDashboardOperatorEvidence", () => {
     expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
   });
 
+  it("completes partial explicit route outcomes before writing operator evidence", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const evidence = createDashboardOperatorEvidence({
+      descriptor,
+      snapshot: createDashboardSnapshot({
+        descriptor,
+        generatedAt: "2026-07-08T00:00:00.000Z",
+        currentTurn: {},
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+          policyKind: "chrome-host-policy"
+        },
+        replay: { state: "empty" }
+      })
+    });
+
+    expect(evidence.snapshot.routeOutcome).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked redacted-secret at [path]",
+      tone: "danger",
+      source: "current-turn",
+      routeLabel: "unknown",
+      state: "chrome_host_policy_denied",
+      policyKind: "chrome-host-policy"
+    });
+    expect(evidence.status).toMatchObject({
+      routeOutcomeKind: "chrome_host_policy_denied",
+      routeOutcomeState: "chrome_host_policy_denied",
+      routeOutcomePolicyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(evidence)).not.toContain("secret-token");
+    expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
+  });
+
   it.each([
     [
       "app-policy denial",

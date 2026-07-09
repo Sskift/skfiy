@@ -2,10 +2,8 @@ import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import { readRecord } from "./record-utils.js";
 import {
-  isRouteOutcomeKind,
-  isRouteOutcomeTone,
-  readRouteOutcome,
-  type RouteOutcome
+  readExplicitRouteOutcome,
+  readRouteOutcome
 } from "../shared/route-outcome.js";
 
 export interface DashboardOperatorEvidenceInput {
@@ -50,7 +48,9 @@ export function createDashboardOperatorEvidence({
     includeCommandDetail: false,
     sanitizeString: sanitizeText
   });
-  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome);
+  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome, {
+    sanitizeString: sanitizeText
+  }) ?? inferredRouteOutcome;
 
   return {
     schemaVersion: 1,
@@ -101,29 +101,6 @@ export function createDashboardOperatorEvidence({
       tokenFree: true,
       source: "allowlisted-dashboard-summary"
     }
-  };
-}
-
-function readExplicitRouteOutcome(
-  value: unknown,
-  fallback: RouteOutcome
-): RouteOutcome {
-  const record = readRecord(value);
-  if (!record) {
-    return fallback;
-  }
-
-  return {
-    kind: isRouteOutcomeKind(record.kind) ? record.kind : fallback.kind,
-    title: readSafeString(record.title, fallback.title) ?? fallback.title,
-    value: readSafeString(record.value, fallback.value) ?? fallback.value,
-    detail: readSafeString(record.detail, fallback.detail) ?? fallback.detail,
-    tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
-    source: readSafeString(record.source, fallback.source) ?? fallback.source,
-    routeLabel: readSafeString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readSafeString(record.state, fallback.state) ?? fallback.state,
-    denialKind: readSafeString(record.denialKind, fallback.denialKind) ?? fallback.denialKind,
-    policyKind: readSafeString(record.policyKind, fallback.policyKind) ?? fallback.policyKind
   };
 }
 

@@ -207,6 +207,46 @@ describe("CLI operator status output", () => {
     expect(JSON.stringify(output)).not.toContain("rootPath");
   });
 
+  it("completes partial explicit route outcomes from runtime snapshots", () => {
+    const output = createOperatorStatusOutput({
+      invocation: createInvocation(),
+      generatedAt: "2026-07-07T00:00:00.000Z",
+      result: "probed",
+      status: {
+        cli: { state: "installed" },
+        readiness: {
+          state: "needs-action",
+          ready: false,
+          checks: {},
+          blockers: []
+        },
+        runtimeSnapshot: {
+          currentTurn: {},
+          routeOutcome: {
+            kind: "chrome_host_policy_denied",
+            detail: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+            policyKind: "chrome-host-policy"
+          },
+          replay: { state: "empty" }
+        }
+      }
+    });
+
+    expect(output.routeOutcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked redacted=[redacted] at [path]",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "chrome_host_policy_denied",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(output)).not.toContain("secret-token");
+    expect(JSON.stringify(output)).not.toContain("/Users/tester");
+  });
+
   it("infers token-free route outcome semantics from current turn evidence", () => {
     const output = createOperatorStatusOutput({
       invocation: createInvocation(),

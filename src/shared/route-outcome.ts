@@ -61,6 +61,11 @@ export interface RouteOutcomeInput {
   sanitizeString?: (value: string) => string | undefined;
 }
 
+export interface ExplicitRouteOutcomeInput {
+  sanitizeString?: (value: string) => string | undefined;
+  requireKind?: boolean;
+}
+
 export function isRouteOutcomeKind(value: unknown): value is RouteOutcomeKind {
   return typeof value === "string" && ROUTE_OUTCOME_KINDS.includes(value as RouteOutcomeKind);
 }
@@ -299,8 +304,138 @@ export function sanitizeRouteOutcomeString(value: string): string | undefined {
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
+export function readExplicitRouteOutcome(
+  value: unknown,
+  fallback: RouteOutcome,
+  {
+    sanitizeString = sanitizeRouteOutcomeString,
+    requireKind = false
+  }: ExplicitRouteOutcomeInput = {}
+): RouteOutcome | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const kind = isRouteOutcomeKind(record.kind) ? record.kind : requireKind ? undefined : fallback.kind;
+  if (!kind) {
+    return undefined;
+  }
+
+  const defaults = createRouteOutcomeDefaults(kind, fallback);
+  const denialKind = readString(record.denialKind, sanitizeString) ?? defaults.denialKind;
+  const policyKind = readString(record.policyKind, sanitizeString) ?? defaults.policyKind;
+
+  return {
+    kind,
+    title: readString(record.title, sanitizeString) ?? defaults.title,
+    value: readString(record.value, sanitizeString) ?? defaults.value,
+    detail: readString(record.detail, sanitizeString) ?? defaults.detail,
+    tone: isRouteOutcomeTone(record.tone) ? record.tone : defaults.tone,
+    source: readString(record.source, sanitizeString) ?? defaults.source,
+    routeLabel: readString(record.routeLabel, sanitizeString) ?? defaults.routeLabel,
+    state: readString(record.state, sanitizeString) ?? defaults.state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  };
+}
+
 function createRouteOutcome(outcome: RouteOutcome): RouteOutcome {
   return outcome;
+}
+
+function createRouteOutcomeDefaults(kind: RouteOutcomeKind, fallback: RouteOutcome): RouteOutcome {
+  const state = readRouteOutcomeDefaultState(kind, fallback.state);
+
+  return {
+    ...fallback,
+    kind,
+    state,
+    value: readRouteOutcomeDefaultValue(kind, state),
+    title: readRouteOutcomeDefaultTitle(kind),
+    tone: readRouteOutcomeDefaultTone(kind)
+  };
+}
+
+function readRouteOutcomeDefaultValue(kind: RouteOutcomeKind, state: string): string {
+  return kind === "running" && state !== "running" ? state : kind;
+}
+
+function readRouteOutcomeDefaultTitle(kind: RouteOutcomeKind): string {
+  switch (kind) {
+    case "idle":
+      return "No active route";
+    case "running":
+      return "Route running";
+    case "approval_required":
+      return "Route approval required";
+    case "needs_confirmation":
+      return "Route needs confirmation";
+    case "needs_clarification":
+      return "Route needs clarification";
+    case "app_policy_denied":
+      return "App policy denied route";
+    case "chrome_host_policy_denied":
+      return "Chrome host policy denied route";
+    case "user_denied":
+      return "User denied route";
+    case "blocked":
+      return "Route blocked";
+    case "cancelled":
+      return "Route cancelled";
+    case "stopped":
+      return "Route stopped";
+    case "failed":
+      return "Route failed";
+    case "completed":
+      return "Route completed";
+    default:
+      return "Route state unknown";
+  }
+}
+
+function readRouteOutcomeDefaultTone(kind: RouteOutcomeKind): RouteOutcomeTone {
+  switch (kind) {
+    case "completed":
+      return "success";
+    case "approval_required":
+    case "needs_confirmation":
+    case "needs_clarification":
+    case "running":
+      return "warning";
+    case "app_policy_denied":
+    case "chrome_host_policy_denied":
+    case "blocked":
+    case "failed":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function readRouteOutcomeDefaultState(kind: RouteOutcomeKind, fallbackState: string): string {
+  if (isRouteOutcomeStateCompatible(kind, fallbackState)) {
+    return fallbackState;
+  }
+
+  return kind;
+}
+
+function isRouteOutcomeStateCompatible(kind: RouteOutcomeKind, state: string): boolean {
+  switch (kind) {
+    case "app_policy_denied":
+    case "chrome_host_policy_denied":
+    case "user_denied":
+      return state === "denied" || state === "blocked";
+    case "stopped":
+      return state === "cancelled";
+    case "running":
+      return ["planned", "observing", "executing", "running"].includes(state);
+    case "approval_required":
+      return state === "approval_required" || state === "running" || state === "observing";
+    default:
+      return state === kind;
+  }
 }
 
 function isApprovalPending(

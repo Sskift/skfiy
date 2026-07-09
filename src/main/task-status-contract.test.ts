@@ -168,15 +168,19 @@ describe("task status boundary contract", () => {
       expect(sources.preload, `preload validator should accept tone ${tone}`).toContain(`"${tone}"`);
     }
 
+    expect(sources.sharedRouteOutcome).toContain("readExplicitRouteOutcome");
+    expect(sources.sharedRouteOutcome).toContain("isRouteOutcomeKind(record.kind)");
+    expect(sources.sharedRouteOutcome).toContain("isRouteOutcomeTone(record.tone)");
+
     for (const [name, source] of Object.entries({
       runtimeSnapshot: sources.runtimeSnapshot,
       operatorEvidence: sources.operatorEvidence,
       cliStatusEvidence: sources.cliStatusEvidence
     })) {
       expect(source, `${name} should validate route outcome kind with the shared predicate`)
-        .toContain("isRouteOutcomeKind");
+        .toMatch(/isRouteOutcomeKind|readExplicitRouteOutcome/);
       expect(source, `${name} should validate route outcome tone with the shared predicate`)
-        .toContain("isRouteOutcomeTone");
+        .toMatch(/isRouteOutcomeTone|readExplicitRouteOutcome/);
     }
   });
 

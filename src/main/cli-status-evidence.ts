@@ -22,10 +22,8 @@ import { sanitizeSensitiveString } from "./cli-output-sanitize.js";
 import { createChromePageControlCapability } from "./cli-chrome-capabilities.js";
 import { createBinaryReadinessEvidence } from "./cli-status-readiness.js";
 import {
-  isRouteOutcomeKind,
-  isRouteOutcomeTone,
-  readRouteOutcome,
-  type RouteOutcome
+  readExplicitRouteOutcome,
+  readRouteOutcome
 } from "../shared/route-outcome.js";
 
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
@@ -438,7 +436,9 @@ function summarizeRouteOutcome(
     includeCommandDetail: false,
     sanitizeString: sanitizeStatusEvidenceString
   });
-  const outcome = readExplicitRouteOutcome(routeOutcome, inferredRouteOutcome);
+  const outcome = readExplicitRouteOutcome(routeOutcome, inferredRouteOutcome, {
+    sanitizeString: sanitizeStatusEvidenceString
+  }) ?? inferredRouteOutcome;
 
   return compactRecord({
     kind: readString(outcome.kind),
@@ -452,29 +452,6 @@ function summarizeRouteOutcome(
     denialKind: sanitizeStatusEvidenceString(readString(outcome.denialKind)),
     policyKind: sanitizeStatusEvidenceString(readString(outcome.policyKind))
   });
-}
-
-function readExplicitRouteOutcome(
-  value: unknown,
-  fallback: RouteOutcome
-): RouteOutcome {
-  const record = readRecord(value);
-  if (!record) {
-    return fallback;
-  }
-
-  return {
-    kind: isRouteOutcomeKind(record.kind) ? record.kind : fallback.kind,
-    title: readSafeStatusEvidenceString(record.title, fallback.title) ?? fallback.title,
-    value: readSafeStatusEvidenceString(record.value, fallback.value) ?? fallback.value,
-    detail: readSafeStatusEvidenceString(record.detail, fallback.detail) ?? fallback.detail,
-    tone: isRouteOutcomeTone(record.tone) ? record.tone : fallback.tone,
-    source: readSafeStatusEvidenceString(record.source, fallback.source) ?? fallback.source,
-    routeLabel: readSafeStatusEvidenceString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readSafeStatusEvidenceString(record.state, fallback.state) ?? fallback.state,
-    denialKind: readSafeStatusEvidenceString(record.denialKind, fallback.denialKind) ?? fallback.denialKind,
-    policyKind: readSafeStatusEvidenceString(record.policyKind, fallback.policyKind) ?? fallback.policyKind
-  };
 }
 
 function summarizeNamedStatusRecord(
@@ -607,8 +584,4 @@ function sanitizeStatusEvidenceString(value: string | undefined): string | undef
     /(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g,
     "[path]"
   ) : undefined;
-}
-
-function readSafeStatusEvidenceString(value: unknown, fallback?: string): string | undefined {
-  return sanitizeStatusEvidenceString(readString(value)) ?? fallback;
 }

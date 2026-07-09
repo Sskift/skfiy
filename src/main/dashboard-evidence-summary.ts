@@ -2,8 +2,7 @@ import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import { readRecord } from "./record-utils.js";
 import {
-  isRouteOutcomeKind,
-  isRouteOutcomeTone,
+  readExplicitRouteOutcome,
   readRouteOutcome,
   type RouteOutcome,
   type RouteOutcomeKind
@@ -126,7 +125,9 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
     includeCommandDetail: true,
     sanitizeString: sanitizeText
   });
-  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome);
+  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome, {
+    sanitizeString: sanitizeText
+  }) ?? inferredRouteOutcome;
   const routeChecks = createRouteOutcomeEvidenceChecks(routeOutcome);
   const latestRouteActionCheck = createLatestRouteActionEvidenceCheck(currentTurn, replay);
   const alertCounts = countAlerts(snapshot.alerts);
@@ -187,39 +188,6 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         : "Run a fresh dashboard smoke and capture a bounded runtime snapshot."
     ]
   };
-}
-
-function readExplicitRouteOutcome(
-  value: unknown,
-  fallback: RouteOutcome
-): RouteOutcome {
-  const record = readRecord(value);
-  if (!record) {
-    return fallback;
-  }
-  const denialKind = readString(record.denialKind, fallback.denialKind);
-  const policyKind = readString(record.policyKind, fallback.policyKind);
-
-  return {
-    kind: readExplicitRouteOutcomeKind(record.kind) ?? fallback.kind,
-    title: readString(record.title, fallback.title) ?? fallback.title,
-    value: readString(record.value, fallback.value) ?? fallback.value,
-    detail: readString(record.detail, fallback.detail) ?? fallback.detail,
-    tone: readExplicitRouteOutcomeTone(record.tone) ?? fallback.tone,
-    source: readString(record.source, fallback.source) ?? fallback.source,
-    routeLabel: readString(record.routeLabel, fallback.routeLabel) ?? fallback.routeLabel,
-    state: readString(record.state, fallback.state) ?? fallback.state,
-    ...(denialKind ? { denialKind } : {}),
-    ...(policyKind ? { policyKind } : {})
-  };
-}
-
-function readExplicitRouteOutcomeKind(value: unknown): RouteOutcomeKind | undefined {
-  return isRouteOutcomeKind(value) ? value : undefined;
-}
-
-function readExplicitRouteOutcomeTone(value: unknown): RouteOutcome["tone"] | undefined {
-  return isRouteOutcomeTone(value) ? value : undefined;
 }
 
 function mapRouteOutcomeEvidenceState(kind: RouteOutcomeKind): EvidenceState {

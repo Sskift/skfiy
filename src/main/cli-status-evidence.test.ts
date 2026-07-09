@@ -246,6 +246,67 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("completes partial explicit runtime route outcomes before exposing CLI evidence", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      const snapshot = {
+        ...createRuntimeSnapshotFromReplay({
+          replay: null,
+          currentTurn: {
+            status: "idle",
+            message: "No active route."
+          },
+          observedAt: "2026-07-07T00:00:20.000Z"
+        }),
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+          policyKind: "chrome-host-policy"
+        }
+      };
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:20.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked redacted=[redacted] at [path]",
+          tone: "danger",
+          source: "runtime-snapshot",
+          routeLabel: "unknown",
+          state: "chrome_host_policy_denied",
+          policyKind: "chrome-host-policy"
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("/Users/tester");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves Chrome host policy denial as a distinct route outcome from runtime snapshots", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
