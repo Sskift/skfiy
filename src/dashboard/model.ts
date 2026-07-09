@@ -14,6 +14,7 @@ import {
   isRouteOutcomeKind,
   isRouteOutcomeTone,
   readRouteOutcome as readSharedRouteOutcome,
+  sanitizeRouteOutcomeString,
   type RouteOutcome,
   type RouteOutcomeKind
 } from "../shared/route-outcome.js";
@@ -3021,15 +3022,15 @@ function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | unde
   }
 
   const kind = readRouteOutcomeKind(record.kind);
-  const title = readString(record.title);
-  const outcomeValue = readString(record.value);
-  const detail = readString(record.detail);
+  const title = readDashboardRouteOutcomeText(record.title);
+  const outcomeValue = readDashboardRouteOutcomeText(record.value);
+  const detail = readDashboardRouteOutcomeText(record.detail);
   const tone = readRouteOutcomeTone(record.tone);
-  const source = readString(record.source);
-  const routeLabel = readString(record.routeLabel);
-  const state = readString(record.state);
-  const denialKind = readString(record.denialKind);
-  const policyKind = readString(record.policyKind);
+  const source = readDashboardRouteOutcomeText(record.source);
+  const routeLabel = readDashboardRouteOutcomeText(record.routeLabel);
+  const state = readDashboardRouteOutcomeText(record.state);
+  const denialKind = readDashboardRouteOutcomeText(record.denialKind);
+  const policyKind = readDashboardRouteOutcomeText(record.policyKind);
   if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
     return undefined;
   }
@@ -3046,6 +3047,11 @@ function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | unde
     ...(denialKind ? { denialKind } : {}),
     ...(policyKind ? { policyKind } : {})
   };
+}
+
+function readDashboardRouteOutcomeText(value: unknown): string | undefined {
+  const text = readString(value);
+  return text ? sanitizeRouteOutcomeString(text) : undefined;
 }
 
 function readRouteOutcomeKind(value: unknown): RouteOutcomeKind | undefined {

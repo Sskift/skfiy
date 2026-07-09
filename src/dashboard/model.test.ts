@@ -2314,7 +2314,7 @@ describe("readRouteOutcome", () => {
         kind: "needs_confirmation",
         title: "Route needs confirmation",
         value: "needs_confirmation",
-        detail: "Runtime replay needs a human verification check.",
+        detail: "Runtime replay needs a human verification check for token=secret-token at /Users/tester/Work",
         tone: "warning",
         source: "runtime-snapshot",
         routeLabel: "Ghostty",
@@ -2327,12 +2327,14 @@ describe("readRouteOutcome", () => {
       kind: "needs_confirmation",
       title: "Route needs confirmation",
       value: "needs_confirmation",
-      detail: "Runtime replay needs a human verification check.",
+      detail: "Runtime replay needs a human verification check for token=[redacted] at [path]",
       source: "runtime-snapshot",
       routeLabel: "Ghostty",
       state: "needs_confirmation",
       policyKind: "route-policy"
     });
+    expect(JSON.stringify(outcome)).not.toContain("secret-token");
+    expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
   });
 
   it.each([

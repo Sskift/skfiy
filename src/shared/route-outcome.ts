@@ -74,7 +74,7 @@ export function readRouteOutcome({
   replay,
   defaultSource = "Current turn",
   includeCommandDetail = true,
-  sanitizeString
+  sanitizeString = sanitizeRouteOutcomeString
 }: RouteOutcomeInput): RouteOutcome {
   const state = readString(currentTurn?.state, sanitizeString) ?? "idle";
   const approvalState = readString(currentTurn?.approvalState, sanitizeString);
@@ -280,6 +280,16 @@ export function readRouteOutcome({
     source,
     routeLabel
   });
+}
+
+export function sanitizeRouteOutcomeString(value: string): string | undefined {
+  const sanitized = value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/(?:file:\/\/)?(?:\/Users\/|\/tmp\/|\/private\/tmp\/|\/var\/|\/repo\/)[^\s"')]+/g, "[path]")
+    .trim();
+
+  return sanitized.length > 0 ? sanitized : undefined;
 }
 
 function createRouteOutcome(outcome: RouteOutcome): RouteOutcome {

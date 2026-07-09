@@ -142,6 +142,36 @@ describe("dashboard snapshot data", () => {
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 
+  it("redacts inferred route outcome detail in snapshot data", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        routeReason: "Finder is denied by app policy at /Users/tester/Downloads with token=secret-token and Bearer abc.def",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        command: "organize /Users/tester/Downloads?token=secret-token"
+      },
+      replay: {
+        state: "available"
+      }
+    });
+
+    expect(snapshot.routeOutcome).toMatchObject({
+      kind: "app_policy_denied",
+      value: "app_policy_denied",
+      detail: "Finder is denied by app policy at [path] with token=[redacted] and Bearer [redacted]",
+      routeLabel: "finder",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+    expect(JSON.stringify(snapshot.routeOutcome)).not.toContain("secret-token");
+    expect(JSON.stringify(snapshot.routeOutcome)).not.toContain("/Users/tester");
+    expect(JSON.stringify(snapshot.routeOutcome)).not.toContain("abc.def");
+  });
+
   it("adds personal memory summaries from local memory files", () => {
     const files: Record<string, string> = {
       "/Users/tester/Library/Application Support/skfiy/memory/USER.md": [

@@ -159,4 +159,28 @@ describe("readRouteOutcome", () => {
       denialKind: "user"
     });
   });
+
+  it("redacts tokens and local paths from route detail by default", () => {
+    const outcome = readRouteOutcome({
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        routeReason: "Finder is denied by app policy at /Users/tester/Downloads with token=secret-token and Bearer abc.def",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        command: "organize /Users/tester/Downloads?token=secret-token"
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "app_policy_denied",
+      detail: "Finder is denied by app policy at [path] with token=[redacted] and Bearer [redacted]",
+      routeLabel: "finder",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+    expect(JSON.stringify(outcome)).not.toContain("secret-token");
+    expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
+    expect(JSON.stringify(outcome)).not.toContain("abc.def");
+  });
 });
