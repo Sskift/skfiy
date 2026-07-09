@@ -1767,7 +1767,7 @@ describe("Chrome extension background policy sync", () => {
       schemaVersion: 1,
       title: "skfiy observe smoke",
       url: LOCALHOST_TEST_URL,
-      visibleText: "skfiy observe live smoke 2026-06-21 compiled binary path"
+      visibleText: "skfiy observe live smoke compiled binary path"
     };
     const mock = createChromeMock([
       createPageObserveResponse()

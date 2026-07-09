@@ -305,6 +305,33 @@ describe("implementation plan status docs", () => {
     expect(stalePlanReferences).toEqual([]);
   });
 
+  it("keeps pre-active-plan planning date anchors out of repository workflow files", () => {
+    const workflowFilePaths = collectRepositoryTextFiles(process.cwd());
+    const stalePlanningDateAnchors = workflowFilePaths.flatMap((filePath) => {
+      const contents = readFileSync(filePath, "utf8");
+      const relativePath = path.relative(process.cwd(), filePath).split(path.sep).join("/");
+
+      return [...contents.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].flatMap((match) => {
+        const dateStamp = match[0];
+        if (Date.parse(`${dateStamp}T00:00:00.000Z`) >= activePlanDate) {
+          return [];
+        }
+
+        const matchIndex = match.index ?? 0;
+        const contextStart = Math.max(0, matchIndex - 120);
+        const contextEnd = Math.min(contents.length, matchIndex + dateStamp.length + 120);
+        const planningContext = `${relativePath}\n${contents.slice(contextStart, contextEnd)}`;
+        const looksLikePlanningMaterial = /(?:plans?|planning|research|implementation[- ]log|work[- ]log|handoff|checklist|backlog|cleanup)/i.test(
+          planningContext
+        );
+
+        return looksLikePlanningMaterial ? [`${relativePath}: ${dateStamp}`] : [];
+      });
+    });
+
+    expect(stalePlanningDateAnchors).toEqual([]);
+  });
+
   it("keeps AGENTS pointed at the current active plan", () => {
     const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
 
