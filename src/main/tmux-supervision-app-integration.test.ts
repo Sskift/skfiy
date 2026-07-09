@@ -9,6 +9,8 @@ describe("money-run supervision app integration", () => {
 
     expect(mainSource).toContain("runTmuxSupervisionTask");
     expect(mainSource).toContain("createTmuxSupervisionClient");
+    expect(mainSource).toContain("createTmuxSupervisionReplayEvent");
+    expect(mainSource).toContain("turnReplayStore.recordComputerUseEvent(replayEvent)");
     expect(mainSource).toContain("route.kind === \"tmux_supervision\"");
     expect(taskEventSource).toContain("tmuxSupervisionReport");
     expect(taskEventSource).toContain("\"report\" in event");

@@ -50,6 +50,7 @@ import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
 import { readChromeExtensionConnectionStatus } from "./chrome-native-host.js";
 import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
+import { createTmuxSupervisionReplayEvent } from "./tmux-supervision-replay.js";
 import {
   createPlannerProviderSettingsStore,
   readInitialPlannerProviderSettings
@@ -767,6 +768,10 @@ async function runTmuxSupervisionCommandTask(
         return;
       }
 
+      const replayEvent = createTmuxSupervisionReplayEvent(taskEvent);
+      if (replayEvent) {
+        turnReplayStore.recordComputerUseEvent(replayEvent);
+      }
       dispatchComputerUseTaskEvent({
         approved,
         command,
