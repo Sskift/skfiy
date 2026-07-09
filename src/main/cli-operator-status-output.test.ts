@@ -206,4 +206,47 @@ describe("CLI operator status output", () => {
     expect(JSON.stringify(output)).not.toContain("organize ");
     expect(JSON.stringify(output)).not.toContain("rootPath");
   });
+
+  it("infers token-free route outcome semantics from current turn evidence", () => {
+    const output = createOperatorStatusOutput({
+      invocation: createInvocation(),
+      generatedAt: "2026-07-07T00:00:00.000Z",
+      result: "probed",
+      status: {
+        cli: { state: "installed" },
+        readiness: {
+          state: "needs-action",
+          ready: false,
+          checks: {},
+          blockers: []
+        },
+        runtimeSnapshot: {
+          currentTurn: {
+            state: "blocked",
+            route: "finder",
+            routeReason: "Finder is denied by app policy at /Users/tester/Downloads with token=secret-token.",
+            denialKind: "app_policy",
+            policyKind: "app-policy",
+            command: "organize /Users/tester/Downloads?token=secret-token"
+          }
+        }
+      }
+    });
+
+    expect(output.routeOutcome).toEqual({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      detail: "Finder is denied by app policy at [path] with redacted=[redacted]",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "finder",
+      state: "blocked",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+    expect(JSON.stringify(output)).not.toContain("secret-token");
+    expect(JSON.stringify(output)).not.toContain("/Users/tester");
+    expect(JSON.stringify(output)).not.toContain("organize ");
+  });
 });

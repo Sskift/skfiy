@@ -13,7 +13,9 @@ import type { StatusReadinessContext } from "./cli-status-readiness.js";
 import { SKFIY_MCP_TOOL_NAMES } from "./skfiy-mcp-server.js";
 import {
   isRouteOutcomeKind,
-  isRouteOutcomeTone
+  isRouteOutcomeTone,
+  readRouteOutcome,
+  type RouteOutcome
 } from "../shared/route-outcome.js";
 
 export type OperatorStatusReadinessFactory = (
@@ -116,21 +118,42 @@ function createOperatorRouteOutcome(status: Record<string, unknown>): Record<str
   const runtimeSnapshot = readRecord(status.runtimeSnapshot) ?? readRecord(evidence?.runtimeSnapshot);
   const routeOutcome = readRecord(runtimeSnapshot?.routeOutcome);
   const currentTurn = readRecord(runtimeSnapshot?.currentTurn) ?? readRecord(evidence?.currentTurn);
+  const replay = readRecord(runtimeSnapshot?.replay) ?? readRecord(evidence?.replay);
   const fallbackState = readString(currentTurn?.state) ?? "unknown";
 
   if (!routeOutcome) {
-    return {
-      kind: "unknown",
-      title: "Route unknown",
-      value: "unknown",
-      detail: "Runtime route outcome has not been probed.",
-      tone: "neutral",
-      source: "runtime-snapshot",
-      routeLabel: "unknown",
-      state: fallbackState
-    };
+    if (currentTurn || replay) {
+      return readOperatorRouteOutcomeRecord(readRouteOutcome({
+        ...(currentTurn ? { currentTurn } : {}),
+        ...(replay ? { replay } : {}),
+        defaultSource: "runtime-snapshot",
+        includeCommandDetail: false
+      }), fallbackState);
+    }
+
+    return createUnknownOperatorRouteOutcome(fallbackState);
   }
 
+  return readOperatorRouteOutcomeRecord(routeOutcome, fallbackState);
+}
+
+function createUnknownOperatorRouteOutcome(fallbackState: string): Record<string, unknown> {
+  return {
+    kind: "unknown",
+    title: "Route unknown",
+    value: "unknown",
+    detail: "Runtime route outcome has not been probed.",
+    tone: "neutral",
+    source: "runtime-snapshot",
+    routeLabel: "unknown",
+    state: fallbackState
+  };
+}
+
+function readOperatorRouteOutcomeRecord(
+  routeOutcome: Record<string, unknown> | RouteOutcome,
+  fallbackState: string
+): Record<string, unknown> {
   return compactRecord({
     kind: isRouteOutcomeKind(routeOutcome.kind) ? routeOutcome.kind : "unknown",
     title: readString(routeOutcome.title) ?? "Route unknown",
