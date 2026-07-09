@@ -14,6 +14,10 @@ import type {
 } from "./orchestrator/finder-task.js";
 import type { TmuxSupervisionTaskEvent } from "./orchestrator/tmux-supervision-task.js";
 import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
+import {
+  createTaskEventRouteMetadata,
+  type TaskEventRouteMetadata
+} from "./task-event-route-metadata.js";
 
 export type ManualMode = "active" | "quiet";
 export type TaskStatus =
@@ -64,13 +68,6 @@ export interface TaskEventStopTurnBehavior {
   beforeMessage?: string;
   afterStatus?: string;
   afterMessage?: string;
-}
-
-export interface TaskEventRouteMetadata {
-  route?: string;
-  routeReason?: string;
-  denialKind?: string;
-  policyKind?: string;
 }
 
 export function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEvent {
@@ -216,39 +213,10 @@ export function withRouteTaskEventMetadata(
   route: CommandRoute | ExecutableCommandRoute,
   metadata: TaskEventRouteMetadata = {}
 ): TaskEvent {
-  const routeLabel = metadata.route ?? readTaskEventRouteLabel(route);
-  const routeReason = metadata.routeReason ?? ("reason" in route ? route.reason : undefined);
-  const denialKind = metadata.denialKind ?? (route.kind === "denied" ? "user" : undefined);
-  const policyKind = metadata.policyKind ?? readTaskEventPolicyKind(route);
-
   return {
     ...event,
-    ...(routeLabel ? { route: routeLabel } : {}),
-    ...(routeReason ? { routeReason } : {}),
-    ...(denialKind ? { denialKind } : {}),
-    ...(policyKind ? { policyKind } : {})
+    ...createTaskEventRouteMetadata(route, metadata)
   };
-}
-
-function readTaskEventRouteLabel(route: CommandRoute | ExecutableCommandRoute): string | undefined {
-  if (
-    route.kind === "ghostty"
-    || route.kind === "chrome"
-    || route.kind === "finder"
-    || route.kind === "tmux_supervision"
-  ) {
-    return route.kind;
-  }
-
-  return "targetRoute" in route ? route.targetRoute?.kind : undefined;
-}
-
-function readTaskEventPolicyKind(route: CommandRoute | ExecutableCommandRoute): string | undefined {
-  if (route.kind === "blocked" || route.kind === "needs_confirmation") {
-    return "route-policy";
-  }
-
-  return undefined;
 }
 
 function formatFinderSelectionSummary(context: FinderSelectionResult): string {
