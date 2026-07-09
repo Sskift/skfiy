@@ -168,7 +168,9 @@ export function readRouteOutcome({
     });
   }
 
-  if (isDeniedOrBlockedState(state) && isAppPolicyDenial(classifierText, denialKind, policyKind)) {
+  const appPolicyDenied = isAppPolicyDenialState(state)
+    || (isDeniedOrBlockedState(state) && isAppPolicyDenial(classifierText, denialKind, policyKind));
+  if (appPolicyDenied) {
     return createOutcome({
       kind: "app_policy_denied",
       title: "App policy denied route",
@@ -181,7 +183,9 @@ export function readRouteOutcome({
     });
   }
 
-  if (isDeniedOrBlockedState(state) && isChromeHostPolicyDenial(classifierText, policyKind)) {
+  const chromeHostPolicyDenied = isChromeHostPolicyDenialState(state)
+    || (isDeniedOrBlockedState(state) && isChromeHostPolicyDenial(classifierText, policyKind));
+  if (chromeHostPolicyDenied) {
     return createOutcome({
       kind: "chrome_host_policy_denied",
       title: "Chrome host policy denied route",
@@ -194,7 +198,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "denied" || (state === "blocked" && isUserDenial(denialKind))) {
+  if (state === "user_denied" || state === "denied" || (state === "blocked" && isUserDenial(denialKind))) {
     return createOutcome({
       kind: "user_denied",
       title: "User denied route",
@@ -427,9 +431,11 @@ function readRouteOutcomeDefaultState(kind: RouteOutcomeKind, fallbackState: str
 function isRouteOutcomeStateCompatible(kind: RouteOutcomeKind, state: string): boolean {
   switch (kind) {
     case "app_policy_denied":
+      return state === "app_policy_denied" || state === "denied" || state === "blocked";
     case "chrome_host_policy_denied":
+      return state === "chrome_host_policy_denied" || state === "denied" || state === "blocked";
     case "user_denied":
-      return state === "denied" || state === "blocked";
+      return state === "user_denied" || state === "denied" || state === "blocked";
     case "stopped":
       return state === "cancelled";
     case "running":
@@ -456,6 +462,9 @@ function canApprovalOverrideState(state: string): boolean {
     "needs_clarification",
     "blocked",
     "denied",
+    "app_policy_denied",
+    "chrome_host_policy_denied",
+    "user_denied",
     "cancelled",
     "failed",
     "completed"
@@ -464,6 +473,14 @@ function canApprovalOverrideState(state: string): boolean {
 
 function isDeniedOrBlockedState(state: string): boolean {
   return state === "denied" || state === "blocked";
+}
+
+function isAppPolicyDenialState(state: string): boolean {
+  return state === "app_policy_denied";
+}
+
+function isChromeHostPolicyDenialState(state: string): boolean {
+  return state === "chrome_host_policy_denied";
 }
 
 function isAppPolicyDenial(
@@ -604,6 +621,34 @@ function readRouteStateValue(value: string | undefined): string | undefined {
 
   if (value === "verification_failed") {
     return "needs_confirmation";
+  }
+
+  if (
+    value === "app-policy-denied"
+    || value === "app_policy_blocked"
+    || value === "app-policy-blocked"
+    || value === "blocked_by_app_policy"
+    || value === "blocked-by-app-policy"
+    || value === "denied_by_app_policy"
+    || value === "denied-by-app-policy"
+  ) {
+    return "app_policy_denied";
+  }
+
+  if (
+    value === "chrome-host-policy-denied"
+    || value === "chrome_host_policy_blocked"
+    || value === "chrome-host-policy-blocked"
+    || value === "blocked_by_chrome_host_policy"
+    || value === "blocked-by-chrome-host-policy"
+    || value === "denied_by_chrome_host_policy"
+    || value === "denied-by-chrome-host-policy"
+  ) {
+    return "chrome_host_policy_denied";
+  }
+
+  if (value === "user-denied" || value === "denied_by_user" || value === "denied-by-user") {
+    return "user_denied";
   }
 
   if (value === "canceled") {

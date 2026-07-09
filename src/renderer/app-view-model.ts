@@ -5,6 +5,7 @@ import {
 import {
   isRouteOutcomeKind,
   isRouteOutcomeTone,
+  readExplicitRouteOutcome,
   readRouteOutcome,
   type RouteOutcome
 } from "../shared/route-outcome.js";
@@ -806,7 +807,7 @@ function readExplicitPetRouteOutcome(outcome?: Partial<PetRouteOutcome>): PetRou
     return null;
   }
 
-  return {
+  return readExplicitRouteOutcome({
     kind: outcome.kind,
     title,
     value: value || outcome.kind,
@@ -817,7 +818,21 @@ function readExplicitPetRouteOutcome(outcome?: Partial<PetRouteOutcome>): PetRou
     state,
     ...(denialKind ? { denialKind } : {}),
     ...(policyKind ? { policyKind } : {})
-  };
+  }, {
+    kind: outcome.kind,
+    title,
+    value: outcome.kind,
+    detail: detail || "No route activity has been recorded yet.",
+    tone: outcome.tone,
+    source,
+    routeLabel: routeLabel || "unknown",
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  }, {
+    requireKind: true,
+    sanitizeString: sanitizePetRouteOutcomeString
+  }) ?? null;
 }
 
 function readSanitizedPetRouteOutcomeField(value: unknown): string | undefined {

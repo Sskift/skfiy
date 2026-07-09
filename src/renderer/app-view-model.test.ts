@@ -883,6 +883,48 @@ describe("app view model", () => {
     expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
   });
 
+  it("normalizes explicit replay route outcome denial aliases for the pet route signal", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "blocked",
+        message: "Blocked by policy."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome-host-policy-blocked",
+          detail: "Chrome host policy blocked token=task-secret",
+          tone: "danger",
+          source: "turn-replay",
+          routeLabel: "chrome",
+          state: "blocked_by_chrome_host_policy",
+          policyKind: "chrome-host-policy"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(outcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "chrome_host_policy_denied",
+      policyKind: "chrome-host-policy"
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "Chrome 站点策略拒绝",
+      detail: "chrome · Chrome host policy blocked token=[redacted] · 策略 chrome-host-policy",
+      tone: "danger"
+    });
+  });
+
   it("uses explicit task event route outcome before stale replay route outcome", () => {
     const outcome = readPetRouteOutcome({
       task: {

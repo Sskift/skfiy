@@ -134,6 +134,24 @@ describe("createDashboardOperatorEvidence", () => {
       }
     ],
     [
+      "semantic Chrome host policy denial state",
+      {
+        state: "blocked-by-chrome-host-policy",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        command: "open https://blocked.example/?token=secret-token"
+      },
+      {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        state: "chrome_host_policy_denied",
+        tone: "danger",
+        routeLabel: "chrome",
+        detail: "Chrome host policy blocked this approved task: blocked.example"
+      }
+    ],
+    [
       "user denial",
       {
         state: "denied",

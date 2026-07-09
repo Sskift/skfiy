@@ -375,6 +375,60 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes semantic denial route state aliases", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "app-policy-denied",
+        route: "ghostty",
+        latestMessage: "Ghostty is blocked by configured app policy."
+      }
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      detail: "Ghostty is blocked by configured app policy.",
+      tone: "danger",
+      routeLabel: "ghostty",
+      state: "app_policy_denied"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "blocked-by-chrome-host-policy",
+          summary: "Chrome host policy blocked this approved task: blocked.example"
+        }
+      }
+    })).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked this approved task: blocked.example",
+      tone: "danger",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "chrome_host_policy_denied"
+    });
+
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "denied-by-user",
+        route: "finder",
+        latestMessage: "User denied this Finder organization request."
+      }
+    })).toMatchObject({
+      kind: "user_denied",
+      title: "User denied route",
+      value: "user_denied",
+      detail: "User denied this Finder organization request.",
+      tone: "neutral",
+      routeLabel: "finder",
+      state: "user_denied"
+    });
+  });
+
   it("classifies replay-only app policy metadata without current turn state", () => {
     expect(readRouteOutcome({
       replay: {
@@ -695,6 +749,62 @@ describe("readExplicitRouteOutcome", () => {
       source: "runtime-snapshot",
       routeLabel: "unknown",
       state: "cancelled"
+    });
+  });
+
+  it("normalizes explicit denial route outcome state and value aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "app_policy_denied",
+      value: "blocked-by-app-policy",
+      state: "denied_by_app_policy",
+      detail: "Ghostty is blocked by configured app policy."
+    }, fallback)).toEqual({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      detail: "Ghostty is blocked by configured app policy.",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "app_policy_denied"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "chrome_host_policy_denied",
+      value: "chrome-host-policy-blocked",
+      state: "blocked_by_chrome_host_policy",
+      detail: "Chrome host policy blocked this approved task: blocked.example"
+    }, fallback)).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked this approved task: blocked.example",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "chrome_host_policy_denied"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "user_denied",
+      value: "denied-by-user",
+      state: "user-denied",
+      detail: "User denied this Computer Use turn."
+    }, fallback)).toEqual({
+      kind: "user_denied",
+      title: "User denied route",
+      value: "user_denied",
+      detail: "User denied this Computer Use turn.",
+      tone: "neutral",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "user_denied"
     });
   });
 

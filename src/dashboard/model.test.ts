@@ -2495,6 +2495,22 @@ describe("readRouteOutcome", () => {
       }
     ],
     [
+      "semantic Chrome host policy denial state",
+      {
+        state: "chrome-host-policy-blocked",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        tone: "danger",
+        routeLabel: "chrome",
+        state: "chrome_host_policy_denied"
+      }
+    ],
+    [
       "environment blocker",
       {
         state: "blocked",
