@@ -699,6 +699,16 @@ async function dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls) {
   return messages;
 }
 
+async function waitForPageControlWakeExecuted(sendResponse, requestId) {
+  await waitForAssertion(() => {
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+      type: PAGE_CONTROL_WAKE,
+      result: "executed",
+      requestId
+    }));
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
@@ -1955,33 +1965,13 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("schedules popup-delegated page action wake directives through background dedupe", async () => {
-    const mock = await loadLocalhostFillWakeBackground({
-      grantedOrigins: LOCALHOST_CAPTURE_ACCESS
-    });
+    const mock = await loadLocalhostFillWakeBackground();
 
     const { sendResponse } = sendPageControlWake(mock, createFillWakeDirective());
 
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed",
-        requestId: "page-control-fill-cli-1"
-      }));
-    });
+    await waitForPageControlWakeExecuted(sendResponse, "page-control-fill-cli-1");
     await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledWith(42, expect.objectContaining({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-1",
-      payload: {
-        action: {
-          kind: "fill",
-          selector: "#name",
-          value: "skfiy"
-        }
-      }
-    }));
     expectSingleFillActionExecution(mock, "page-control-fill-cli-1");
 
     sendPageControlWake(mock, createFillWakeDirective());
@@ -2001,13 +1991,7 @@ describe("Chrome extension background policy sync", () => {
       requestId: "page-control-fill-cli-race"
     }));
 
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed",
-        requestId: "page-control-fill-cli-race"
-      }));
-    });
+    await waitForPageControlWakeExecuted(sendResponse, "page-control-fill-cli-race");
     await waitForWakeProcessing();
 
     expectSingleFillActionExecution(mock, "page-control-fill-cli-race");
