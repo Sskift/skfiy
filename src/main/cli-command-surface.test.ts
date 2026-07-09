@@ -3017,15 +3017,39 @@ describe("CLI command surface", () => {
     try {
       mkdirSync(path.dirname(snapshotPath), { recursive: true });
       writeFileSync(snapshotPath, `${JSON.stringify(createRuntimeSnapshotFromReplay({
-        replay: null,
-        currentTurn: {
-          status: "blocked",
-          message: "Configured app policy blocked Ghostty token=secret-token.",
-          command: "run token=secret-token command",
-          route: "ghostty",
-          routeReason: "Configured app policy blocked Ghostty token=secret-token.",
-          denialKind: "app_policy",
-          policyKind: "app-policy"
+        replay: {
+          transcript: {
+            command: "run token=secret-token command",
+            approvalRequired: true,
+            apps: [],
+            screenshots: [],
+            actions: [
+              {
+                type: "tool_result",
+                turnId: "turn-1",
+                toolCallId: "tool-1",
+                route: "ghostty",
+                status: "blocked",
+                summary: "Configured app policy blocked Ghostty token=secret-token at /Users/tester/Work.",
+                evidenceSummary: "No command executed.",
+                artifactCount: 0
+              }
+            ],
+            outcome: "blocked"
+          },
+          timeline: [
+            {
+              status: "blocked",
+              message: "Configured app policy blocked Ghostty token=secret-token.",
+              command: "run token=secret-token command",
+              route: "ghostty",
+              routeReason: "Configured app policy blocked Ghostty token=secret-token.",
+              denialKind: "app_policy",
+              policyKind: "app-policy",
+              turnId: "turn-1",
+              toolCallId: "tool-1"
+            }
+          ]
         },
         observedAt: "2026-06-20T00:00:00.000Z"
       }), null, 2)}\n`);
@@ -3075,8 +3099,17 @@ describe("CLI command surface", () => {
         policyKind: "app-policy"
       });
       expect(output.routeOutcome.detail).toContain("redacted=[redacted]");
+      expect(output.latestRouteAction).toMatchObject({
+        state: "blocked",
+        source: "runtime-snapshot",
+        type: "tool_result",
+        route: "ghostty",
+        status: "blocked",
+        detail: "Configured app policy blocked Ghostty redacted=[redacted] at [path] 0 artifacts"
+      });
       expect(JSON.stringify(output)).not.toContain("secret-token");
       expect(JSON.stringify(output)).not.toContain("token=secret-token");
+      expect(JSON.stringify(output)).not.toContain("/Users/tester");
       expect(stderr).toEqual([]);
     } finally {
       rmSync(homeDir, { recursive: true, force: true });

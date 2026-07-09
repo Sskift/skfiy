@@ -153,4 +153,57 @@ describe("CLI operator status output", () => {
       })
     }));
   });
+
+  it("surfaces token-free latest route action evidence", () => {
+    const output = createOperatorStatusOutput({
+      invocation: createInvocation(),
+      generatedAt: "2026-07-07T00:00:00.000Z",
+      result: "probed",
+      status: {
+        cli: { state: "installed" },
+        readiness: {
+          state: "needs-action",
+          ready: false,
+          checks: {},
+          blockers: []
+        },
+        runtimeSnapshot: {
+          currentTurn: {
+            state: "blocked",
+            latestAction: {
+              type: "tool_result",
+              route: "finder",
+              status: "blocked",
+              command: "organize /Users/tester/Downloads?token=secret-token",
+              summary: "Finder blocked /Users/tester/Downloads with token=secret-token",
+              artifactCount: 1
+            }
+          },
+          replay: {
+            latestAction: {
+              type: "preview_finder_plan",
+              rootPath: "/Users/tester/Downloads",
+              operationCount: 6,
+              destructiveOperationCount: 0,
+              createFolderCount: 3,
+              moveFileCount: 3
+            }
+          }
+        }
+      }
+    });
+
+    expect(output.latestRouteAction).toEqual({
+      state: "blocked",
+      source: "runtime-snapshot",
+      type: "tool_result",
+      route: "finder",
+      status: "blocked",
+      detail: "Finder blocked [path] with redacted=[redacted] 1 artifacts"
+    });
+    expect(JSON.stringify(output)).not.toContain("secret-token");
+    expect(JSON.stringify(output)).not.toContain("/Users/tester");
+    expect(JSON.stringify(output)).not.toContain("organize ");
+    expect(JSON.stringify(output)).not.toContain("rootPath");
+  });
 });
