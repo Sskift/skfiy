@@ -32,6 +32,7 @@ import { Button, Card, Chip, ProgressBar, Skeleton } from "@heroui/react";
 import {
   fetchChromeHostPolicy,
   fetchDashboardEvidenceSummary,
+  fetchDashboardOperatorEvidence,
   fetchDashboardSnapshot,
   fetchProviderSettings,
   postChromeControlAction,
@@ -50,6 +51,7 @@ import type {
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
   DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
@@ -137,6 +139,7 @@ import { KnowledgeGraph } from "./KnowledgeGraph";
 
 export interface DashboardAppProps {
   loadEvidenceSummary?: () => Promise<DashboardEvidenceSummary>;
+  loadOperatorEvidence?: () => Promise<DashboardOperatorEvidencePayload>;
   loadChromeHostPolicy?: () => Promise<DashboardChromeHostPolicyResponse>;
   loadSnapshot?: () => Promise<DashboardSnapshot>;
   loadProviderSettings?: () => Promise<DashboardProviderSettingsResponse>;
@@ -201,6 +204,7 @@ const CHROME_HOST_POLICY_ACTIONS: Array<{
 
 export function DashboardApp({
   loadEvidenceSummary = fetchDashboardEvidenceSummary,
+  loadOperatorEvidence = fetchDashboardOperatorEvidence,
   loadChromeHostPolicy = fetchChromeHostPolicy,
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
@@ -221,9 +225,12 @@ export function DashboardApp({
   const [memoryMutationReceipt, setMemoryMutationReceipt] = useState<DashboardMutationReceipt | null>(null);
   const [evidenceSummary, setEvidenceSummary] = useState<DashboardEvidenceSummary | null>(null);
   const [evidenceSummaryError, setEvidenceSummaryError] = useState<string | null>(null);
+  const [operatorEvidencePayload, setOperatorEvidencePayload] = useState<DashboardOperatorEvidencePayload | null>(null);
+  const [operatorEvidenceError, setOperatorEvidenceError] = useState<string | null>(null);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingEvidenceSummary, setIsLoadingEvidenceSummary] = useState(false);
+  const [isLoadingOperatorEvidence, setIsLoadingOperatorEvidence] = useState(false);
   const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -318,6 +325,18 @@ export function DashboardApp({
     }
   }, [loadEvidenceSummary]);
 
+  const refreshOperatorEvidence = useCallback(async () => {
+    setIsLoadingOperatorEvidence(true);
+    setOperatorEvidenceError(null);
+    try {
+      setOperatorEvidencePayload(await loadOperatorEvidence());
+    } catch (evidenceError) {
+      setOperatorEvidenceError(readErrorMessage(evidenceError));
+    } finally {
+      setIsLoadingOperatorEvidence(false);
+    }
+  }, [loadOperatorEvidence]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -402,9 +421,12 @@ export function DashboardApp({
             providerSettingsNotice={providerSettingsNotice}
             evidenceSummary={evidenceSummary}
             evidenceSummaryError={evidenceSummaryError}
+            operatorEvidencePayload={operatorEvidencePayload}
+            operatorEvidenceError={operatorEvidenceError}
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
             isLoadingEvidenceSummary={isLoadingEvidenceSummary}
+            isLoadingOperatorEvidence={isLoadingOperatorEvidence}
             isMemorySaving={isSavingMemory}
             memoryError={memoryError}
             memoryMutationReceipt={memoryMutationReceipt}
@@ -416,6 +438,7 @@ export function DashboardApp({
             onRunChromeControlAction={runChromeControlAction}
             onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
             onLoadEvidenceSummary={refreshEvidenceSummary}
+            onLoadOperatorEvidence={refreshOperatorEvidence}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
           />
         ) : (
@@ -446,9 +469,12 @@ function DashboardContent({
   providerSettingsNotice,
   evidenceSummary,
   evidenceSummaryError,
+  operatorEvidencePayload,
+  operatorEvidenceError,
   isProviderSettingsLoading,
   isProviderSettingsSaving,
   isLoadingEvidenceSummary,
+  isLoadingOperatorEvidence,
   isMemorySaving,
   memoryError,
   memoryMutationReceipt,
@@ -460,6 +486,7 @@ function DashboardContent({
   onRunChromeControlAction,
   onSaveChromeHostPolicyAction,
   onLoadEvidenceSummary,
+  onLoadOperatorEvidence,
   onSubmitPlannerProviderSettings
 }: {
   snapshot: DashboardSnapshot;
@@ -468,9 +495,12 @@ function DashboardContent({
   providerSettingsNotice: string | null;
   evidenceSummary: DashboardEvidenceSummary | null;
   evidenceSummaryError: string | null;
+  operatorEvidencePayload: DashboardOperatorEvidencePayload | null;
+  operatorEvidenceError: string | null;
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
   isLoadingEvidenceSummary: boolean;
+  isLoadingOperatorEvidence: boolean;
   isMemorySaving: boolean;
   memoryError: string | null;
   memoryMutationReceipt: DashboardMutationReceipt | null;
@@ -490,6 +520,7 @@ function DashboardContent({
     request: DashboardChromeHostPolicyActionRequest
   ) => Promise<DashboardChromeHostPolicyResponse>;
   onLoadEvidenceSummary: () => Promise<void>;
+  onLoadOperatorEvidence: () => Promise<void>;
   onSubmitPlannerProviderSettings: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<void>;
@@ -918,7 +949,13 @@ function DashboardContent({
             onLoad={onLoadEvidenceSummary}
             summary={evidenceSummary}
           />
-          <OperatorEvidenceCard summary={operatorEvidence} />
+          <OperatorEvidenceCard
+            error={operatorEvidenceError}
+            isLoading={isLoadingOperatorEvidence}
+            onLoad={onLoadOperatorEvidence}
+            payload={operatorEvidencePayload}
+            summary={operatorEvidence}
+          />
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -3024,7 +3061,23 @@ function RuntimeEvidenceCard({ evidence }: { evidence: DashboardRuntimeEvidenceS
   );
 }
 
-function OperatorEvidenceCard({ summary }: { summary: DashboardOperatorEvidenceSummary }) {
+function OperatorEvidenceCard({
+  error,
+  isLoading,
+  onLoad,
+  payload,
+  summary
+}: {
+  error: string | null;
+  isLoading: boolean;
+  onLoad: () => Promise<void>;
+  payload: DashboardOperatorEvidencePayload | null;
+  summary: DashboardOperatorEvidenceSummary;
+}) {
+  const loadedItems = payload ? readOperatorEvidencePayloadItems(payload) : [];
+  const status = readRecord(payload?.status);
+  const loadedState = readPayloadString(status?.state);
+
   return (
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
       <Card.Header className="skfiy-dashboard-card-header">
@@ -3038,6 +3091,9 @@ function OperatorEvidenceCard({ summary }: { summary: DashboardOperatorEvidenceS
         <p className="skfiy-dashboard-message">{summary.detail}</p>
         <div className="skfiy-dashboard-inline-list">
           <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          <StatusChip tone={payload ? readEvidenceSummaryTone(loadedState) : "neutral"}>
+            loaded {loadedState ?? "not loaded"}
+          </StatusChip>
         </div>
         <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator evidence details">
           {summary.items.map((item) => (
@@ -3049,6 +3105,15 @@ function OperatorEvidenceCard({ summary }: { summary: DashboardOperatorEvidenceS
           ))}
         </ul>
         <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
+          <button
+            className="skfiy-dashboard-button button"
+            disabled={isLoading}
+            onClick={() => void onLoad()}
+            type="button"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            {isLoading ? "Loading evidence" : "Load operator evidence"}
+          </button>
           <a
             className="skfiy-dashboard-button button"
             href="/api/operator-evidence"
@@ -3059,9 +3124,65 @@ function OperatorEvidenceCard({ summary }: { summary: DashboardOperatorEvidenceS
             Operator evidence JSON
           </a>
         </div>
+        {loadedItems.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Loaded operator evidence status">
+            {loadedItems.map((item) => (
+              <li key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.tone}</small>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {error ? (
+          <p className="skfiy-dashboard-control-feedback" data-tone="danger" role="alert">
+            {error}
+          </p>
+        ) : null}
       </Card.Content>
     </Card.Root>
   );
+}
+
+function readOperatorEvidencePayloadItems(
+  payload: DashboardOperatorEvidencePayload
+): DashboardStatusItem[] {
+  const status = readRecord(payload.status) ?? {};
+  return [
+    createOperatorEvidenceItem("endpoint", "/api/operator-evidence"),
+    createOperatorEvidenceItem("generated", payload.generatedAt),
+    createOperatorEvidenceItem("token free", payload.outputPolicy?.tokenFree ? "yes" : "unknown", payload.outputPolicy?.tokenFree ? "success" : "neutral"),
+    createOperatorEvidenceItem("source", payload.outputPolicy?.source),
+    createOperatorEvidenceItem("state", status.state, readEvidenceSummaryTone(readPayloadString(status.state))),
+    createOperatorEvidenceItem("current turn", status.currentTurnState),
+    createOperatorEvidenceItem("route outcome", status.routeOutcomeKind),
+    createOperatorEvidenceItem("readiness", status.readinessState),
+    createOperatorEvidenceItem("alerts", status.alertCount),
+    createOperatorEvidenceItem("smoke artifacts", status.smokeArtifactCount)
+  ].filter((item): item is DashboardStatusItem => Boolean(item));
+}
+
+function createOperatorEvidenceItem(
+  label: string,
+  value: unknown,
+  tone: Tone = "neutral"
+): DashboardStatusItem | undefined {
+  const formatted = formatOperatorEvidenceValue(value);
+  return formatted ? { label, value: formatted, tone } : undefined;
+}
+
+function formatOperatorEvidenceValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? value : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return undefined;
 }
 
 function RuntimeSnapshotDetailsCard({ details }: { details: DashboardRuntimeSnapshotDetail[] }) {

@@ -95,6 +95,18 @@ export interface DashboardSnapshot {
   };
 }
 
+export interface DashboardOperatorEvidencePayload {
+  schemaVersion?: number;
+  generatedAt?: string;
+  descriptor?: Record<string, unknown>;
+  snapshot?: Record<string, unknown>;
+  status?: Record<string, unknown>;
+  outputPolicy?: {
+    tokenFree?: boolean;
+    source?: string;
+  };
+}
+
 export interface DashboardPersonalMemorySummary {
   userEntryCount: number;
   agentEntryCount: number;

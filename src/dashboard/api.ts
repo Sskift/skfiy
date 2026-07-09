@@ -3,6 +3,7 @@ import type {
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
   DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalSkillActionRequest,
@@ -137,6 +138,19 @@ export async function fetchDashboardEvidenceSummary(): Promise<DashboardEvidence
   }
 
   return payload as unknown as DashboardEvidenceSummary;
+}
+
+export async function fetchDashboardOperatorEvidence(): Promise<DashboardOperatorEvidencePayload> {
+  const response = await fetch("/api/operator-evidence", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Operator evidence request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardOperatorEvidencePayload;
 }
 
 export async function postPlannerProviderSettings(

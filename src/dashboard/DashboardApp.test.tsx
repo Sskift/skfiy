@@ -4,6 +4,7 @@ import type { DashboardSnapshotEventHandlers } from "./api";
 import { DashboardApp } from "./DashboardApp";
 import type {
   DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalSkillActionResponse,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -1759,6 +1760,79 @@ describe("DashboardApp", () => {
     expect(within(chromeCommands).getByText("mutates")).toBeInTheDocument();
     expect(within(chromeCommands).getByText("Status")).toBeInTheDocument();
     expect(within(chromeCommands).getByText("read-only")).toBeInTheDocument();
+  });
+
+  it("loads token-free operator evidence from React dashboard controls", async () => {
+    const operatorEvidence: DashboardOperatorEvidencePayload = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-22T08:02:00.000Z",
+      descriptor: {
+        url: "http://127.0.0.1:52363/?token=secret-evidence-token",
+        bind: { host: "127.0.0.1", port: 52363 }
+      },
+      snapshot: {
+        currentTurn: {
+          command: "open https://example.test/?token=secret-evidence-token"
+        }
+      },
+      status: {
+        state: "blocked",
+        currentTurnState: "executing",
+        routeOutcomeKind: "app_policy_denied",
+        readinessState: "blocked",
+        alertCount: 2,
+        smokeArtifactCount: 3
+      },
+      outputPolicy: {
+        tokenFree: true,
+        source: "allowlisted-dashboard-summary"
+      }
+    };
+    const loadOperatorEvidence = vi.fn(async () => operatorEvidence);
+
+    render(<DashboardApp
+      loadOperatorEvidence={loadOperatorEvidence}
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByText("loaded not loaded")).toBeInTheDocument();
+    const loadButton = within(activity).getByRole("button", { name: "Load operator evidence" });
+    expect(within(activity).getByRole("link", { name: "Operator evidence JSON" }))
+      .toHaveAttribute("href", "/api/operator-evidence");
+
+    fireEvent.click(loadButton);
+
+    await waitFor(() => expect(loadOperatorEvidence).toHaveBeenCalledTimes(1));
+    expect(within(activity).getByText("loaded blocked")).toBeInTheDocument();
+    const status = within(activity).getByRole("list", { name: "Loaded operator evidence status" });
+    expect(within(status).getByText("endpoint")).toBeInTheDocument();
+    expect(within(status).getByText("/api/operator-evidence")).toBeInTheDocument();
+    expect(within(status).getByText("generated")).toBeInTheDocument();
+    expect(within(status).getByText("2026-06-22T08:02:00.000Z")).toBeInTheDocument();
+    expect(within(status).getByText("token free")).toBeInTheDocument();
+    expect(within(status).getByText("yes")).toBeInTheDocument();
+    expect(within(status).getByText("source")).toBeInTheDocument();
+    expect(within(status).getByText("allowlisted-dashboard-summary")).toBeInTheDocument();
+    expect(within(status).getByText("state")).toBeInTheDocument();
+    expect(within(status).getAllByText("blocked").length).toBeGreaterThanOrEqual(2);
+    expect(within(status).getByText("current turn")).toBeInTheDocument();
+    expect(within(status).getByText("executing")).toBeInTheDocument();
+    expect(within(status).getByText("route outcome")).toBeInTheDocument();
+    expect(within(status).getByText("app_policy_denied")).toBeInTheDocument();
+    expect(within(status).getByText("readiness")).toBeInTheDocument();
+    expect(within(status).getByText("alerts")).toBeInTheDocument();
+    expect(within(status).getByText("2")).toBeInTheDocument();
+    expect(within(status).getByText("smoke artifacts")).toBeInTheDocument();
+    expect(within(status).getByText("3")).toBeInTheDocument();
+    expect(within(activity).queryByText(/secret-evidence-token/u)).not.toBeInTheDocument();
+    expect(within(activity).queryByText(/open https:\/\/example\.test/u)).not.toBeInTheDocument();
   });
 
   it("submits planner settings, refreshes status, and never echoes the API key", async () => {
