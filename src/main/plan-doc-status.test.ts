@@ -199,6 +199,23 @@ describe("implementation plan status docs", () => {
     expect(staleDatedPlanDocs).toEqual([]);
   });
 
+  it("keeps inactive plan-like markdown out of the repository", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const inactivePlanLikeDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      return /(^|[-_.])(plans?|planning|research|implementation-log|work-log|handoff|checklist|backlog|cleanup)($|[-_.])/i.test(basename)
+        || /(^|\/)(plans?|research|handoffs?|checklists?|backlogs?|archives?|parking)($|\/)/i.test(docPath);
+    });
+
+    expect(inactivePlanLikeDocs).toEqual([]);
+  });
+
   it("keeps pre-active-plan dated markdown out of repository docs except ADRs", () => {
     const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
