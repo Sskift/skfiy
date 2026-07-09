@@ -92,6 +92,77 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("infers completed route outcome from replay-only evidence", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        outcome: "completed",
+        latestToolCall: {
+          route: "chrome",
+          summary: "Chrome page opened."
+        }
+      }
+    })).toEqual({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page opened.",
+      tone: "success",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "completed"
+    });
+  });
+
+  it("infers confirmation route outcome from replay timeline when current turn is absent", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "runtime-snapshot",
+        timelineTail: [
+          {
+            status: "needs_confirmation",
+            route: "finder",
+            routeReason: "Finder verification needs confirmation."
+          }
+        ]
+      }
+    })).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Finder verification needs confirmation.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "finder",
+      state: "needs_confirmation"
+    });
+  });
+
+  it("infers stopped route outcome from replay stop behavior without current turn text", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        outcome: "cancelled",
+        latestToolCall: {
+          route: "tmux_supervision"
+        },
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    })).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      source: "turn-replay",
+      routeLabel: "tmux_supervision",
+      state: "cancelled"
+    });
+  });
+
   it("keeps route denial and policy metadata on the classified outcome", () => {
     expect(readRouteOutcome({
       currentTurn: {

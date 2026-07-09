@@ -76,15 +76,22 @@ export function readRouteOutcome({
   includeCommandDetail = true,
   sanitizeString = sanitizeRouteOutcomeString
 }: RouteOutcomeInput): RouteOutcome {
-  const state = readString(currentTurn?.state, sanitizeString) ?? "idle";
+  const latestReplayEvent = readLatestReplayEvent(replay);
+  const state = readString(currentTurn?.state, sanitizeString)
+    ?? readReplayRouteState(replay, latestReplayEvent, sanitizeString)
+    ?? "idle";
   const approvalState = readString(currentTurn?.approvalState, sanitizeString);
   const approvalPending = isApprovalPending(currentTurn, approvalState);
-  const routeSignal = readRouteLabel(currentTurn, replay, sanitizeString);
+  const routeSignal = readRouteLabel(currentTurn, replay, latestReplayEvent, sanitizeString);
   const routeLabel = routeSignal ?? "unknown";
-  const source = readString(currentTurn?.source, sanitizeString) ?? defaultSource;
-  const detail = readRouteDetail({ currentTurn, replay, includeCommandDetail, sanitizeString });
-  const denialKind = readString(currentTurn?.denialKind, sanitizeString);
-  const policyKind = readString(currentTurn?.policyKind, sanitizeString);
+  const source = readString(currentTurn?.source, sanitizeString)
+    ?? readString(replay?.source, sanitizeString)
+    ?? defaultSource;
+  const detail = readRouteDetail({ currentTurn, replay, latestReplayEvent, includeCommandDetail, sanitizeString });
+  const denialKind = readString(currentTurn?.denialKind, sanitizeString)
+    ?? readString(latestReplayEvent?.denialKind, sanitizeString);
+  const policyKind = readString(currentTurn?.policyKind, sanitizeString)
+    ?? readString(latestReplayEvent?.policyKind, sanitizeString);
   const createOutcome = (outcome: RouteOutcome): RouteOutcome => createRouteOutcome({
     ...outcome,
     ...(denialKind ? { denialKind } : {}),
@@ -359,8 +366,7 @@ function isStopTurnOutcome(
     return true;
   }
 
-  const stopTurnBehavior = readRecord(currentTurn?.stopTurnBehavior)
-    ?? readRecord(replay?.stopTurnBehavior);
+  const stopTurnBehavior = readStopTurnBehavior(currentTurn, replay);
   if (!stopTurnBehavior) {
     return false;
   }
@@ -377,24 +383,29 @@ function isStopTurnOutcome(
 function readRouteDetail({
   currentTurn,
   replay,
+  latestReplayEvent,
   includeCommandDetail,
   sanitizeString
 }: {
   currentTurn: Record<string, unknown> | undefined;
   replay: Record<string, unknown> | undefined;
+  latestReplayEvent: Record<string, unknown> | undefined;
   includeCommandDetail: boolean;
   sanitizeString?: (value: string) => string | undefined;
 }): string {
   const error = readRecord(currentTurn?.error);
   const latestToolCall = readRecord(replay?.latestToolCall);
-  const stopTurnBehavior = readRecord(currentTurn?.stopTurnBehavior)
-    ?? readRecord(replay?.stopTurnBehavior);
+  const stopTurnBehavior = readStopTurnBehavior(currentTurn, replay, latestReplayEvent);
   return readString(error?.message, sanitizeString)
     ?? readString(currentTurn?.error, sanitizeString)
     ?? readString(currentTurn?.routeReason, sanitizeString)
     ?? readString(currentTurn?.reason, sanitizeString)
     ?? readString(currentTurn?.latestMessage, sanitizeString)
     ?? readString(currentTurn?.message, sanitizeString)
+    ?? readString(latestReplayEvent?.routeReason, sanitizeString)
+    ?? readString(latestReplayEvent?.reason, sanitizeString)
+    ?? readString(latestReplayEvent?.latestMessage, sanitizeString)
+    ?? readString(latestReplayEvent?.message, sanitizeString)
     ?? readString(stopTurnBehavior?.afterMessage, sanitizeString)
     ?? readString(stopTurnBehavior?.message, sanitizeString)
     ?? readString(latestToolCall?.summary, sanitizeString)
@@ -408,6 +419,7 @@ function readRouteDetail({
 function readRouteLabel(
   currentTurn: Record<string, unknown> | undefined,
   replay: Record<string, unknown> | undefined,
+  latestReplayEvent: Record<string, unknown> | undefined,
   sanitizeString?: (value: string) => string | undefined
 ): string | undefined {
   const latestAction = readRecord(currentTurn?.latestAction);
@@ -416,9 +428,60 @@ function readRouteLabel(
   return readRouteValue(currentTurn?.route, sanitizeString)
     ?? readRouteValue(currentTurn?.targetRoute, sanitizeString)
     ?? readRouteValue(latestAction?.route, sanitizeString)
+    ?? readRouteValue(latestReplayEvent?.route, sanitizeString)
+    ?? readRouteValue(latestReplayEvent?.targetRoute, sanitizeString)
     ?? readRouteValue(latestToolCall?.route, sanitizeString)
     ?? readString(currentTurn?.targetApp, sanitizeString)
     ?? readString(currentTurn?.targetBundleId, sanitizeString);
+}
+
+function readReplayRouteState(
+  replay: Record<string, unknown> | undefined,
+  latestReplayEvent: Record<string, unknown> | undefined,
+  sanitizeString?: (value: string) => string | undefined
+): string | undefined {
+  return readString(latestReplayEvent?.status, sanitizeString)
+    ?? readRouteStateFromReplayOutcome(readString(replay?.outcome, sanitizeString))
+    ?? readRouteStateFromReplayOutcome(readString(readRecord(replay?.transcript)?.outcome, sanitizeString))
+    ?? readRouteStateValue(readString(replay?.state, sanitizeString));
+}
+
+function readRouteStateFromReplayOutcome(outcome: string | undefined): string | undefined {
+  if (!outcome) {
+    return undefined;
+  }
+
+  if (outcome === "verification_failed") {
+    return "failed";
+  }
+
+  return readRouteStateValue(outcome);
+}
+
+function readRouteStateValue(value: string | undefined): string | undefined {
+  if (!value || value === "available" || value === "empty" || value === "missing") {
+    return undefined;
+  }
+
+  return value;
+}
+
+function readLatestReplayEvent(
+  replay: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const timelineTail = readRecordArray(replay?.timelineTail);
+  const timeline = readRecordArray(replay?.timeline);
+  return timelineTail.at(-1) ?? timeline.at(-1);
+}
+
+function readStopTurnBehavior(
+  currentTurn: Record<string, unknown> | undefined,
+  replay: Record<string, unknown> | undefined,
+  latestReplayEvent: Record<string, unknown> | undefined = readLatestReplayEvent(replay)
+): Record<string, unknown> | undefined {
+  return readRecord(currentTurn?.stopTurnBehavior)
+    ?? readRecord(latestReplayEvent?.stopTurnBehavior)
+    ?? readRecord(replay?.stopTurnBehavior);
 }
 
 function readRouteValue(
@@ -441,6 +504,13 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.flatMap((item) => {
+    const record = readRecord(item);
+    return record ? [record] : [];
+  }) : [];
 }
 
 function readString(
