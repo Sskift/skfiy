@@ -127,7 +127,7 @@ Expected heartbeat shape:
 {
   "schemaVersion": 1,
   "hostName": "com.sskift.skfiy",
-  "observedAt": "2026-06-20T00:00:00.000Z",
+  "observedAt": "2026-07-10T00:00:00.000Z",
   "launchOrigin": "chrome-extension://<extension-id>/",
   "messageType": "skfiy.host_policy.request",
   "requestId": "..."

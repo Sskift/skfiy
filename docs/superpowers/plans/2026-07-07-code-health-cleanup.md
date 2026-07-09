@@ -1,6 +1,6 @@
 # skfiy Active Code Health Plan
 
-> **For agentic workers:** This is the only active implementation plan as of 2026-07-09. `docs/superpowers/plans/` must contain exactly one active plan file. Retired dated implementation plans, research notes, handoff logs, and cleanup checklists must stay out of repo docs; use git history or canonical docs instead.
+> **For agentic workers:** This is the only active implementation plan as of 2026-07-10. `docs/superpowers/plans/` must contain exactly one active plan file. Retired dated implementation plans, research notes, handoff logs, and cleanup checklists must stay out of repo docs; use git history or canonical docs instead.
 
 ## Current State
 
@@ -10,7 +10,7 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Live docs are on the one-active-plan model. Historical implementation material is not a live repo artifact and must not return as archived plans, parking docs, handoff notes, cleanup checklists, or dated research notes.
-- Plan/doc hygiene is clean as of 2026-07-09: the repo keeps one active plan file, no pre-active-plan dated Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
+- Plan/doc hygiene is clean as of 2026-07-10: the repo keeps one active plan file, no pre-active-plan dated Markdown, no stale handoff/checklist Markdown, and no stale workflow references to old plan paths.
 - The current code-health pass has slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
