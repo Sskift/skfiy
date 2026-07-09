@@ -20,6 +20,11 @@ export interface PermissionRefreshState {
   desktopSessionDiagnostics: DesktopSessionDiagnostics;
 }
 
+export interface PermissionOnboardingRefreshTransition {
+  closePermissionOnboarding: boolean;
+  readyTaskMessage?: string;
+}
+
 export function createUnknownPermissionRefreshState(): PermissionRefreshState {
   return {
     permissions: UNKNOWN_PERMISSIONS,
@@ -29,4 +34,21 @@ export function createUnknownPermissionRefreshState(): PermissionRefreshState {
 
 export function isPermissionOnboardingComplete(permissions: PermissionSummary): boolean {
   return readMissingPermissionRows(permissions).length === 0;
+}
+
+export function createPermissionOnboardingRefreshTransition({
+  announceReady,
+  permissionOnboardingOpen,
+  permissions
+}: {
+  announceReady: boolean;
+  permissionOnboardingOpen: boolean;
+  permissions: PermissionSummary;
+}): PermissionOnboardingRefreshTransition {
+  const complete = isPermissionOnboardingComplete(permissions);
+
+  return {
+    closePermissionOnboarding: permissionOnboardingOpen && complete,
+    ...(announceReady && complete ? { readyTaskMessage: "权限已就绪." } : {})
+  };
 }

@@ -72,8 +72,8 @@ import {
 import {
   UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   UNKNOWN_PERMISSIONS,
+  createPermissionOnboardingRefreshTransition,
   createUnknownPermissionRefreshState,
-  isPermissionOnboardingComplete
 } from "./app-permission-state";
 import {
   createPetDragState,
@@ -637,10 +637,13 @@ export default function App() {
     try {
       await api.openPermissionSettings(permission);
       const nextPermissions = await refreshPermissions();
-      if (
-        permissionOnboardingOpen
-        && isPermissionOnboardingComplete(nextPermissions)
-      ) {
+      const transition = createPermissionOnboardingRefreshTransition({
+        announceReady: false,
+        permissionOnboardingOpen,
+        permissions: nextPermissions
+      });
+
+      if (transition.closePermissionOnboarding) {
         transitionPanelState({ type: "close-permission-onboarding" });
       }
     } catch {
@@ -650,9 +653,18 @@ export default function App() {
 
   async function refreshPermissionOnboarding() {
     const nextPermissions = await refreshPermissions();
-    if (isPermissionOnboardingComplete(nextPermissions)) {
+    const transition = createPermissionOnboardingRefreshTransition({
+      announceReady: true,
+      permissionOnboardingOpen: true,
+      permissions: nextPermissions
+    });
+
+    if (transition.closePermissionOnboarding) {
       transitionPanelState({ type: "close-permission-onboarding" });
-      setTask(createTaskStatusView("idle", "权限已就绪."));
+    }
+
+    if (transition.readyTaskMessage) {
+      setTask(createTaskStatusView("idle", transition.readyTaskMessage));
     }
   }
 
