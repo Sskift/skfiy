@@ -1037,6 +1037,77 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it.each([
+    {
+      label: "app-policy",
+      currentTurn: {
+        state: "denied",
+        source: "runtime-snapshot",
+        route: "finder",
+        policyKind: "app-policy",
+        routeReason: "Finder is denied by app policy.",
+        latestMessage: "Finder is denied by app policy."
+      },
+      expectedLabel: "Policy denied",
+      expectedTitle: "App policy denied route",
+      expectedNextAction: "Review app policy denial"
+    },
+    {
+      label: "Chrome host policy",
+      currentTurn: {
+        state: "denied",
+        source: "runtime-snapshot",
+        route: "chrome",
+        policyKind: "chrome-host-policy",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      expectedLabel: "Chrome policy denied",
+      expectedTitle: "Chrome host policy denied route",
+      expectedNextAction: "Review Chrome host policy denial"
+    }
+  ])("renders denied $label metadata distinctly in the fallback Home panel", async ({
+    currentTurn,
+    expectedLabel,
+    expectedTitle,
+    expectedNextAction
+  }) => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn,
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain(expectedLabel);
+      expect(homePanel?.textContent).toContain(expectedTitle);
+      expect(homePanel?.textContent).toContain(expectedNextAction);
+      expect(homePanel?.textContent).not.toContain("User denied route");
+      expect(homePanel?.textContent).not.toContain("Route denied by user");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("renders blocked user denial metadata distinctly in the fallback Home panel", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
