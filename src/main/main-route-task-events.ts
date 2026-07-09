@@ -211,8 +211,11 @@ export function createComputerUseFailureTaskEvent({
   });
 }
 
-export function createStopTurnTaskEvent(message = "Task stopped."): TaskEvent {
-  return {
+export function createStopTurnTaskEvent(
+  route?: ExecutableCommandRoute | null,
+  message = "Task stopped."
+): TaskEvent {
+  const event: TaskEvent = {
     status: "cancelled",
     message,
     stopTurnBehavior: {
@@ -220,4 +223,8 @@ export function createStopTurnTaskEvent(message = "Task stopped."): TaskEvent {
       afterMessage: message
     }
   };
+
+  return route
+    ? withRouteTaskEventMetadata(event, route, { routeReason: message })
+    : event;
 }

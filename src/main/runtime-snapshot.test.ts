@@ -9,6 +9,8 @@ import {
   writeRuntimeTurnMarker
 } from "./runtime-snapshot";
 import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload";
+import { createStopTurnTaskEvent } from "./main-route-task-events";
+import { CHROME_BUNDLE_ID } from "./task-routing";
 import type { TurnReplay } from "./computer-use/turn-replay-store";
 
 function createReplay(): TurnReplay {
@@ -287,6 +289,35 @@ describe("runtime snapshot", () => {
         state: "cancelled",
         source: "runtime-snapshot",
         routeLabel: "unknown",
+        detail: "Task stopped."
+      }
+    });
+  });
+
+  it("preserves the stopped route label in runtime route outcomes", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent(createStopTurnTaskEvent({
+        kind: "chrome",
+        bundleId: CHROME_BUNDLE_ID
+      })),
+      observedAt: "2026-06-20T10:01:20.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        routeReason: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      routeOutcome: {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        state: "cancelled",
+        routeLabel: "chrome",
         detail: "Task stopped."
       }
     });

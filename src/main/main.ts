@@ -206,6 +206,7 @@ const createScreenshotPath = createScreenshotPathFactory({
 });
 let activeTaskController: AbortController | null = null;
 let activeComputerUseToolIdentity: AssistantComputerUseToolIdentity | null = null;
+let activeComputerUseRoute: ComputerUseCommandRoute | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
 
@@ -419,6 +420,7 @@ function requireComputerUseApproval({
   });
   pendingApproval = createPendingApproval(command, mode, toolIdentity, route, planApproved);
   activeComputerUseToolIdentity = toolIdentity;
+  activeComputerUseRoute = route;
 }
 
 function completeComputerUseToolCall(
@@ -433,6 +435,7 @@ function completeComputerUseToolCall(
   const nextState = completeComputerUseToolCallState(state, identity);
   pendingApproval = nextState.pendingApproval;
   activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = pendingApproval?.route ?? (activeComputerUseToolIdentity ? activeComputerUseRoute : null);
 }
 
 function cancelActiveComputerUseToolCall(reason: string): void {
@@ -450,6 +453,7 @@ function cancelActiveComputerUseToolCall(reason: string): void {
   const nextState = cancelComputerUseToolCallState(state, identity);
   pendingApproval = nextState.pendingApproval;
   activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = pendingApproval?.route ?? (activeComputerUseToolIdentity ? activeComputerUseRoute : null);
 }
 
 async function resumePendingApprovalTask(
@@ -496,6 +500,7 @@ async function continueComputerUseTask({
   toolIdentity: AssistantComputerUseToolIdentity;
 }): Promise<void> {
   activeComputerUseToolIdentity = toolIdentity;
+  activeComputerUseRoute = route;
 
   if (route.kind === "tmux_supervision") {
     await runTmuxSupervisionCommandTask(window, {
@@ -1090,6 +1095,7 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
   activeTaskController?.abort();
   activeTaskController = null;
   activeComputerUseToolIdentity = null;
+  activeComputerUseRoute = null;
   currentTaskId += 1;
 
   emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(approval));
@@ -1120,14 +1126,16 @@ ipcMain.handle("skfiy:take-screenshot", async (event) => {
 
 ipcMain.handle("skfiy:stop-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
+  const stopRoute = pendingApproval?.route ?? activeComputerUseRoute;
   cancelActiveComputerUseToolCall("Task stopped.");
   pendingApproval = null;
   activeTaskController?.abort();
   activeTaskController = null;
   activeComputerUseToolIdentity = null;
+  activeComputerUseRoute = null;
   currentTaskId += 1;
 
-  emitTaskEvent(window, createStopTurnTaskEvent());
+  emitTaskEvent(window, createStopTurnTaskEvent(stopRoute));
 });
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {

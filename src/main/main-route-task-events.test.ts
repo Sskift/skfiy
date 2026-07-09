@@ -254,5 +254,19 @@ describe("main route task event helpers", () => {
         afterMessage: "Task stopped."
       }
     });
+
+    expect(createStopTurnTaskEvent({
+      kind: "chrome",
+      bundleId: CHROME_BUNDLE_ID
+    })).toEqual({
+      status: "cancelled",
+      message: "Task stopped.",
+      route: "chrome",
+      routeReason: "Task stopped.",
+      stopTurnBehavior: {
+        afterStatus: "cancelled",
+        afterMessage: "Task stopped."
+      }
+    });
   });
 });

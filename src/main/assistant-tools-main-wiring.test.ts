@@ -69,6 +69,8 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(denyHandler).toContain("assistantComputerUseExecutor.resumeApproval({");
     expect(denyHandler).toContain("decision: \"denied\"");
     expect(denyHandler).toContain("createPendingApprovalDeniedTaskEvent(approval)");
+    expect(stopHandler).toContain("const stopRoute = pendingApproval?.route ?? activeComputerUseRoute");
     expect(stopHandler).toContain("cancelActiveComputerUseToolCall(\"Task stopped.\")");
+    expect(stopHandler).toContain("createStopTurnTaskEvent(stopRoute)");
   });
 });
