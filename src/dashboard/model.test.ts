@@ -2372,6 +2372,28 @@ describe("readRouteOutcome", () => {
     expect(JSON.stringify(outcome)).not.toContain("/Users/tester");
   });
 
+  it("completes partial explicit snapshot route outcomes instead of dropping the kind", () => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn: {},
+      replay: { state: "empty" },
+      routeOutcome: {
+        kind: "chrome_host_policy_denied"
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "No route activity has been recorded yet.",
+      tone: "danger",
+      source: "Current turn",
+      routeLabel: "unknown",
+      state: "chrome_host_policy_denied"
+    });
+  });
+
   it.each([
     [
       "app-policy denial",

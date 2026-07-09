@@ -3002,38 +3002,44 @@ function readHomeNextAction(
 }
 
 export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOutcome {
-  const explicit = readDashboardRouteOutcome(snapshot.routeOutcome);
-  if (explicit) {
-    return explicit;
-  }
-
-  return readSharedRouteOutcome({
+  const fallback = readSharedRouteOutcome({
     currentTurn: snapshot.currentTurn,
     replay: snapshot.replay,
     defaultSource: "Current turn",
     includeCommandDetail: true
   });
+  const explicit = readDashboardRouteOutcome(snapshot.routeOutcome, fallback);
+  if (explicit) {
+    return explicit;
+  }
+
+  return fallback;
 }
 
-function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | undefined {
+function readDashboardRouteOutcome(
+  value: unknown,
+  fallback: DashboardRouteOutcome
+): DashboardRouteOutcome | undefined {
   const record = readRecord(value);
   if (!record) {
     return undefined;
   }
 
   const kind = readRouteOutcomeKind(record.kind);
-  const title = readDashboardRouteOutcomeText(record.title);
-  const outcomeValue = readDashboardRouteOutcomeText(record.value);
-  const detail = readDashboardRouteOutcomeText(record.detail);
-  const tone = readRouteOutcomeTone(record.tone);
-  const source = readDashboardRouteOutcomeText(record.source);
-  const routeLabel = readDashboardRouteOutcomeText(record.routeLabel);
-  const state = readDashboardRouteOutcomeText(record.state);
-  const denialKind = readDashboardRouteOutcomeText(record.denialKind);
-  const policyKind = readDashboardRouteOutcomeText(record.policyKind);
-  if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
+  if (!kind) {
     return undefined;
   }
+
+  const defaults = createDashboardRouteOutcomeDefaults(kind, fallback);
+  const title = readDashboardRouteOutcomeText(record.title) ?? defaults.title;
+  const outcomeValue = readDashboardRouteOutcomeText(record.value) ?? defaults.value;
+  const detail = readDashboardRouteOutcomeText(record.detail) ?? defaults.detail;
+  const tone = readRouteOutcomeTone(record.tone) ?? defaults.tone;
+  const source = readDashboardRouteOutcomeText(record.source) ?? defaults.source;
+  const routeLabel = readDashboardRouteOutcomeText(record.routeLabel) ?? defaults.routeLabel;
+  const state = readDashboardRouteOutcomeText(record.state) ?? defaults.state;
+  const denialKind = readDashboardRouteOutcomeText(record.denialKind) ?? defaults.denialKind;
+  const policyKind = readDashboardRouteOutcomeText(record.policyKind) ?? defaults.policyKind;
 
   return {
     kind,
@@ -3047,6 +3053,103 @@ function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | unde
     ...(denialKind ? { denialKind } : {}),
     ...(policyKind ? { policyKind } : {})
   };
+}
+
+function createDashboardRouteOutcomeDefaults(
+  kind: RouteOutcomeKind,
+  fallback: DashboardRouteOutcome
+): DashboardRouteOutcome {
+  const state = readDashboardRouteOutcomeDefaultState(kind, fallback.state);
+
+  return {
+    ...fallback,
+    kind,
+    state,
+    value: readDashboardRouteOutcomeDefaultValue(kind, state),
+    title: readDashboardRouteOutcomeDefaultTitle(kind),
+    tone: readDashboardRouteOutcomeDefaultTone(kind)
+  };
+}
+
+function readDashboardRouteOutcomeDefaultValue(kind: RouteOutcomeKind, state: string): string {
+  return kind === "running" && state !== "running" ? state : kind;
+}
+
+function readDashboardRouteOutcomeDefaultTitle(kind: RouteOutcomeKind): string {
+  switch (kind) {
+    case "idle":
+      return "No active route";
+    case "running":
+      return "Route running";
+    case "approval_required":
+      return "Route approval required";
+    case "needs_confirmation":
+      return "Route needs confirmation";
+    case "needs_clarification":
+      return "Route needs clarification";
+    case "app_policy_denied":
+      return "App policy denied route";
+    case "chrome_host_policy_denied":
+      return "Chrome host policy denied route";
+    case "user_denied":
+      return "User denied route";
+    case "blocked":
+      return "Route blocked";
+    case "cancelled":
+      return "Route cancelled";
+    case "stopped":
+      return "Route stopped";
+    case "failed":
+      return "Route failed";
+    case "completed":
+      return "Route completed";
+    default:
+      return "Route state unknown";
+  }
+}
+
+function readDashboardRouteOutcomeDefaultTone(kind: RouteOutcomeKind): RouteOutcome["tone"] {
+  switch (kind) {
+    case "completed":
+      return "success";
+    case "approval_required":
+    case "needs_confirmation":
+    case "needs_clarification":
+    case "running":
+      return "warning";
+    case "app_policy_denied":
+    case "chrome_host_policy_denied":
+    case "blocked":
+    case "failed":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function readDashboardRouteOutcomeDefaultState(kind: RouteOutcomeKind, fallbackState: string): string {
+  if (isDashboardRouteOutcomeStateCompatible(kind, fallbackState)) {
+    return fallbackState;
+  }
+
+  return kind;
+}
+
+function isDashboardRouteOutcomeStateCompatible(kind: RouteOutcomeKind, state: string): boolean {
+  switch (kind) {
+    case "app_policy_denied":
+    case "chrome_host_policy_denied":
+    case "user_denied":
+      return state === "denied" || state === "blocked";
+    case "stopped":
+      return state === "cancelled";
+    case "running":
+      return ["planned", "observing", "executing", "running"].includes(state);
+    case "approval_required":
+      return state === "approval_required" || state === "running" || state === "observing";
+    default:
+      return state === kind;
+  }
 }
 
 function readDashboardRouteOutcomeText(value: unknown): string | undefined {
