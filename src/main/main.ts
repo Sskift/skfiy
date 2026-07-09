@@ -112,6 +112,7 @@ import {
 import {
   createToolResult
 } from "./main-computer-use-tool-result.js";
+import { createRunCommandRouteDecision } from "./main-command-routing.js";
 import { createComputerUseTaskEventDispatch } from "./main-task-event-dispatch.js";
 import {
   createAssistantAgentTaskMessage,
@@ -842,8 +843,13 @@ async function runCommandTask(
 
   const route = selectCommandRoute(command);
   const assistantTurn = await createAssistantAgentTaskTurn(command);
+  const routeDecision = createRunCommandRouteDecision({
+    approved,
+    assistantTurnStatus: assistantTurn.status,
+    route
+  });
 
-  if (route.kind === "chat") {
+  if (routeDecision.kind === "chat") {
     pendingApproval = null;
     activeTaskController?.abort();
     activeTaskController = null;
@@ -855,7 +861,7 @@ async function runCommandTask(
     return;
   }
 
-  if (assistantTurn.status !== "completed") {
+  if (routeDecision.kind === "assistant_failed") {
     pendingApproval = null;
     activeTaskController?.abort();
     activeTaskController = null;
@@ -863,33 +869,32 @@ async function runCommandTask(
     emitTurnReplayTaskEvent(window, createAssistantTurnFailedRouteTaskEvent({
       command,
       message: createAssistantAgentTaskMessage(assistantTurn),
-      route
+      route: routeDecision.route
     }));
     return;
   }
 
-  if (route.kind === "needs_clarification") {
+  if (routeDecision.kind === "needs_clarification") {
     pendingApproval = null;
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, createNeedsClarificationRouteTaskEvent(route));
+    emitTurnReplayTaskEvent(window, createNeedsClarificationRouteTaskEvent(routeDecision.route));
     return;
   }
 
-  if (route.kind === "denied" || route.kind === "blocked") {
+  if (routeDecision.kind === "terminal_route_state") {
     pendingApproval = null;
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
     emitTurnReplayTaskEvent(window, createTerminalRouteTaskEvent({
       command,
-      route
+      route: routeDecision.route
     }));
     return;
   }
 
-  const executionRoute = route.kind === "needs_confirmation" ? route.targetRoute : route;
   const plannedToolCall = readAssistantComputerUseToolCall(assistantTurn);
   const toolIdentity: AssistantComputerUseToolIdentity = {
     turnId: assistantTurn.id,
@@ -905,20 +910,20 @@ async function runCommandTask(
 
   emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route);
 
-  if (route.kind === "needs_confirmation" && !approved) {
+  if (routeDecision.kind === "needs_confirmation") {
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
     requireComputerUseApproval({
       command,
       mode,
-      route: executionRoute,
+      route: routeDecision.executionRoute,
       toolIdentity,
-      reason: route.reason
+      reason: routeDecision.route.reason
     });
     emitTaskEvent(window, createNeedsConfirmationRouteTaskEvent({
       command,
-      route
+      route: routeDecision.route
     }));
     return;
   }
@@ -936,7 +941,7 @@ async function runCommandTask(
     mode,
     approved,
     planApproved,
-    route: executionRoute,
+    route: routeDecision.executionRoute,
     toolIdentity
   });
 }

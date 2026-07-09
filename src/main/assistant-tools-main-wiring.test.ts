@@ -5,11 +5,13 @@ import { describe, expect, it } from "vitest";
 describe("assistant tool bridge main-process wiring", () => {
   it("creates an assistant turn before invoking existing Computer Use routes", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-command-routing.ts"), "utf8");
     const routeIndex = source.indexOf("const route = selectCommandRoute(command)");
     const assistantTurnIndex = source.indexOf("const assistantTurn = await createAssistantAgentTaskTurn(command)");
-    const clarificationIndex = source.indexOf("if (route.kind === \"needs_clarification\")");
-    const terminalRouteStateIndex = source.indexOf("if (route.kind === \"denied\" || route.kind === \"blocked\")");
-    const confirmationIndex = source.indexOf("if (route.kind === \"needs_confirmation\" && !approved)");
+    const routeDecisionIndex = source.indexOf("const routeDecision = createRunCommandRouteDecision({");
+    const clarificationIndex = source.indexOf("if (routeDecision.kind === \"needs_clarification\")");
+    const terminalRouteStateIndex = source.indexOf("if (routeDecision.kind === \"terminal_route_state\")");
+    const confirmationIndex = source.indexOf("if (routeDecision.kind === \"needs_confirmation\")");
     const executorPlanIndex = source.indexOf("assistantComputerUseExecutor.planToolCall");
     const toolPlanIndex = source.indexOf("emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route)");
     const continuationIndex = source.indexOf("await continueComputerUseTask({", toolPlanIndex);
@@ -18,8 +20,13 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(source).toContain("AssistantAgentTurnRuntimeError");
     expect(source).toContain("summarizeAssistantToolPlan");
     expect(source).toContain("createAssistantComputerUseExecutor({");
+    expect(source).toContain("createRunCommandRouteDecision");
+    expect(helperSource).toContain("assistantTurnStatus !== \"completed\"");
+    expect(helperSource.indexOf("if (route.kind === \"chat\")"))
+      .toBeLessThan(helperSource.indexOf("if (assistantTurnStatus !== \"completed\")"));
     expect(routeIndex).toBeGreaterThan(-1);
     expect(assistantTurnIndex).toBeGreaterThan(routeIndex);
+    expect(routeDecisionIndex).toBeGreaterThan(assistantTurnIndex);
     expect(terminalRouteStateIndex).toBeGreaterThan(clarificationIndex);
     expect(terminalRouteStateIndex).toBeLessThan(executorPlanIndex);
     expect(executorPlanIndex).toBeGreaterThan(assistantTurnIndex);
@@ -45,8 +52,8 @@ describe("assistant tool bridge main-process wiring", () => {
   it("does not report a failed chat provider turn as completed", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
     const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-route-task-events.ts"), "utf8");
-    const chatRouteStart = source.indexOf("if (route.kind === \"chat\")");
-    const nextRouteStart = source.indexOf("if (assistantTurn.status !== \"completed\")", chatRouteStart);
+    const chatRouteStart = source.indexOf("if (routeDecision.kind === \"chat\")");
+    const nextRouteStart = source.indexOf("if (routeDecision.kind === \"assistant_failed\")", chatRouteStart);
     const chatRouteBlock = source.slice(chatRouteStart, nextRouteStart);
 
     expect(chatRouteStart).toBeGreaterThan(-1);
