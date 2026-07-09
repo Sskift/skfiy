@@ -110,9 +110,9 @@ import {
   type PetWindowMode
 } from "./main-ipc-payload.js";
 import {
-  createToolResult,
-  createToolResultFromTaskEvent
+  createToolResult
 } from "./main-computer-use-tool-result.js";
+import { createComputerUseTaskEventDispatch } from "./main-task-event-dispatch.js";
 import {
   createAssistantAgentTaskMessage,
   createRuntimeStatusResponse,
@@ -149,7 +149,6 @@ import {
   createTerminalRouteTaskEvent
 } from "./main-route-task-events.js";
 import {
-  createTaskEvent,
   readTurnReplayTaskEvent,
   withRouteTaskEventMetadata,
   type ComputerUseTaskEvent,
@@ -349,6 +348,54 @@ function emitAssistantToolPlanTaskEvent(
     message: summary.message,
     command
   }, route));
+}
+
+function dispatchComputerUseTaskEvent({
+  approved,
+  command,
+  mode,
+  planApproved,
+  route,
+  taskEvent,
+  toolIdentity,
+  window
+}: {
+  approved: boolean;
+  command: string;
+  mode: ManualMode;
+  planApproved: boolean;
+  route: ComputerUseCommandRoute;
+  taskEvent: ComputerUseTaskEvent;
+  toolIdentity: AssistantComputerUseToolIdentity;
+  window: BrowserWindow | null;
+}): void {
+  const dispatch = createComputerUseTaskEventDispatch({
+    approved,
+    command,
+    event: taskEvent,
+    mode,
+    planApproved,
+    route
+  });
+
+  if (dispatch.approvalRequest) {
+    requireComputerUseApproval({
+      command: dispatch.approvalRequest.command,
+      mode,
+      route,
+      toolIdentity,
+      reason: dispatch.approvalRequest.reason,
+      planApproved: dispatch.approvalRequest.planApproved
+    });
+  }
+
+  if (dispatch.toolResult) {
+    completeComputerUseToolCall(toolIdentity, dispatch.toolResult);
+    emitTaskEvent(window, dispatch.taskStatus);
+    return;
+  }
+
+  emitTurnReplayTaskEvent(window, dispatch.taskStatus);
 }
 
 function requireComputerUseApproval({
@@ -573,36 +620,16 @@ async function continueComputerUseTask({
         }
 
         turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.risk.reason
-          });
-        }
-
-        if (taskEvent.type === "plan_confirmation_required" && !planApproved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.reason,
-            planApproved: true
-          });
-        }
-
-        const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
-        if (result) {
-          completeComputerUseToolCall(toolIdentity, result);
-          emitTaskEvent(window, taskStatus);
-        } else {
-          emitTurnReplayTaskEvent(window, taskStatus);
-        }
+        dispatchComputerUseTaskEvent({
+          approved,
+          command,
+          mode,
+          planApproved,
+          route,
+          taskEvent,
+          toolIdentity,
+          window
+        });
       }
       return;
     }
@@ -624,25 +651,16 @@ async function continueComputerUseTask({
         }
 
         turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.risk.reason
-          });
-        }
-
-        const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
-        if (result) {
-          completeComputerUseToolCall(toolIdentity, result);
-          emitTaskEvent(window, taskStatus);
-        } else {
-          emitTurnReplayTaskEvent(window, taskStatus);
-        }
+        dispatchComputerUseTaskEvent({
+          approved,
+          command,
+          mode,
+          planApproved,
+          route,
+          taskEvent,
+          toolIdentity,
+          window
+        });
       }
       return;
     }
@@ -701,25 +719,16 @@ async function continueComputerUseTask({
       }
 
       turnReplayStore.recordComputerUseEvent(taskEvent);
-
-      if (taskEvent.type === "approval_required" && !approved) {
-        requireComputerUseApproval({
-          command: taskEvent.command,
-          mode,
-          route,
-          toolIdentity,
-          reason: taskEvent.risk.reason
-        });
-      }
-
-      const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
-      if (result) {
-        completeComputerUseToolCall(toolIdentity, result);
-        emitTaskEvent(window, taskStatus);
-      } else {
-        emitTurnReplayTaskEvent(window, taskStatus);
-      }
+      dispatchComputerUseTaskEvent({
+        approved,
+        command,
+        mode,
+        planApproved,
+        route,
+        taskEvent,
+        toolIdentity,
+        window
+      });
     }
   } catch (error) {
     if (controller.signal.aborted || taskId !== currentTaskId) {
@@ -774,24 +783,16 @@ async function runTmuxSupervisionCommandTask(
         return;
       }
 
-      if (taskEvent.type === "approval_required" && !approved) {
-        requireComputerUseApproval({
-          command,
-          mode,
-          route,
-          toolIdentity,
-          reason: taskEvent.risk.reason
-        });
-      }
-
-      const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
-      if (result) {
-        completeComputerUseToolCall(toolIdentity, result);
-        emitTaskEvent(window, taskStatus);
-      } else {
-        emitTurnReplayTaskEvent(window, taskStatus);
-      }
+      dispatchComputerUseTaskEvent({
+        approved,
+        command,
+        mode,
+        planApproved: false,
+        route,
+        taskEvent,
+        toolIdentity,
+        window
+      });
     }
   } catch (error) {
     if (controller.signal.aborted || taskId !== currentTaskId) {
