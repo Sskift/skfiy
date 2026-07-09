@@ -598,6 +598,10 @@ function readRouteStateValue(value: string | undefined): string | undefined {
     return "needs_confirmation";
   }
 
+  if (value === "needs_user_clarification" || value === "needs-user-clarification" || value === "needs-clarification") {
+    return "needs_clarification";
+  }
+
   if (value === "verification_failed") {
     return "needs_confirmation";
   }
@@ -620,8 +624,8 @@ function readExplicitRouteOutcomeValue(
 ): string {
   const sanitized = readString(value, sanitizeString);
   const stateValue = readRouteStateValue(sanitized);
-  return kind === "needs_confirmation" && stateValue === "needs_confirmation"
-    ? "needs_confirmation"
+  return kind === stateValue
+    ? stateValue
     : sanitized ?? fallbackValue;
 }
 

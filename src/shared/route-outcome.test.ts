@@ -195,6 +195,60 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes legacy clarification route states to clarification semantics", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "needs-clarification",
+        route: "visible-app",
+        latestMessage: "Clarify the target app."
+      }
+    })).toMatchObject({
+      kind: "needs_clarification",
+      title: "Route needs clarification",
+      value: "needs_clarification",
+      detail: "Clarify the target app.",
+      tone: "warning",
+      routeLabel: "visible-app",
+      state: "needs_clarification"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        timelineTail: [
+          {
+            status: "needs_user_clarification",
+            routeReason: "No supported desktop control route matched this request."
+          }
+        ]
+      }
+    })).toMatchObject({
+      kind: "needs_clarification",
+      value: "needs_clarification",
+      detail: "No supported desktop control route matched this request.",
+      source: "turn-replay",
+      routeLabel: "unknown",
+      state: "needs_clarification"
+    });
+
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "visible-app",
+          status: "needs-user-clarification",
+          summary: "Clarify the target app."
+        }
+      }
+    })).toMatchObject({
+      kind: "needs_clarification",
+      value: "needs_clarification",
+      detail: "Clarify the target app.",
+      routeLabel: "visible-app",
+      state: "needs_clarification"
+    });
+  });
+
   it("normalizes replay verification failures to confirmation semantics", () => {
     expect(readRouteOutcome({
       replay: {
@@ -535,6 +589,30 @@ describe("readExplicitRouteOutcome", () => {
       source: "runtime-snapshot",
       routeLabel: "unknown",
       state: "needs_confirmation"
+    });
+  });
+
+  it("normalizes explicit clarification route outcome state and value aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "needs_clarification",
+      value: "needs-clarification",
+      state: "needs_user_clarification",
+      detail: "No supported desktop control route matched this request."
+    }, fallback)).toEqual({
+      kind: "needs_clarification",
+      title: "Route needs clarification",
+      value: "needs_clarification",
+      detail: "No supported desktop control route matched this request.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "needs_clarification"
     });
   });
 
