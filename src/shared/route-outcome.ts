@@ -153,7 +153,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "blocked" && isAppPolicyDenial(classifierText, currentTurn, sanitizeString)) {
+  if (isDeniedOrBlockedState(state) && isAppPolicyDenial(classifierText, currentTurn, sanitizeString)) {
     return createOutcome({
       kind: "app_policy_denied",
       title: "App policy denied route",
@@ -166,7 +166,7 @@ export function readRouteOutcome({
     });
   }
 
-  if (state === "blocked" && isChromeHostPolicyDenial(classifierText, currentTurn, sanitizeString)) {
+  if (isDeniedOrBlockedState(state) && isChromeHostPolicyDenial(classifierText, currentTurn, sanitizeString)) {
     return createOutcome({
       kind: "chrome_host_policy_denied",
       title: "Chrome host policy denied route",
@@ -305,6 +305,10 @@ function canApprovalOverrideState(state: string): boolean {
     "failed",
     "completed"
   ].includes(state);
+}
+
+function isDeniedOrBlockedState(state: string): boolean {
+  return state === "denied" || state === "blocked";
 }
 
 function isAppPolicyDenial(

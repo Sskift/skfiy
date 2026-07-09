@@ -110,4 +110,53 @@ describe("readRouteOutcome", () => {
       policyKind: "app-policy"
     });
   });
+
+  it("keeps policy denial metadata distinct even when the route state is denied", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "denied",
+        route: "finder",
+        routeReason: "Finder is denied by app policy.",
+        policyKind: "app-policy"
+      }
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      value: "app_policy_denied",
+      routeLabel: "finder",
+      state: "denied",
+      policyKind: "app-policy"
+    });
+
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "denied",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
+      }
+    })).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      value: "chrome_host_policy_denied",
+      routeLabel: "chrome",
+      state: "denied",
+      policyKind: "chrome-host-policy"
+    });
+  });
+
+  it("keeps plain denied route state classified as user denial", () => {
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "denied",
+        route: "ghostty",
+        routeReason: "User denied this desktop control request.",
+        denialKind: "user"
+      }
+    })).toMatchObject({
+      kind: "user_denied",
+      value: "user_denied",
+      routeLabel: "ghostty",
+      state: "denied",
+      denialKind: "user"
+    });
+  });
 });
