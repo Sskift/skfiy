@@ -962,7 +962,7 @@ describe("dogfood status reporter", () => {
           ? [
             "src/main/assistant-agent.ts",
             "src/dashboard/DashboardApp.tsx",
-            "docs/superpowers/plans/2026-07-07-code-health-cleanup.md"
+            "docs/superpowers/plans/2026-07-11-product-roadmap.md"
           ]
           : [];
       }
@@ -1047,7 +1047,7 @@ describe("dogfood status reporter", () => {
         return base === "abc123" && head === "docshead"
           ? [
             "docs/release-evidence/latest-alpha.json",
-            "docs/superpowers/plans/2026-07-07-code-health-cleanup.md",
+            "docs/superpowers/plans/2026-07-11-product-roadmap.md",
             ".skfiy-dogfood/status-abc123.md",
             "scripts/dogfood-status.mjs",
             "src/main/dogfood-status.test.ts"
@@ -1073,7 +1073,7 @@ describe("dogfood status reporter", () => {
             appCodeOk: true,
             changedFiles: [
               "docs/release-evidence/latest-alpha.json",
-              "docs/superpowers/plans/2026-07-07-code-health-cleanup.md",
+              "docs/superpowers/plans/2026-07-11-product-roadmap.md",
               ".skfiy-dogfood/status-abc123.md",
               "scripts/dogfood-status.mjs",
               "src/main/dogfood-status.test.ts"

@@ -423,7 +423,7 @@ describe("dogfood tester assignment packet", () => {
         "docs",
         "superpowers",
         "plans",
-        "2026-07-07-code-health-cleanup.md"
+        "2026-07-11-product-roadmap.md"
       ),
       "utf8"
     );

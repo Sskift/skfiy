@@ -1,11 +1,11 @@
 # skfiy Product Readiness Matrix
 
-Updated: 2026-07-10
+Updated: 2026-07-11
 
 This document is the supervisor-facing readiness reference for the active agent
 and Computer Use work. It does not replace
-`docs/superpowers/plans/2026-07-07-code-health-cleanup.md`; the active plan now
-tracks current feature enrichment, while this matrix keeps grouped ownership,
+`docs/superpowers/plans/2026-07-11-product-roadmap.md`; the active plan defines
+the long-term feature direction, while this matrix keeps grouped ownership,
 QA/SRE gates, and real-scenario acceptance rules.
 
 ## Supervisor Workflow

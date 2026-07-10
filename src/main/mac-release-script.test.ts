@@ -468,7 +468,7 @@ describe("mac release signing and notarization scripts", () => {
           "docs",
           "superpowers",
           "plans",
-          "2026-07-07-code-health-cleanup.md"
+          "2026-07-11-product-roadmap.md"
         ),
         "utf8"
       )

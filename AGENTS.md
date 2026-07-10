@@ -10,7 +10,7 @@ skfiy is a local-first macOS desktop pet that fronts a Background Agent. The pet
 
 Use the single active plan:
 
-- `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`
+- `docs/superpowers/plans/2026-07-11-product-roadmap.md`
 
 Historical implementation material lives in git history only, not repo docs or
 active planning scope. Retired dated plans must not be restored or named as

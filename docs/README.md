@@ -20,9 +20,9 @@ and research notes belong in git history only.
   Messaging host install/status checks, and troubleshooting.
 - `product-readiness-matrix.md`: supervisor-facing product boundary,
   workstream ownership, real-scenario acceptance, and QA/SRE gate.
-- `superpowers/plans/2026-07-07-code-health-cleanup.md`: the single
-  active implementation plan for current plan hygiene, code-health slimming,
-  route-state semantics, and safe Dashboard follow-up work.
+- `superpowers/plans/2026-07-11-product-roadmap.md`: the single active product
+  implementation plan for the pet, Background Agent, Computer Use, Browser
+  Context, Dashboard, automations, adapters, and trusted distribution.
 
 ## Reference Docs
 

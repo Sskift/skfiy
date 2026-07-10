@@ -7,10 +7,10 @@ const activePlanPath = path.join(
   "docs",
   "superpowers",
   "plans",
-  "2026-07-07-code-health-cleanup.md"
+  "2026-07-11-product-roadmap.md"
 );
-const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
-const activePlanDate = Date.parse("2026-07-07T00:00:00.000Z");
+const activePlanReference = "docs/superpowers/plans/2026-07-11-product-roadmap.md";
+const activePlanDate = Date.parse("2026-07-11T00:00:00.000Z");
 
 const repoMarkdownSkipDirs = new Set([
   ".git",
@@ -117,11 +117,11 @@ describe("implementation plan status docs", () => {
       ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
       : [];
 
-    expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
+    expect(activePlanFiles).toEqual(["2026-07-11-product-roadmap.md"]);
   });
 
   it("keeps retired plan-like markdown files out of docs", () => {
-    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const activePlanReference = "docs/superpowers/plans/2026-07-11-product-roadmap.md";
     const docsRoot = path.join(process.cwd(), "docs");
     const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
@@ -154,7 +154,7 @@ describe("implementation plan status docs", () => {
   });
 
   it("keeps dated non-active markdown out of docs", () => {
-    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const activePlanReference = "docs/superpowers/plans/2026-07-11-product-roadmap.md";
     const docsRoot = path.join(process.cwd(), "docs");
     const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
@@ -277,7 +277,7 @@ describe("implementation plan status docs", () => {
   });
 
   it("keeps repository markdown pointed at the current active plan path only", () => {
-    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const activePlanReference = "docs/superpowers/plans/2026-07-11-product-roadmap.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`'"),]+\.md/g;
     const workflowDocPaths = collectRepositoryMarkdownDocs(process.cwd());
 
@@ -366,7 +366,7 @@ describe("implementation plan status docs", () => {
   it("keeps AGENTS pointed at the current active plan", () => {
     const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
 
-    expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
+    expect(agents).toContain("docs/superpowers/plans/2026-07-11-product-roadmap.md");
     expect(agents).toContain("Historical implementation material lives in git history only");
     expect(agents).toContain("Retired dated plans must not be restored");
     expect(agents).toContain("must not be restored");
@@ -431,26 +431,31 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan structured as the long-term product and code-health roadmap", () => {
+  it("keeps the active plan structured as the long-term product feature roadmap", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
     const headings = [...activePlan.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
-    expect(activePlan).toContain("# skfiy Long-Term Product and Code Health Plan");
-    expect(activePlan).toContain("single active plan");
+    expect(activePlan).toContain("# skfiy Long-Term Product Feature Roadmap");
+    expect(activePlan).toContain("single active implementation plan");
     expect(headings).toEqual(expect.arrayContaining([
-      "Mission",
-      "Current Baseline",
-      "Non-Negotiable Product Boundaries",
-      "Phase 1: Test Portfolio Reduction",
-      "Phase 2: Runtime Ownership Boundaries",
-      "Phase 3: Route and Outcome Semantics",
-      "Phase 4: Dashboard Operator Surface",
-      "Phase 5: Smoke, Dogfood, and Release Simplification",
-      "Phase 6: Sustainable Maintenance",
-      "Verification Matrix",
-      "Definition of Done for Each Cut",
-      "Non-Goals",
-      "Immediate Next Cuts"
+      "Product Promise",
+      "Target Users and Jobs",
+      "Current Product Baseline",
+      "Product Principles",
+      "Roadmap Overview",
+      "Milestone 1: Daily Companion",
+      "Milestone 2: Browser and File Coworker",
+      "Milestone 3: Personal Agent",
+      "Milestone 4: Long-Running Work and Automations",
+      "Milestone 5: Adapter Platform",
+      "Milestone 6: Trusted Distribution",
+      "Cross-Cutting Functional Requirements",
+      "Immediate Feature Order",
+      "Feature Cut Requirements",
+      "Verification",
+      "Product Success Criteria",
+      "Explicit Non-Goals",
+      "Plan Maintenance"
     ]));
     for (const productBoundary of [
       "Background Agent",
@@ -458,7 +463,6 @@ describe("implementation plan status docs", () => {
       "Computer Use",
       "Chrome extension",
       "Dashboard",
-      "/api/operator-evidence",
       "stopTurnBehavior",
       "Task stopped"
     ]) {
