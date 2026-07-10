@@ -439,6 +439,10 @@ function readRouteOutcomeDefaultState(kind: RouteOutcomeKind, fallbackState: str
     return fallbackState;
   }
 
+  if (kind === "stopped") {
+    return "cancelled";
+  }
+
   return kind;
 }
 

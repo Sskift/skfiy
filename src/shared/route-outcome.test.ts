@@ -924,6 +924,29 @@ describe("readExplicitRouteOutcome", () => {
     });
   });
 
+  it("keeps explicit stopped route outcomes on the canonical cancelled task state", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "stopped",
+      detail: "Task stopped.",
+      routeLabel: "chrome"
+    }, fallback, { requireKind: true })).toEqual({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      source: "runtime-snapshot",
+      routeLabel: "chrome",
+      state: "cancelled"
+    });
+  });
+
   it("normalizes explicit denial route outcome state and value aliases", () => {
     const fallback = readRouteOutcome({
       currentTurn: {},

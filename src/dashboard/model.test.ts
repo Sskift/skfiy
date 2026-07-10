@@ -2420,6 +2420,30 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("keeps explicit stopped snapshot route outcomes on the cancelled task state", () => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn: {},
+      replay: { state: "empty" },
+      routeOutcome: {
+        kind: "stopped",
+        detail: "Task stopped.",
+        routeLabel: "chrome"
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "stopped",
+      title: "Route stopped",
+      value: "stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      source: "Current turn",
+      routeLabel: "chrome",
+      state: "cancelled"
+    });
+  });
+
   it("keeps replay verification failures as confirmation route outcomes", () => {
     const outcome = readRouteOutcome({
       ...createSnapshot(),
