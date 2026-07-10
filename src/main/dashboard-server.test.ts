@@ -1031,8 +1031,94 @@ describe("dashboard loopback HTTP response helper", () => {
         expectedDetail: "Chrome action returned an error.",
         unexpectedTitle: "Ready for an agent task"
       }
+    ],
+    [
+      "approval alias",
+      {
+        currentTurn: {
+          state: "requires-approval",
+          source: "runtime-snapshot",
+          route: "finder",
+          latestMessage: "Finder file moves need review."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Approval",
+        expectedTitle: "Route approval required",
+        expectedNext: "Review pending approval",
+        expectedDetail: "Finder file moves need review.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "app-policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked-by-app-policy",
+          source: "runtime-snapshot",
+          route: "ghostty",
+          latestMessage: "Ghostty is denied by app policy.",
+          approvalRequired: true
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Policy denied",
+        expectedTitle: "App policy denied route",
+        expectedNext: "Review app policy denial",
+        expectedDetail: "Ghostty is denied by app policy.",
+        unexpectedTitle: "Approval required"
+      }
+    ],
+    [
+      "Chrome host policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked_by_chrome_host_policy",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Chrome policy denied",
+        expectedTitle: "Chrome host policy denied route",
+        expectedNext: "Review Chrome host policy denial",
+        expectedDetail: "Chrome host policy blocked this approved task: blocked.example",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "user denial alias",
+      {
+        currentTurn: {
+          state: "denied-by-user",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "User denied this browser mutation."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Denied",
+        expectedTitle: "User denied route",
+        expectedNext: "Route denied by user",
+        expectedDetail: "User denied this browser mutation.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "canceled alias",
+      {
+        currentTurn: {
+          state: "canceled",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Browser task canceled before execution."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Cancelled",
+        expectedTitle: "Route cancelled",
+        expectedNext: "Route cancelled",
+        expectedDetail: "Browser task canceled before execution.",
+        unexpectedTitle: "Route failed"
+      }
     ]
-  ])("normalizes terminal route aliases in the fallback Home panel for %s", async (_label, fixture) => {
+  ])("normalizes route aliases in the fallback Home panel for %s", async (_label, fixture) => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
       schemaVersion: 1,
