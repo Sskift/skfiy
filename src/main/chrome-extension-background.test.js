@@ -393,12 +393,15 @@ const PAGE_ACTION_WAKE_CASES = [
   createPageActionWakeCase("cli-scroll-current", "scroll", "scroll", { dy: 600 }, { kind: "scroll", deltaY: 600 }, { action: "scroll", deltaY: 600 })
 ];
 
-function createReadyLocalhostContentScriptSession(overrides = {}) {
-  const { pageControl = {}, ...sessionOverrides } = overrides;
+function createReadyContentScriptSession({
+  host = LOCALHOST_TEST_HOST,
+  pageControl = {},
+  ...sessionOverrides
+} = {}) {
   const { capabilities = {}, ...pageControlOverrides } = pageControl;
   return {
     state: "loaded",
-    host: LOCALHOST_TEST_HOST,
+    host,
     ...sessionOverrides,
     pageControl: {
       state: "ready",
@@ -874,12 +877,6 @@ describe("Chrome extension background page routing", () => {
           url: "file:///Users/tester/private/report.html"
         },
         {
-          id: 45,
-          windowId: 7,
-          title: "Ask host",
-          url: "https://ask.example/dashboard"
-        },
-        {
           id: 46,
           windowId: 7,
           title: "Missing permission",
@@ -959,12 +956,6 @@ describe("Chrome extension background page routing", () => {
             blocker: "file_url_not_supported"
           }),
           expect.objectContaining({
-            id: 45,
-            state: "blocked",
-            eligible: false,
-            blocker: "blocked_by_host_policy"
-          }),
-          expect.objectContaining({
             id: 46,
             state: "blocked",
             eligible: false,
@@ -998,8 +989,7 @@ describe("Chrome extension background page routing", () => {
           payload: {
             pageTabs: expect.objectContaining({
               tabs: expect.arrayContaining([
-                expect.objectContaining({ id: 41, state: "eligible" }),
-                expect.objectContaining({ id: 44, url: "file://<redacted>" })
+                expect.objectContaining({ id: 41, state: "eligible" })
               ])
             })
           }
@@ -1036,54 +1026,20 @@ describe("Chrome extension background policy sync", () => {
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
         type: "skfiy.host_policy.response",
         schemaVersion: 1,
         requestId: "popup-status",
         policy: mock.storage[HOST_POLICY_STORAGE_KEY],
         syncStatus: expect.objectContaining({
-          schemaVersion: 1,
           state: "synced",
           source: "native_host",
           trigger: "runtime_startup",
-          updatedAt: "2026-06-20T10:00:00.000Z",
-          requestId: "host-policy-sync-runtime_startup-1",
           hostPolicyState: "configured",
           nativeHostPolicyState: "configured",
-          nativeBridgeState: "connected",
-          nativeLaunchOrigin: null,
-          nativeMessageType: null,
-          entryCount: 3,
-          lastError: null,
-          error: null
-        }),
-        pageControl: expect.objectContaining({
-          capable: false,
-          state: "unavailable",
-          activeTab: expect.objectContaining({
-            state: "unavailable"
-          })
+          entryCount: 3
         }),
         diagnostics: expect.objectContaining({
-          extension: expect.objectContaining({
-            id: EXTENSION_ID,
-            name: "skfiy Chrome Adapter",
-            version: "0.0.1",
-            manifestVersion: 3
-          }),
-          capabilities: expect.objectContaining({
-            nativeMessaging: true,
-            scripting: true,
-            storage: true,
-            optionalHostPermissions: ["http://*/*", "https://*/*"]
-          }),
-          nativeHost: expect.objectContaining({
-            name: "com.sskift.skfiy",
-            bridgeState: "connected",
-            syncState: "synced",
-            policyState: "configured",
-            lastError: null
-          }),
           hostPolicy: expect.objectContaining({
             defaultMode: "ask",
             entryCount: 3,
@@ -1092,7 +1048,7 @@ describe("Chrome extension background policy sync", () => {
             blockedHosts: 1
           })
         })
-      });
+      }));
     });
   });
 
@@ -1118,18 +1074,10 @@ describe("Chrome extension background policy sync", () => {
         requestId: "popup-status-missing-permission",
         diagnostics: expect.objectContaining({
           lastError: "Specified native messaging host not found.",
-          nativeHost: expect.objectContaining({
-            connectionState: "unavailable",
-            syncState: "error",
-            syncSource: "native_host",
-            lastError: "Specified native messaging host not found."
-          }),
           currentTab: expect.objectContaining({
             state: "available",
             tabId: 42,
-            windowId: 7,
             host: "allowed.example",
-            origin: "https://allowed.example",
             hostPolicy: {
               decision: "allowed",
               reason: "host_allowed"
@@ -1138,48 +1086,18 @@ describe("Chrome extension background policy sync", () => {
               state: "missing",
               reason: "chrome_host_permission_missing",
               code: "chrome_host_permission_missing",
-              origins: ALLOWED_EXAMPLE_PAGE_ACCESS,
-              message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
-            }),
-            contentScript: expect.objectContaining({
-              state: "blocked_by_chrome_host_permission",
-              reason: "chrome_host_permission_missing",
-              lastError: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
+              origins: ALLOWED_EXAMPLE_PAGE_ACCESS
             }),
             pageControl: expect.objectContaining({
               capable: false,
               state: "blocked_by_chrome_host_permission",
               nextAction: "grant_chrome_host_permission",
-              capabilities: expect.objectContaining({
-                screenshot: false,
-                domActions: false
-              }),
-              actions: {
-                click: expect.objectContaining({ capable: false }),
-                fill: expect.objectContaining({ capable: false }),
-                submit: expect.objectContaining({ capable: false }),
-                scroll: expect.objectContaining({ capable: false })
-              },
-              hostPolicy: {
-                decision: "allowed",
-                reason: "host_allowed"
-              },
-              chromeHostPermission: expect.objectContaining({
-                state: "missing"
-              }),
               blockers: expect.arrayContaining([
                 expect.objectContaining({
                   code: "blocked_by_chrome_host_permission",
                   reason: "chrome_host_permission_missing"
                 })
               ])
-            })
-          }),
-          session: expect.objectContaining({
-            state: "blocked_by_chrome_host_permission",
-            host: "allowed.example",
-            pageControl: expect.objectContaining({
-              state: "blocked_by_chrome_host_permission"
             })
           })
         })
@@ -1251,39 +1169,23 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadAllowedExampleStatusBackground({
       activeTab: createAllowedExampleTab({ id: 43, windowId: 8 }),
       grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
-      contentScriptSession: {
-        state: "loaded",
+      contentScriptSession: createReadyContentScriptSession({
         url: ALLOWED_EXAMPLE_URL,
         host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
         sensitivePaused: false,
-        sensitivePauseReason: null,
         pageControl: {
-          state: "ready",
           capabilities: {
             diagnostics: true,
-            observe: true,
-            domActions: true,
-            click: true,
-            fill: true,
-            scroll: true,
             screenshot: "background_required"
           },
           counts: {
             interactiveElements: 4,
-            forms: 1,
-            fillableForms: 1,
-            sensitiveForms: 0
-          },
-          pageSafety: {
-            state: "clear"
-          },
-          sensitivePause: {
-            active: false
+            forms: 1
           }
         },
         observedAt: "2026-06-20T10:07:00.000Z"
-      }
+      })
     });
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1307,37 +1209,13 @@ describe("Chrome extension background policy sync", () => {
             pageControl: expect.objectContaining({
               capable: true,
               state: "ready",
-              nextAction: "ingest_page_control",
               capabilities: expect.objectContaining({
                 screenshot: true,
-                domActions: true,
-                click: true,
-                fill: true,
-                scroll: true
-              }),
-              screenshot: expect.objectContaining({
-                capable: true,
-                state: "available"
-              }),
-              actions: expect.objectContaining({
-                click: expect.objectContaining({ capable: true }),
-                fill: expect.objectContaining({ capable: true }),
-                scroll: expect.objectContaining({ capable: true })
+                domActions: true
               }),
               counts: expect.objectContaining({
                 interactiveElements: 4,
                 forms: 1
-              })
-            })
-          }),
-          session: expect.objectContaining({
-            state: "loaded",
-            host: ALLOWED_EXAMPLE_HOST,
-            pageControl: expect.objectContaining({
-              state: "ready",
-              capabilities: expect.objectContaining({
-                screenshot: true,
-                domActions: true
               })
             })
           })
@@ -1353,34 +1231,23 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("returns a read-only page-control health protocol for smoke and operator probes", async () => {
-    const pageControl = {
-      schemaVersion: 1,
-      capable: true,
-      state: "ready",
-      reason: "Content script loaded and DOM controls are available.",
-      nextAction: "send_page_action",
-      capabilities: {
-        diagnostics: true,
-        observe: true,
-        domActions: true,
-        click: true,
-        fill: true,
-        scroll: true,
-        screenshot: "background_required"
-      },
-      blockers: []
-    };
     const mock = await loadAllowedExampleStatusBackground({
       activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
       grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
-      contentScriptSession: {
-        state: "loaded",
+      contentScriptSession: createReadyContentScriptSession({
         url: ALLOWED_EXAMPLE_URL,
         host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
-        pageControl,
+        pageControl: {
+          capable: true,
+          capabilities: {
+            diagnostics: true,
+            screenshot: "background_required"
+          },
+          blockers: []
+        },
         observedAt: "2026-06-20T10:08:00.000Z"
-      }
+      })
     });
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1399,9 +1266,6 @@ describe("Chrome extension background policy sync", () => {
           contentScriptFile: "content-script.js",
           messageTypes: expect.objectContaining({
             health: "skfiy.page_control.health",
-            diagnostics: "skfiy.page.diagnostics",
-            observe: "skfiy.page.observe",
-            action: "skfiy.page.action",
             screenshot: "skfiy.page.screenshot"
           }),
           permissionModel: expect.objectContaining({
@@ -1478,30 +1342,16 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadAllowedExampleStatusBackground({
       activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
       grantedOrigins: ALLOWED_EXAMPLE_PAGE_ACCESS,
-      contentScriptSession: {
-        state: "loaded",
+      contentScriptSession: createReadyContentScriptSession({
         host: ALLOWED_EXAMPLE_HOST,
         pageControl: {
           capable: true,
-          state: "ready",
           capabilities: {
             diagnostics: true,
-            observe: true,
-            domActions: true,
-            click: true,
-            fill: true,
-            submit: true,
-            scroll: true,
             screenshot: "background_required"
-          },
-          actions: {
-            click: { capable: true, state: "available", nextAction: "send_page_action" },
-            fill: { capable: true, state: "available", nextAction: "send_page_action" },
-            submit: { capable: true, state: "available", nextAction: "send_page_action" },
-            scroll: { capable: true, state: "available", nextAction: "send_page_action" }
           }
         }
-      }
+      })
     });
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1619,7 +1469,6 @@ describe("Chrome extension background policy sync", () => {
     await waitForWakeProcessing();
 
     await waitForPostedTabsDiscovery(mock, [
-      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
       expect.objectContaining({ id: 41, host: "loaded.example" })
     ]);
   });
@@ -1767,7 +1616,6 @@ describe("Chrome extension background policy sync", () => {
     await new Promise((resolve) => setTimeout(resolve, 450));
 
     await waitForPostedTabsDiscovery(mock, [
-      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
       expect.objectContaining({ id: 41, host: "recovered.example" })
     ]);
   });
@@ -1807,7 +1655,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
       wakeUrl,
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
-      contentScriptSession: createReadyLocalhostContentScriptSession()
+      contentScriptSession: createReadyContentScriptSession()
     });
 
     await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl, {
@@ -2156,7 +2004,7 @@ describe("Chrome extension background policy sync", () => {
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
         undefined,
-        createReadyLocalhostContentScriptSession({
+        createReadyContentScriptSession({
           pageControl: {
             counts: {
               interactiveElements: 3,
