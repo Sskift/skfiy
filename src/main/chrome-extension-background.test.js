@@ -436,6 +436,19 @@ function expectPostedPageActionResult(message, fields) {
   });
 }
 
+function expectPostedPageScreenshotResult(message, fields) {
+  expect(message).toMatchObject({
+    schemaVersion: 1,
+    type: PAGE_SCREENSHOT,
+    ...(fields.requestId === undefined ? {} : { requestId: fields.requestId }),
+    payload: {
+      source: "popup_wake",
+      targetTabId: 42,
+      pageScreenshot: expect.objectContaining(compactExpectedFields(fields))
+    }
+  });
+}
+
 function expectPostedFillActionResult(message, requestId) {
   expectPostedPageActionResult(message, {
     requestId,
@@ -1881,25 +1894,15 @@ describe("Chrome extension background policy sync", () => {
       action: expectedMessageAction
     })));
 
-    expect(mock.postedMessages[0]).toMatchObject({
-      schemaVersion: 1,
-      type: PAGE_SCREENSHOT,
+    expectPostedPageScreenshotResult(mock.postedMessages[0], {
       requestId: "cli-screenshot-current",
-      payload: {
-        source: "popup_wake",
-        targetTabId: 42,
-        format: "png",
-        pageScreenshot: {
-          type: "skfiy.page.screenshot_result",
-          requestId: "cli-screenshot-current",
-          tabId: 42,
-          targetTabId: 42,
-          host: "127.0.0.1:63852",
-          format: "png",
-          hasDataUrl: true,
-          dataUrlBytes: screenshotDataUrl.length
-        }
-      }
+      type: "skfiy.page.screenshot_result",
+      tabId: 42,
+      targetTabId: 42,
+      host: LOCALHOST_TEST_HOST,
+      format: "png",
+      hasDataUrl: true,
+      dataUrlBytes: screenshotDataUrl.length
     });
     expect(mock.postedMessages[0].payload.pageScreenshot.dataUrl).toBeUndefined();
 
@@ -2022,20 +2025,12 @@ describe("Chrome extension background policy sync", () => {
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        schemaVersion: 1,
-        type: PAGE_SCREENSHOT,
-        payload: {
-          source: "popup_wake",
-          targetTabId: 42,
-          pageScreenshot: {
-            type: "skfiy.page.screenshot_result",
-            result: "blocked",
-            targetTabId: 42,
-            reason: "The active tab cannot be captured",
-            hasDataUrl: false
-          }
-        }
+      expectPostedPageScreenshotResult(mock.postedMessages[0], {
+        type: "skfiy.page.screenshot_result",
+        result: "blocked",
+        targetTabId: 42,
+        reason: "The active tab cannot be captured",
+        hasDataUrl: false
       });
     });
   });
@@ -2050,22 +2045,13 @@ describe("Chrome extension background policy sync", () => {
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        schemaVersion: 1,
-        type: PAGE_SCREENSHOT,
+      expectPostedPageScreenshotResult(mock.postedMessages[0], {
         requestId: "missing-capture-permission",
-        payload: {
-          source: "popup_wake",
-          targetTabId: 42,
-          pageScreenshot: {
-            type: "skfiy.page.screenshot_result",
-            requestId: "missing-capture-permission",
-            result: "blocked",
-            targetTabId: 42,
-            reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
-            hasDataUrl: false
-          }
-        }
+        type: "skfiy.page.screenshot_result",
+        result: "blocked",
+        targetTabId: 42,
+        reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
+        hasDataUrl: false
       });
     });
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
