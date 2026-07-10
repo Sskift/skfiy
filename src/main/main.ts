@@ -119,6 +119,7 @@ import {
   readAssistantAgentSettingsResponse,
   updateAssistantAgentSettingsResponse
 } from "./main-assistant-agent-settings-response.js";
+import { readAppPolicySettingsUpdate, readPlannerProviderSettingsUpdate } from "./main-settings-updates.js";
 import {
   createManualScreenshotCompletedTaskEvent,
   createManualScreenshotFailedTaskEvent,
@@ -1103,9 +1104,7 @@ ipcMain.handle("skfiy:get-app-policy-settings", () => {
 });
 
 ipcMain.handle("skfiy:set-app-policy", (_event, update: unknown) => {
-  return appPolicySettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
+  return appPolicySettingsStore.set(readAppPolicySettingsUpdate(update));
 });
 
 ipcMain.handle("skfiy:get-planner-provider-settings", () => {
@@ -1113,9 +1112,7 @@ ipcMain.handle("skfiy:get-planner-provider-settings", () => {
 });
 
 ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) => {
-  return plannerProviderSettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
+  return plannerProviderSettingsStore.set(readPlannerProviderSettingsUpdate(update));
 });
 
 ipcMain.handle("skfiy:get-assistant-agent-settings", async () => {
