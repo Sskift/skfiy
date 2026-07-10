@@ -7,6 +7,20 @@ export function createRejectedRunCommandTaskEvent(message: string): TaskEvent {
   };
 }
 
+export function createUnknownPermissionSettingsTargetTaskEvent(): TaskEvent {
+  return {
+    status: "failed",
+    message: "Unknown permission settings target."
+  };
+}
+
+export function createPermissionSettingsFailedTaskEvent(error: unknown): TaskEvent {
+  return {
+    status: "failed",
+    message: error instanceof Error ? error.message : "Permission settings could not be opened."
+  };
+}
+
 export function createManualScreenshotStartedTaskEvent(): TaskEvent {
   return {
     status: "observing",

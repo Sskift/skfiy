@@ -123,6 +123,8 @@ import {
   createManualScreenshotCompletedTaskEvent,
   createManualScreenshotFailedTaskEvent,
   createManualScreenshotStartedTaskEvent,
+  createPermissionSettingsFailedTaskEvent,
+  createUnknownPermissionSettingsTargetTaskEvent,
   createRejectedRunCommandTaskEvent
 } from "./main-manual-task-events.js";
 import {
@@ -1074,10 +1076,7 @@ ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unkno
   const target = readPermissionSettingsTarget(permission);
 
   if (!target) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: "Unknown permission settings target."
-    });
+    emitTaskEvent(window, createUnknownPermissionSettingsTargetTaskEvent());
     return;
   }
 
@@ -1085,10 +1084,7 @@ ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unkno
     const result = await createDesktopHelper().openPermissionSettings(target);
     assertDesktopActionResult(result, "open permission settings");
   } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Permission settings could not be opened."
-    });
+    emitTaskEvent(window, createPermissionSettingsFailedTaskEvent(error));
   }
 });
 

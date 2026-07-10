@@ -4,6 +4,8 @@ import {
   createManualScreenshotCompletedTaskEvent,
   createManualScreenshotFailedTaskEvent,
   createManualScreenshotStartedTaskEvent,
+  createPermissionSettingsFailedTaskEvent,
+  createUnknownPermissionSettingsTargetTaskEvent,
   createRejectedRunCommandTaskEvent
 } from "./main-manual-task-events";
 
@@ -36,6 +38,23 @@ describe("main manual task event helpers", () => {
     expect(createManualScreenshotFailedTaskEvent("boom")).toEqual({
       status: "failed",
       message: "Screenshot failed."
+    });
+  });
+
+  it("creates permission settings failure task events from IPC helper outcomes", () => {
+    expect(createUnknownPermissionSettingsTargetTaskEvent()).toEqual({
+      status: "failed",
+      message: "Unknown permission settings target."
+    });
+
+    expect(createPermissionSettingsFailedTaskEvent(new Error("System Settings refused the request."))).toEqual({
+      status: "failed",
+      message: "System Settings refused the request."
+    });
+
+    expect(createPermissionSettingsFailedTaskEvent("boom")).toEqual({
+      status: "failed",
+      message: "Permission settings could not be opened."
     });
   });
 });
