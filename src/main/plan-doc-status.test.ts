@@ -431,29 +431,42 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan focused on current code health work", () => {
+  it("keeps the active plan structured as the long-term product and code-health roadmap", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(activePlan).toContain("# skfiy Active Code Health Plan");
-    expect(activePlan).toContain("For agentic workers");
-    expect(activePlan).toContain("only active implementation plan");
-    expect(activePlan).toContain("Retired dated implementation plans");
-    expect(activePlan).toContain("must stay out of repo docs");
-    expect(activePlan).toContain("zero retired dated implementation Markdown");
-    expect(activePlan).toContain("Guard coverage must stay structural");
-    expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
-    expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
-    expect(activePlan).toContain("Task 3: Route State Semantics");
-    expect(activePlan).toContain("Task 4: Code-Health Slimming");
-    expect(activePlan).toContain("Task 5: Product Readiness Gates");
-    expect(activePlan).toContain("Background Agent");
-    expect(activePlan).toContain("Computer Use Planner");
-    expect(activePlan).toContain("Computer Use");
-    expect(activePlan).toContain("Chrome extension");
-    expect(activePlan).toContain("Dashboard");
-    expect(activePlan).toContain("/api/operator-evidence");
-    expect(activePlan).toContain("dist/skfiy.app");
-    expect(activePlan).toContain("dist/skfiy");
+    const headings = [...activePlan.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+    expect(activePlan).toContain("# skfiy Long-Term Product and Code Health Plan");
+    expect(activePlan).toContain("single active plan");
+    expect(headings).toEqual(expect.arrayContaining([
+      "Mission",
+      "Current Baseline",
+      "Non-Negotiable Product Boundaries",
+      "Phase 1: Test Portfolio Reduction",
+      "Phase 2: Runtime Ownership Boundaries",
+      "Phase 3: Route and Outcome Semantics",
+      "Phase 4: Dashboard Operator Surface",
+      "Phase 5: Smoke, Dogfood, and Release Simplification",
+      "Phase 6: Sustainable Maintenance",
+      "Verification Matrix",
+      "Definition of Done for Each Cut",
+      "Non-Goals",
+      "Immediate Next Cuts"
+    ]));
+    for (const productBoundary of [
+      "Background Agent",
+      "Computer Use Planner",
+      "Computer Use",
+      "Chrome extension",
+      "Dashboard",
+      "/api/operator-evidence",
+      "stopTurnBehavior",
+      "Task stopped"
+    ]) {
+      expect(activePlan).toContain(productBoundary);
+    }
+    for (const buildOutput of ["dist/skfiy.app", "dist/skfiy", "dist/skfiy-helper"]) {
+      expect(activePlan).toContain(buildOutput);
+    }
     expect(activePlan).not.toContain("Completed in this pass");
     expect(activePlan).not.toContain("smoke:voice");
     expect(activePlan).not.toContain("native-macos voice");
