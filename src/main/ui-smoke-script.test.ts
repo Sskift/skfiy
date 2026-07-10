@@ -92,26 +92,27 @@ describe("packaged UI product smoke script", () => {
 
   it("keeps hidden UI smoke independent from live Background Agent quota", () => {
     const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-smoke-assistant-turn.ts"), "utf8");
     const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
     const planSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-plan.mjs"), "utf8");
 
     expect(planSource).toContain("SKFIY_SMOKE_ASSISTANT_REPLY");
     expect(smokeSource).toContain("SMOKE_ASSISTANT_REPLY_ENV");
     expect(smokeSource).toContain("options.smokeAssistantReply");
-    expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_REPLY");
+    expect(helperSource).toContain("SKFIY_SMOKE_ASSISTANT_REPLY");
     expect(mainSource).toContain("createSmokeAssistantAgentTaskTurn");
   });
 
   it("limits deterministic UI smoke replies to the assistant chat prompt", () => {
-    const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-smoke-assistant-turn.ts"), "utf8");
     const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
     const planSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-plan.mjs"), "utf8");
 
     expect(planSource).toContain("SKFIY_SMOKE_ASSISTANT_PROMPT");
     expect(smokeSource).toContain("SMOKE_ASSISTANT_PROMPT_ENV");
     expect(smokeSource).toContain("options.smokeAssistantPrompt");
-    expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_PROMPT");
-    expect(mainSource).toContain("input.trim() !== smokePrompt");
+    expect(helperSource).toContain("SKFIY_SMOKE_ASSISTANT_PROMPT");
+    expect(helperSource).toContain("input.trim() !== smokePrompt");
   });
 
   it("records stop-turn task event summaries for product smoke diagnosis", () => {
