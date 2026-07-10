@@ -512,6 +512,62 @@ describe("CLI status evidence", () => {
     }
   });
 
+  it("normalizes pageControl host policy blockers in CLI route outcome evidence", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify(createRuntimeSnapshotFromReplay({
+        replay: null,
+        currentTurn: {
+          status: "blocked_by_host_policy",
+          message: "Host policy blocked this approved page action.",
+          command: "open https://blocked.example/?token=secret-token",
+          route: "chrome"
+        },
+        observedAt: "2026-07-07T00:00:35.000Z"
+      }), null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:35.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        currentTurn: {
+          state: "blocked_by_host_policy",
+          route: "chrome"
+        },
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          state: "chrome_host_policy_denied",
+          routeLabel: "chrome",
+          detail: "Host policy blocked this approved page action."
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
+      expect(JSON.stringify(evidence)).not.toContain("token=secret-token");
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves user denial as a distinct route outcome from runtime snapshots", () => {
     const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
     const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));

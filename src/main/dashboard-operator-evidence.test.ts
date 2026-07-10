@@ -152,6 +152,24 @@ describe("createDashboardOperatorEvidence", () => {
       }
     ],
     [
+      "pageControl host policy denial state",
+      {
+        state: "blocked_by_host_policy",
+        route: "chrome",
+        latestMessage: "Host policy blocked this approved page action.",
+        command: "open https://blocked.example/?token=secret-token"
+      },
+      {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        state: "chrome_host_policy_denied",
+        tone: "danger",
+        routeLabel: "chrome",
+        detail: "Host policy blocked this approved page action."
+      }
+    ],
+    [
       "user denial",
       {
         state: "denied",

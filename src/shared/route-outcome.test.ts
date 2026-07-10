@@ -522,6 +522,22 @@ describe("readRouteOutcome", () => {
 
     expect(readRouteOutcome({
       currentTurn: {
+        state: "blocked_by_host_policy",
+        route: "chrome",
+        latestMessage: "Host policy blocked this approved page action."
+      }
+    })).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Host policy blocked this approved page action.",
+      tone: "danger",
+      routeLabel: "chrome",
+      state: "chrome_host_policy_denied"
+    });
+
+    expect(readRouteOutcome({
+      currentTurn: {
         state: "denied-by-user",
         route: "finder",
         latestMessage: "User denied this Finder organization request."
@@ -973,7 +989,7 @@ describe("readExplicitRouteOutcome", () => {
     expect(readExplicitRouteOutcome({
       kind: "chrome_host_policy_denied",
       value: "chrome-host-policy-blocked",
-      state: "blocked_by_chrome_host_policy",
+      state: "blocked_by_host_policy",
       detail: "Chrome host policy blocked this approved task: blocked.example"
     }, fallback)).toEqual({
       kind: "chrome_host_policy_denied",

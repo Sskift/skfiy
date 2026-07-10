@@ -1128,6 +1128,23 @@ describe("dashboard loopback HTTP response helper", () => {
       }
     ],
     [
+      "pageControl host policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked_by_host_policy",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Host policy blocked this approved page action."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Chrome policy denied",
+        expectedTitle: "Chrome host policy denied route",
+        expectedNext: "Review Chrome host policy denial",
+        expectedDetail: "Host policy blocked this approved page action.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
       "user denial alias",
       {
         currentTurn: {
