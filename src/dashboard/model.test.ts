@@ -2394,6 +2394,32 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes explicit snapshot route outcome kind aliases", () => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn: {},
+      replay: { state: "empty" },
+      routeOutcome: {
+        kind: "passed",
+        value: "ok",
+        state: "success",
+        detail: "Chrome page action passed.",
+        routeLabel: "chrome"
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page action passed.",
+      tone: "success",
+      source: "Current turn",
+      routeLabel: "chrome",
+      state: "completed"
+    });
+  });
+
   it("keeps replay verification failures as confirmation route outcomes", () => {
     const outcome = readRouteOutcome({
       ...createSnapshot(),

@@ -169,7 +169,8 @@ describe("task status boundary contract", () => {
     }
 
     expect(sources.sharedRouteOutcome).toContain("readExplicitRouteOutcome");
-    expect(sources.sharedRouteOutcome).toContain("isRouteOutcomeKind(record.kind)");
+    expect(sources.sharedRouteOutcome).toContain("readExplicitRouteOutcomeKind(record.kind");
+    expect(sources.sharedRouteOutcome).toContain("isRouteOutcomeKind(sanitized)");
     expect(sources.sharedRouteOutcome).toContain("isRouteOutcomeTone(record.tone)");
 
     for (const [name, source] of Object.entries({

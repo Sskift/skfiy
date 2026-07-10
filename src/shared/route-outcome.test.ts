@@ -980,6 +980,82 @@ describe("readExplicitRouteOutcome", () => {
     });
   });
 
+  it("accepts canonical route state aliases as explicit route outcome kinds", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "passed",
+      value: "ok",
+      state: "success",
+      detail: "Chrome page action passed.",
+      routeLabel: "chrome"
+    }, fallback, { requireKind: true })).toEqual({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page action passed.",
+      tone: "success",
+      source: "runtime-snapshot",
+      routeLabel: "chrome",
+      state: "completed"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "blocked-by-app-policy",
+      value: "blocked_by_app_policy",
+      state: "blocked",
+      detail: "Ghostty is denied by app policy.",
+      routeLabel: "ghostty"
+    }, fallback, { requireKind: true })).toEqual({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      detail: "Ghostty is denied by app policy.",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "ghostty",
+      state: "blocked"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "denied-by-user",
+      value: "user-denied",
+      state: "denied",
+      detail: "User denied this Computer Use turn.",
+      routeLabel: "finder"
+    }, fallback, { requireKind: true })).toEqual({
+      kind: "user_denied",
+      title: "User denied route",
+      value: "user_denied",
+      detail: "User denied this Computer Use turn.",
+      tone: "neutral",
+      source: "runtime-snapshot",
+      routeLabel: "finder",
+      state: "denied"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "verification_failed",
+      value: "needs-confirmation",
+      state: "verification_failed",
+      detail: "Completion marker was not observed.",
+      routeLabel: "chrome"
+    }, fallback, { requireKind: true })).toEqual({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Completion marker was not observed.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "chrome",
+      state: "needs_confirmation"
+    });
+  });
+
   it("can ignore explicit records without a valid kind when a surface requires kind as the anchor", () => {
     const fallback = readRouteOutcome({
       currentTurn: {

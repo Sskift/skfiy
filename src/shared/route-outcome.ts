@@ -324,7 +324,8 @@ export function readExplicitRouteOutcome(
     return undefined;
   }
 
-  const kind = isRouteOutcomeKind(record.kind) ? record.kind : requireKind ? undefined : fallback.kind;
+  const kind = readExplicitRouteOutcomeKind(record.kind, sanitizeString)
+    ?? (requireKind ? undefined : fallback.kind);
   if (!kind) {
     return undefined;
   }
@@ -366,6 +367,19 @@ function createRouteOutcomeDefaults(kind: RouteOutcomeKind, fallback: RouteOutco
 
 function readRouteOutcomeDefaultValue(kind: RouteOutcomeKind, state: string): string {
   return kind === "running" && state !== "running" ? state : kind;
+}
+
+function readExplicitRouteOutcomeKind(
+  value: unknown,
+  sanitizeString?: (value: string) => string | undefined
+): RouteOutcomeKind | undefined {
+  const sanitized = readString(value, sanitizeString);
+  if (isRouteOutcomeKind(sanitized)) {
+    return sanitized;
+  }
+
+  const normalized = readRouteStateValue(sanitized);
+  return isRouteOutcomeKind(normalized) ? normalized : undefined;
 }
 
 function readRouteOutcomeDefaultTitle(kind: RouteOutcomeKind): string {
