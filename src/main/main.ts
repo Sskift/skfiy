@@ -151,9 +151,9 @@ import {
   createNeedsConfirmationRouteTaskEvent,
   createPlannerResolvedTaskEvent,
   createPlannerUnavailableTaskEvent,
-  createStopTurnTaskEvent,
   createTerminalRouteTaskEvent
 } from "./main-route-task-events.js";
+import { createStopTaskEventDecision } from "./main-stop-task.js";
 import {
   readTurnReplayTaskEvent,
   type ComputerUseTaskEvent,
@@ -1032,16 +1032,16 @@ ipcMain.handle("skfiy:take-screenshot", async (event) => {
 
 ipcMain.handle("skfiy:stop-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const stopRoute = pendingApproval?.route ?? activeComputerUseRoute;
-  cancelActiveComputerUseToolCall("Task stopped.");
+  const stopTask = createStopTaskEventDecision({ activeRoute: activeComputerUseRoute, pendingApproval });
+  cancelActiveComputerUseToolCall(stopTask.cancellationReason);
   clearActiveComputerUseTask();
 
-  const stopEvent = createStopTurnTaskEvent(stopRoute);
-  if (stopRoute) {
-    emitTurnReplayTaskEvent(window, stopEvent);
-  } else {
-    emitTaskEvent(window, stopEvent);
+  if (stopTask.delivery === "turn-replay") {
+    emitTurnReplayTaskEvent(window, stopTask.event);
+    return;
   }
+
+  emitTaskEvent(window, stopTask.event);
 });
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {

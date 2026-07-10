@@ -76,9 +76,10 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(denyHandler).toContain("assistantComputerUseExecutor.resumeApproval({");
     expect(denyHandler).toContain("decision: \"denied\"");
     expect(denyHandler).toContain("createPendingApprovalDeniedTaskEvent(approval)");
-    expect(stopHandler).toContain("const stopRoute = pendingApproval?.route ?? activeComputerUseRoute");
-    expect(stopHandler).toContain("cancelActiveComputerUseToolCall(\"Task stopped.\")");
-    expect(stopHandler).toContain("createStopTurnTaskEvent(stopRoute)");
+    expect(stopHandler).toContain("const stopTask = createStopTaskEventDecision({");
+    expect(stopHandler).toContain("activeRoute: activeComputerUseRoute");
+    expect(stopHandler).toContain("pendingApproval");
+    expect(stopHandler).toContain("cancelActiveComputerUseToolCall(stopTask.cancellationReason)");
   });
 
   it("records structured route terminal and approval events into replay", () => {
@@ -145,9 +146,9 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(denyHandler).toContain("const denialEvent = createPendingApprovalDeniedTaskEvent(approval)");
     expect(denyHandler).toContain("if (approval) {\n    emitTurnReplayTaskEvent(window, denialEvent);");
     expect(denyHandler).toContain("emitTaskEvent(window, denialEvent)");
-    expect(stopHandler).toContain("const stopEvent = createStopTurnTaskEvent(stopRoute)");
-    expect(stopHandler).toContain("if (stopRoute) {\n    emitTurnReplayTaskEvent(window, stopEvent);");
-    expect(stopHandler).toContain("emitTaskEvent(window, stopEvent)");
+    expect(stopHandler).toContain("const stopTask = createStopTaskEventDecision({");
+    expect(stopHandler).toContain("if (stopTask.delivery === \"turn-replay\") {\n    emitTurnReplayTaskEvent(window, stopTask.event);");
+    expect(stopHandler).toContain("emitTaskEvent(window, stopTask.event)");
   });
 });
 
