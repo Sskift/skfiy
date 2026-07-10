@@ -965,6 +965,84 @@ describe("app view model", () => {
     });
   });
 
+  it("normalizes explicit replay route outcome completion and failure aliases for the pet route signal", () => {
+    const completed = readPetRouteOutcome({
+      task: {
+        status: "running",
+        message: "Chrome route is reporting."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "completed",
+          title: "Route completed",
+          value: "passed",
+          detail: "Chrome page action passed.",
+          tone: "success",
+          source: "turn-replay",
+          routeLabel: "chrome",
+          state: "verified"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(completed).toEqual({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page action passed.",
+      tone: "success",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "completed"
+    });
+    expect(getPetRouteOutcomeSignal(completed)).toEqual({
+      label: "路由完成",
+      detail: "chrome · Chrome page action passed.",
+      tone: "success"
+    });
+
+    const failed = readPetRouteOutcome({
+      task: {
+        status: "running",
+        message: "Chrome route is reporting."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "failed",
+          title: "Route failed",
+          value: "error",
+          detail: "Chrome action returned an error.",
+          tone: "danger",
+          source: "turn-replay",
+          routeLabel: "chrome",
+          state: "timed-out"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(failed).toEqual({
+      kind: "failed",
+      title: "Route failed",
+      value: "failed",
+      detail: "Chrome action returned an error.",
+      tone: "danger",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "failed"
+    });
+    expect(getPetRouteOutcomeSignal(failed)).toEqual({
+      label: "路由失败",
+      detail: "chrome · Chrome action returned an error.",
+      tone: "danger"
+    });
+  });
+
   it("uses explicit task event route outcome before stale replay route outcome", () => {
     const outcome = readPetRouteOutcome({
       task: {

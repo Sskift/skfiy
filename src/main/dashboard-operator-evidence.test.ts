@@ -245,6 +245,42 @@ describe("createDashboardOperatorEvidence", () => {
         tone: "success",
         routeLabel: "tmux_supervision"
       }
+    ],
+    [
+      "completion alias",
+      {
+        state: "passed",
+        route: "chrome",
+        latestMessage: "Chrome page action passed.",
+        command: "open https://example.test/?token=secret-token"
+      },
+      {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        state: "completed",
+        tone: "success",
+        routeLabel: "chrome",
+        detail: "Chrome page action passed."
+      }
+    ],
+    [
+      "failure alias",
+      {
+        state: "error",
+        route: "chrome",
+        latestMessage: "Chrome action returned an error.",
+        command: "open https://example.test/?token=secret-token"
+      },
+      {
+        kind: "failed",
+        title: "Route failed",
+        value: "failed",
+        state: "failed",
+        tone: "danger",
+        routeLabel: "chrome",
+        detail: "Chrome action returned an error."
+      }
     ]
   ])("keeps %s distinct without exposing the raw command", (_label, currentTurn, expected) => {
     const descriptor = createDashboardDescriptor({ port: 8787 });

@@ -2634,6 +2634,38 @@ describe("readRouteOutcome", () => {
         tone: "success",
         routeLabel: "tmux_supervision"
       }
+    ],
+    [
+      "completion alias",
+      {
+        state: "passed",
+        route: "chrome",
+        latestMessage: "Chrome page action passed."
+      },
+      {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        tone: "success",
+        routeLabel: "chrome",
+        state: "completed"
+      }
+    ],
+    [
+      "failure alias",
+      {
+        state: "error",
+        route: "chrome",
+        latestMessage: "Chrome action returned an error."
+      },
+      {
+        kind: "failed",
+        title: "Route failed",
+        value: "failed",
+        tone: "danger",
+        routeLabel: "chrome",
+        state: "failed"
+      }
     ]
   ])("keeps %s distinct", (_label, currentTurn, expected) => {
     const outcome = readRouteOutcome({

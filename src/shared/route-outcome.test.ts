@@ -208,6 +208,78 @@ describe("readRouteOutcome", () => {
     });
   });
 
+  it("normalizes successful route state aliases to completion semantics", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "passed",
+          summary: "Chrome page action passed."
+        }
+      }
+    })).toMatchObject({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page action passed.",
+      tone: "success",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "completed"
+    });
+
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "verified",
+        route: "finder",
+        latestMessage: "Finder organization verified."
+      }
+    })).toMatchObject({
+      kind: "completed",
+      value: "completed",
+      detail: "Finder organization verified.",
+      routeLabel: "finder",
+      state: "completed"
+    });
+  });
+
+  it("normalizes failed route state aliases to failure semantics", () => {
+    expect(readRouteOutcome({
+      replay: {
+        source: "turn-replay",
+        latestToolCall: {
+          route: "chrome",
+          status: "error",
+          summary: "Chrome action returned an error."
+        }
+      }
+    })).toMatchObject({
+      kind: "failed",
+      title: "Route failed",
+      value: "failed",
+      detail: "Chrome action returned an error.",
+      tone: "danger",
+      source: "turn-replay",
+      routeLabel: "chrome",
+      state: "failed"
+    });
+
+    expect(readRouteOutcome({
+      currentTurn: {
+        state: "timed-out",
+        route: "tmux_supervision",
+        latestMessage: "money-run supervision timed out."
+      }
+    })).toMatchObject({
+      kind: "failed",
+      value: "failed",
+      detail: "money-run supervision timed out.",
+      routeLabel: "tmux_supervision",
+      state: "failed"
+    });
+  });
+
   it("infers confirmation route outcome from replay timeline when current turn is absent", () => {
     expect(readRouteOutcome({
       replay: {
@@ -761,6 +833,46 @@ describe("readExplicitRouteOutcome", () => {
       source: "runtime-snapshot",
       routeLabel: "unknown",
       state: "approval_required"
+    });
+  });
+
+  it("normalizes explicit completion and failure route outcome aliases", () => {
+    const fallback = readRouteOutcome({
+      currentTurn: {},
+      replay: { state: "empty" },
+      defaultSource: "runtime-snapshot"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "completed",
+      value: "passed",
+      state: "verified",
+      detail: "Chrome page action passed."
+    }, fallback)).toEqual({
+      kind: "completed",
+      title: "Route completed",
+      value: "completed",
+      detail: "Chrome page action passed.",
+      tone: "success",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "completed"
+    });
+
+    expect(readExplicitRouteOutcome({
+      kind: "failed",
+      value: "error",
+      state: "timed-out",
+      detail: "Chrome action returned an error."
+    }, fallback)).toEqual({
+      kind: "failed",
+      title: "Route failed",
+      value: "failed",
+      detail: "Chrome action returned an error.",
+      tone: "danger",
+      source: "runtime-snapshot",
+      routeLabel: "unknown",
+      state: "failed"
     });
   });
 

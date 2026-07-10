@@ -633,6 +633,14 @@ function readRouteStateValue(value: string | undefined): string | undefined {
     return "needs_confirmation";
   }
 
+  if (value === "passed" || value === "verified" || value === "ok" || value === "success" || value === "succeeded") {
+    return "completed";
+  }
+
+  if (value === "error" || value === "errored" || value === "timed_out" || value === "timed-out" || value === "timeout") {
+    return "failed";
+  }
+
   if (
     value === "app-policy-denied"
     || value === "app_policy_blocked"
