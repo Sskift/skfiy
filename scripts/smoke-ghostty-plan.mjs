@@ -54,7 +54,7 @@ export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
     id: "unsupported-desktop-route-guard",
     command: "帮我整理一下桌面",
     requiresComputerUseEvidence: false,
-    expectedResults: ["needs-user-confirmation"]
+    expectedResults: ["needs-clarification"]
   }
 ];
 
@@ -164,7 +164,7 @@ export function buildSmokeRunPlan(options) {
     {
       id: "single-command",
       command: options.command,
-      expectedResults: ["passed", "blocked", "needs-user-confirmation"]
+      expectedResults: ["passed", "blocked", "needs-user-confirmation", "needs-clarification"]
     }
   ];
 }
@@ -198,6 +198,10 @@ export function classifySmokeResult(events) {
 
   if (last.status === "needs_confirmation" || last.status === "approval_required") {
     return "needs-user-confirmation";
+  }
+
+  if (last.status === "needs_clarification") {
+    return "needs-clarification";
   }
 
   if (
@@ -329,7 +333,7 @@ Options:
   --keep-open           Leave skfiy open after the smoke run.
   --allow-focus-steal   Allow this field smoke to focus Ghostty/skfiy and use active keyboard input.
   --require-passed      Exit non-zero unless the task or matrix reaches passed.
-  --output <path>       Write the complete smoke JSON evidence to this file.
+  --output <path>       Optional: write the full JSON result to a file.
   -h, --help            Show this help.
 `;
 }

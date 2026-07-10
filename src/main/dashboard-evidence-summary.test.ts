@@ -117,6 +117,28 @@ describe("dashboard evidence summary", () => {
         }
       ]
     });
+    expect(summary.lanes.find((lane) => lane.id === "computer-use-operator")).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "unknown",
+          value: "idle"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "unknown",
+          value: "unknown"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "unknown",
+          value: "open https://example.test/?token=redacted-secret"
+        }
+      ])
+    });
     expect(summary.lanes.find((lane) => lane.id === "chrome-extension")).toMatchObject({
       checks: expect.arrayContaining([
         {
@@ -135,6 +157,440 @@ describe("dashboard evidence summary", () => {
     });
     expect(JSON.stringify(summary)).not.toContain("secret-token");
     expect(JSON.stringify(summary)).not.toContain("token=secret-token");
+  });
+
+  it("keeps app-policy denial distinct in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        reason: "Ghostty is denied by app policy. token=secret-token",
+        latestMessage: "Ghostty is denied by app policy."
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "blocked",
+          value: "app_policy_denied"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "blocked",
+          value: "ghostty"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "blocked",
+          value: "Ghostty is denied by app policy. token=redacted-secret"
+        },
+        {
+          id: "route-denial",
+          label: "Route denial",
+          state: "blocked",
+          value: "app_policy"
+        },
+        {
+          id: "route-policy",
+          label: "Route policy",
+          state: "blocked",
+          value: "app-policy"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
+  it("uses explicit runtime route outcome in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "executing",
+        command: "still running"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        detail: "Runtime replay needs a human verification check for token=secret-token.",
+        tone: "warning",
+        source: "runtime-snapshot",
+        routeLabel: "Ghostty",
+        state: "needs_confirmation",
+        policyKind: "route-policy"
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "needs-evidence",
+          value: "needs_confirmation"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "needs-evidence",
+          value: "Ghostty"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "needs-evidence",
+          value: "Runtime replay needs a human verification check for token=redacted-secret"
+        },
+        {
+          id: "route-policy",
+          label: "Route policy",
+          state: "needs-evidence",
+          value: "route-policy"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
+  it("completes partial explicit runtime route outcomes in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+        policyKind: "chrome-host-policy"
+      },
+      replay: { state: "empty" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "blocked",
+          value: "chrome_host_policy_denied"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "blocked",
+          value: "unknown"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "blocked",
+          value: "Chrome host policy blocked token=redacted-secret at [path]"
+        },
+        {
+          id: "route-policy",
+          label: "Route policy",
+          state: "blocked",
+          value: "chrome-host-policy"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+    expect(JSON.stringify(lane)).not.toContain("/Users/tester");
+  });
+
+  it("keeps Chrome host policy denial distinct in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "chrome",
+        policyKind: "chrome-host-policy",
+        routeReason: "Chrome host policy blocked this approved task: token=secret-token",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "blocked",
+          value: "chrome_host_policy_denied"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "blocked",
+          value: "chrome"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "blocked",
+          value: "Chrome host policy blocked this approved task: token=redacted-secret"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
+  it("keeps explicit stop-turn results visible in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "ready",
+          value: "stopped"
+        },
+        {
+          id: "route-label",
+          label: "Route label",
+          state: "ready",
+          value: "chrome"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "ready",
+          value: "Task stopped."
+        }
+      ])
+    });
+  });
+
+  it("surfaces current-turn route action evidence without leaking commands or local paths", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        latestAction: {
+          type: "tool_result",
+          route: "finder",
+          status: "blocked",
+          command: "organize /Users/tester/Downloads?token=secret-token",
+          summary: "Finder blocked /Users/tester/Downloads with token=secret-token",
+          artifactCount: 1
+        }
+      },
+      replay: {
+        state: "available",
+        actions: [
+          {
+            type: "preview_finder_plan",
+            rootPath: "/Users/tester/Downloads",
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolderCount: 3,
+            moveFileCount: 3
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      state: "blocked",
+      checks: expect.arrayContaining([
+        {
+          id: "latest-route-action",
+          label: "Latest route action",
+          state: "blocked",
+          value: "tool_result: finder blocked Finder blocked [path] with token=redacted-secret 1 artifacts"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+    expect(JSON.stringify(lane)).not.toContain("/Users/tester");
+    expect(JSON.stringify(lane)).not.toContain("organize ");
+  });
+
+  it("falls back to replay route actions when current turn has no latest action", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "completed",
+        route: "finder"
+      },
+      replay: {
+        state: "available",
+        actions: [
+          {
+            type: "tool_call",
+            route: "finder",
+            status: "approval_required",
+            command: "organize /Users/tester/Downloads?token=secret-token"
+          },
+          {
+            type: "preview_finder_plan",
+            rootPath: "/Users/tester/Downloads",
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolderCount: 3,
+            moveFileCount: 3
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "latest-route-action",
+          label: "Latest route action",
+          state: "ready",
+          value: "preview_finder_plan: 6 ops 0 destructive 3 folders 3 moves"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+    expect(JSON.stringify(lane)).not.toContain("/Users/tester");
   });
 
   it("marks missing Codex plugin and broken Chrome host evidence as actionable blockers", () => {

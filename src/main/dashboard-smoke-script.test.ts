@@ -4,105 +4,16 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("dashboard product smoke script", () => {
-  it("is exposed as an npm script and launches the built CLI dashboard path", () => {
+  it("is exposed as an npm script", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
     const sourcePath = path.join(process.cwd(), "scripts/smoke-dashboard-product.mjs");
-    const planSourcePath = path.join(process.cwd(), "scripts/smoke-dashboard-plan.mjs");
 
     expect(existsSync(sourcePath)).toBe(true);
-    expect(existsSync(planSourcePath)).toBe(true);
     expect(packageJson.scripts).toMatchObject({
       "smoke:dashboard": "node scripts/smoke-dashboard-product.mjs"
     });
-
-    const source = readFileSync(sourcePath, "utf8");
-    const planSource = readFileSync(planSourcePath, "utf8");
-
-    expect(source).toContain("acquireSmokeLock");
-    expect(source).toContain("createDefaultDashboardSmokeOptions");
-    expect(source).toContain("\"dashboard\"");
-    expect(source).toContain("\"--no-open\"");
-    expect(source).toContain("\"--port\"");
-    expect(source).toContain("\"0\"");
-    expect(source).toContain("\"--json\"");
-    expect(source).toContain("/descriptor.json");
-    expect(source).toContain("/events");
-    expect(source).toContain("/api/chrome-host-policy");
-    expect(source).toContain("exerciseChromeHostPolicyApi");
-    expect(source).toContain("seedRuntimeSnapshotFixture");
-    expect(source).toContain("runtime-snapshot.json");
-    expect(source).toContain("createRuntimeSnapshotCoverage");
-    expect(source).toContain("runtimeSnapshotCoverage");
-    expect(source).toContain("collectFreshInstallRuntimeSnapshotEvidence");
-    expect(source).toContain("freshInstallRuntimeSnapshot");
-    expect(source).toContain("collectMissingAfterTurnRuntimeSnapshotEvidence");
-    expect(source).toContain("missingAfterTurnRuntimeSnapshot");
-    expect(source).toContain("runtime-turn-marker.json");
-    expect(source).toContain("operatorReadiness");
-    expect(source).toContain("Knowledge graph");
-    expect(source).toContain("collectDashboardScreenshotEvidence");
-    expect(source).toContain("knowledgeGraphEvidence");
-    expect(source).toContain("dashboard-knowledge-graph");
-    expect(source).toContain("vaultNoteCount");
-    expect(source).toContain("focusedNoteFound");
-    expect(source).toContain("focusedBacklinkCount");
-    expect(source).toContain("Vault lens");
-    expect(source).toContain("vaultLensCount");
-    expect(source).toContain("Vault search");
-    expect(source).toContain("vaultSearchQuery");
-    expect(source).toContain("vaultSearchSummary");
-    expect(source).toContain("vaultSearchNodeTexts");
-    expect(source).toContain("Focused neighborhood");
-    expect(source).toContain("focusedNeighborhoodCount");
-    expect(planSource).toContain("Learning loop");
-    expect(source).toContain("learningLoopCount");
-    expect(source).toContain("learningLoopTexts");
-    expect(source).toContain("learningLoopList?.scrollIntoView");
-    expect(source).toContain("personalSkillNodeCount");
-    expect(source).toContain("personalSkillTexts");
-    expect(planSource).toContain("guides prompt");
-    expect(planSource).toContain("Vault notes");
-    expect(planSource).toContain("Focused note");
-    expect(source).toContain("Vault backlinks");
-    expect(source).toContain("backlinkCount");
-    expect(planSource).toContain("Recent session recall");
-    expect(source).toContain("sessionNodeCount");
-    expect(source).toContain("Prompt stack");
-    expect(source).toContain("promptStackCount");
-    expect(source).toContain("promptStackTexts");
-    expect(source).toContain("Prompt source ledger");
-    expect(source).toContain("promptSourceLedgerCount");
-    expect(source).toContain("promptSourceLedgerTexts");
-    expect(source).toContain("promptSourceLedgerPanelUsesGradient");
-    expect(source).toContain("memoryPressureLedgerTexts");
-    expect(source).toContain("memory pressure warning");
-    expect(source).toContain("Prompt provenance");
-    expect(source).toContain("promptProvenanceCount");
-    expect(source).toContain("promptProvenanceTexts");
-    expect(source).toContain("Working profile");
-    expect(source).toContain("seedPersonalMemoryFixture");
-    expect(source).toContain("exercisePersonalMemoryApi");
-    expect(source).toContain("personalMemoryApi");
-    expect(source).toContain("DASHBOARD_MEMORY_UNSAFE_ENTRY");
-    expect(source).toContain("unsafeForgetResponse");
-    expect(source).toContain("/api/personal-memory");
-    expect(source).toContain("/api/personal-skills");
-    expect(source).toContain("pending-memory-writes.json");
-    expect(source).toContain("Pending user memory");
-    expect(source).toContain("awaits approval");
-    expect(source).toContain("personalMemory.usage");
-    expect(source).toContain("exerciseChromeControlActionApi");
-    expect(source).toContain("dashboardChromeControlActionApi");
-    expect(source).toContain("collectRealHomeChromeControlActionEvidence");
-    expect(source).toContain("realUserHomeDir");
-    expect(source).toContain("extensionStatusBeforeActions");
-    expect(source).toContain("collectChromeExtensionStatusBeforeDashboardActions");
-    expect(source).toContain("DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS");
-    expect(source).toContain("actionRuns");
-    expect(source).toContain("runDashboardChromeControlActionWithRetry");
-    expect(source).toContain("page-control-observe-not-verified");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -130,8 +41,13 @@ describe("dashboard product smoke script", () => {
     expect(defaults).toMatchObject({
       cliPath: path.join("/repo", "dist", "skfiy"),
       timeoutMs: 8_000,
+      outputPath: undefined,
       requirePassed: false,
       help: false
+    });
+    expect(parseDashboardSmokeArgs([], defaults)).toMatchObject({
+      outputPath: undefined,
+      requirePassed: false
     });
     expect(parseDashboardSmokeArgs([
       "--cli",

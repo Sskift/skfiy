@@ -1,5 +1,12 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
+import { readRecord } from "./record-utils.js";
+import {
+  readExplicitRouteOutcome,
+  readRouteOutcome,
+  type RouteOutcome,
+  type RouteOutcomeKind
+} from "../shared/route-outcome.js";
 
 export const DASHBOARD_EVIDENCE_SUMMARY_ENDPOINT = "/api/evidence-summary";
 
@@ -111,6 +118,18 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
   const currentTurn = readRecord(snapshot.currentTurn) ?? {};
   const replay = readRecord(snapshot.replay) ?? {};
   const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const inferredRouteOutcome = readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "Dashboard evidence summary",
+    includeCommandDetail: true,
+    sanitizeString: sanitizeText
+  });
+  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome, {
+    sanitizeString: sanitizeText
+  }) ?? inferredRouteOutcome;
+  const routeChecks = createRouteOutcomeEvidenceChecks(routeOutcome);
+  const latestRouteActionCheck = createLatestRouteActionEvidenceCheck(currentTurn, replay);
   const alertCounts = countAlerts(snapshot.alerts);
   const readinessState = mapReadinessState(readString(readiness.state));
   const checks: EvidenceCheck[] = [
@@ -128,12 +147,14 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         : readString(currentTurn.state) ? "needs-evidence" : "unknown",
       value: readString(currentTurn.state, "unknown")
     },
+    ...routeChecks,
     {
       id: "replay",
       label: "Replay evidence",
       state: replay.state === "available" ? "ready" : "needs-evidence",
       value: readString(replay.state, "empty")
     },
+    ...(latestRouteActionCheck ? [latestRouteActionCheck] : []),
     {
       id: "long-horizon",
       label: "money-run supervision",
@@ -167,6 +188,198 @@ function createComputerUseOperatorLane(snapshot: DashboardSnapshot): EvidenceLan
         : "Run a fresh dashboard smoke and capture a bounded runtime snapshot."
     ]
   };
+}
+
+function mapRouteOutcomeEvidenceState(kind: RouteOutcomeKind): EvidenceState {
+  if (
+    kind === "app_policy_denied"
+    || kind === "chrome_host_policy_denied"
+    || kind === "blocked"
+    || kind === "failed"
+  ) {
+    return "blocked";
+  }
+
+  if (
+    kind === "approval_required"
+    || kind === "needs_confirmation"
+    || kind === "needs_clarification"
+    || kind === "running"
+  ) {
+    return "needs-evidence";
+  }
+
+  if (
+    kind === "idle"
+    || kind === "completed"
+    || kind === "user_denied"
+    || kind === "cancelled"
+    || kind === "stopped"
+  ) {
+    return "ready";
+  }
+
+  return "unknown";
+}
+
+function createRouteOutcomeEvidenceChecks(routeOutcome: RouteOutcome): EvidenceCheck[] {
+  const state = mapRouteOutcomeEvidenceState(routeOutcome.kind);
+  const checks: EvidenceCheck[] = [
+    {
+      id: "route-outcome",
+      label: "Route outcome",
+      state,
+      value: routeOutcome.value
+    },
+    {
+      id: "route-label",
+      label: "Route label",
+      state,
+      value: routeOutcome.routeLabel
+    },
+    {
+      id: "route-detail",
+      label: "Route detail",
+      state,
+      value: routeOutcome.detail
+    }
+  ];
+
+  if (routeOutcome.denialKind) {
+    checks.push({
+      id: "route-denial",
+      label: "Route denial",
+      state,
+      value: routeOutcome.denialKind
+    });
+  }
+
+  if (routeOutcome.policyKind) {
+    checks.push({
+      id: "route-policy",
+      label: "Route policy",
+      state,
+      value: routeOutcome.policyKind
+    });
+  }
+
+  return checks;
+}
+
+function createLatestRouteActionEvidenceCheck(
+  currentTurn: Record<string, unknown>,
+  replay: Record<string, unknown>
+): EvidenceCheck | undefined {
+  const latestAction = readRecord(currentTurn.latestAction)
+    ?? readRecordArray(replay.actions).at(-1);
+  const value = formatRouteActionEvidenceValue(latestAction);
+
+  return value ? {
+    id: "latest-route-action",
+    label: "Latest route action",
+    state: mapRouteActionEvidenceState(latestAction),
+    value
+  } : undefined;
+}
+
+function mapRouteActionEvidenceState(action: Record<string, unknown> | undefined): EvidenceState {
+  const status = readString(action?.status);
+  const decision = readString(action?.decision);
+
+  if (status === "blocked" || status === "failed") {
+    return "blocked";
+  }
+  if (
+    status === "approval_required"
+    || status === "planned"
+    || status === "running"
+    || status === "needs_confirmation"
+    || status === "needs_clarification"
+  ) {
+    return "needs-evidence";
+  }
+  if (decision === "denied" || decision === "approved" || decision === "bypassed") {
+    return "ready";
+  }
+
+  return action ? "ready" : "unknown";
+}
+
+function formatRouteActionEvidenceValue(action: Record<string, unknown> | undefined): string | undefined {
+  const type = readString(action?.type);
+  if (!type) {
+    return undefined;
+  }
+
+  if (type === "tool_call") {
+    return joinEvidenceParts([
+      "tool_call:",
+      readString(action?.route) ?? "unknown",
+      readString(action?.status) ?? "unknown"
+    ]);
+  }
+  if (type === "approval_decision") {
+    return joinEvidenceParts([
+      "approval_decision:",
+      readString(action?.route) ?? "unknown",
+      readString(action?.decision) ?? "unknown",
+      readString(action?.reason) ?? ""
+    ]);
+  }
+  if (type === "tool_result") {
+    return joinEvidenceParts([
+      "tool_result:",
+      readString(action?.route) ?? "unknown",
+      readString(action?.status) ?? "unknown",
+      readString(action?.summary) ?? readString(action?.evidenceSummary) ?? "",
+      formatEvidenceCount(readFiniteNumber(action?.artifactCount), "artifacts")
+    ]);
+  }
+  if (type === "observe_finder_selection") {
+    return joinEvidenceParts([
+      "observe_finder_selection:",
+      formatEvidenceCount(readFiniteNumber(action?.selectedCount), "selected"),
+      readString(action?.source) ?? ""
+    ]);
+  }
+  if (type === "preview_finder_plan") {
+    return joinEvidenceParts([
+      "preview_finder_plan:",
+      formatEvidenceCount(readFiniteNumber(action?.operationCount), "ops"),
+      formatEvidenceCount(readFiniteNumber(action?.destructiveOperationCount), "destructive"),
+      formatEvidenceCount(readFiniteNumber(action?.createFolderCount), "folders"),
+      formatEvidenceCount(readFiniteNumber(action?.moveFileCount), "moves")
+    ]);
+  }
+  if (type === "confirm_finder_plan") {
+    return joinEvidenceParts([
+      "confirm_finder_plan:",
+      formatEvidenceCount(readFiniteNumber(action?.operationCount), "ops"),
+      formatEvidenceCount(readFiniteNumber(action?.destructiveOperationCount), "destructive"),
+      readString(action?.reason) ?? ""
+    ]);
+  }
+  if (type === "type_text") {
+    return `type_text: ${readFiniteNumber(action?.textLength) ?? 0} chars`;
+  }
+  if (type === "press_key") {
+    return `press_key: ${readString(action?.key) ?? "unknown"}`;
+  }
+
+  return joinEvidenceParts([
+    `${type}:`,
+    readString(action?.status) ?? readString(action?.decision) ?? readString(action?.action) ?? "",
+    readString(action?.stage) ?? "",
+    readString(action?.message) ?? ""
+  ]);
+}
+
+function joinEvidenceParts(parts: Array<string | undefined>): string {
+  return parts.filter((part): part is string => Boolean(part?.trim())).join(" ").trim();
+}
+
+function formatEvidenceCount(value: number | undefined, label: string): string {
+  return value === undefined ? "" : `${value} ${label}`;
 }
 
 function createCodexPluginLane(snapshot: DashboardSnapshot): EvidenceLane {
@@ -455,7 +668,7 @@ function createDefaultChromeCommands(extensionId: string): EvidenceCommand[] {
     {
       id: "smoke",
       label: "Smoke",
-      command: "npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json"
+      command: "npm run smoke:chrome"
     }
   ];
 }
@@ -532,6 +745,12 @@ function readStringArray(value: unknown): string[] {
       const text = readString(entry);
       return text ? [text] : [];
     })
+    : [];
+}
+
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map((entry) => readRecord(entry)).filter((entry): entry is Record<string, unknown> => Boolean(entry))
     : [];
 }
 
@@ -720,12 +939,6 @@ function countAlerts(alerts: Array<Record<string, unknown>>): {
   };
 }
 
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-}
-
 function readString(value: unknown, fallback?: string): string | undefined {
   if (typeof value !== "string") {
     return fallback;
@@ -750,7 +963,8 @@ function sanitizeText(value: unknown): string | undefined {
   const sanitized = value
     .replace(SECRET_QUERY_PATTERN, "$1token=redacted-secret")
     .replace(SECRET_TEXT_PATTERN, (match) => match.replace(/=.*/, "=redacted-secret"))
-    .replace(AUTH_HEADER_PATTERN, "authorization redacted-secret");
+    .replace(AUTH_HEADER_PATTERN, "authorization redacted-secret")
+    .replace(/(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g, "[path]");
 
   return sanitized.length > 240 ? `${sanitized.slice(0, 237)}...` : sanitized;
 }

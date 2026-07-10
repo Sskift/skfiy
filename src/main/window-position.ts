@@ -25,12 +25,33 @@ export interface CalculatePetWindowBoundsOptions {
 
 export interface PetWindowBounds extends Point, Size {}
 
+export interface VisiblePetRect extends Point, Size {}
+
 export interface PetAnchorMoveOptions {
   anchor: Point;
   delta: Point;
   petSize: Size;
   displays: readonly DisplayLike[];
 }
+
+export interface CalculatePetWindowDragMoveOptions {
+  currentBounds: PetWindowBounds;
+  delta: Point;
+  visiblePetRect?: VisiblePetRect;
+  displays: readonly DisplayLike[];
+}
+
+export type PetWindowDragMove =
+  | {
+    kind: "window-position";
+    position: Point;
+  }
+  | {
+    kind: "visible-pet-bounds";
+    bounds: PetWindowBounds;
+    petAnchor: Point;
+    petSize: Size;
+  };
 
 export type PetWindowOffsetMode = "compact" | "expanded";
 
@@ -124,6 +145,48 @@ export function movePetAnchorByDelta({
   return {
     x: clamp(requestedAnchor.x, area.x, area.x + area.width - petSize.width),
     y: clamp(requestedAnchor.y, area.y, area.y + area.height - petSize.height)
+  };
+}
+
+export function calculatePetWindowDragMove({
+  currentBounds,
+  delta,
+  visiblePetRect,
+  displays
+}: CalculatePetWindowDragMoveOptions): PetWindowDragMove {
+  if (!visiblePetRect) {
+    return {
+      kind: "window-position",
+      position: {
+        x: Math.round(currentBounds.x + delta.x),
+        y: Math.round(currentBounds.y + delta.y)
+      }
+    };
+  }
+
+  const petSize = {
+    width: visiblePetRect.width,
+    height: visiblePetRect.height
+  };
+  const petAnchor = movePetAnchorByDelta({
+    anchor: {
+      x: currentBounds.x + visiblePetRect.x,
+      y: currentBounds.y + visiblePetRect.y
+    },
+    delta,
+    petSize,
+    displays
+  });
+
+  return {
+    kind: "visible-pet-bounds",
+    bounds: {
+      ...currentBounds,
+      x: Math.round(petAnchor.x - visiblePetRect.x),
+      y: Math.round(petAnchor.y - visiblePetRect.y)
+    },
+    petAnchor,
+    petSize
   };
 }
 

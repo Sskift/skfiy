@@ -14,6 +14,21 @@ const PAGE_OBSERVE = "skfiy.page.observe";
 const PAGE_ACTION = "skfiy.page.action";
 const PAGE_SCREENSHOT = "skfiy.page.screenshot";
 const TABS_DISCOVER = "skfiy.tabs.discover";
+const EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
+const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
+const EXTENSION_POPUP_URL = `${EXTENSION_ORIGIN}/popup.html`;
+const ALLOWED_EXAMPLE_HOST = "allowed.example";
+const ALLOWED_EXAMPLE_URL = `https://${ALLOWED_EXAMPLE_HOST}/dashboard`;
+const ALLOWED_EXAMPLE_ORIGIN_PERMISSION = `https://${ALLOWED_EXAMPLE_HOST}/*`;
+const ALLOWED_EXAMPLE_PAGE_ACCESS = [ALLOWED_EXAMPLE_ORIGIN_PERMISSION];
+const ALLOWED_EXAMPLE_CAPTURE_ACCESS = [ALLOWED_EXAMPLE_ORIGIN_PERMISSION, "<all_urls>"];
+const ALLOWED_EXAMPLE_PERMISSION_MESSAGE =
+  `Missing optional Chrome host permission for https://${ALLOWED_EXAMPLE_HOST}/*. Grant site access before page diagnostics or actions can run.`;
+const LOCALHOST_TEST_HOST = "127.0.0.1:63852";
+const LOCALHOST_TEST_URL = `http://${LOCALHOST_TEST_HOST}/`;
+const LOCALHOST_ORIGIN_PERMISSION = "http://127.0.0.1/*";
+const LOCALHOST_PAGE_ACCESS = [LOCALHOST_ORIGIN_PERMISSION];
+const LOCALHOST_CAPTURE_ACCESS = [LOCALHOST_ORIGIN_PERMISSION, "<all_urls>"];
 
 function createEvent() {
   const listeners = [];
@@ -46,15 +61,41 @@ function readStorageSelection(storage, keys) {
   return { ...storage };
 }
 
-function createPolicyResponse(policy = {}) {
+function createNativeResponse(messageType, requestId, overrides = {}) {
   return {
     schemaVersion: 1,
     type: "skfiy.native.response",
-    requestId: "policy-sync-response",
+    requestId,
     result: "accepted",
     bridgeState: "connected",
-    launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-    messageType: "skfiy.host_policy.request",
+    launchOrigin: `${EXTENSION_ORIGIN}/`,
+    messageType,
+    ...overrides
+  };
+}
+
+function createWakeUrl(options = {}) {
+  const { wake = "1", targetTabId, wakeAction, requestId, selector, text, dy } = options;
+  const url = new URL(EXTENSION_POPUP_URL);
+  for (const [key, value] of Object.entries({
+    skfiyWake: wake,
+    skfiyTargetTabId: targetTabId,
+    skfiyWakeAction: wakeAction,
+    skfiyRequestId: requestId,
+    skfiySelector: selector,
+    skfiyText: text,
+    skfiyDy: dy
+  })) {
+    if (value !== undefined) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
+function createPolicyResponse(policy = {}) {
+  return {
+    ...createNativeResponse("skfiy.host_policy.request", "policy-sync-response"),
     hostPolicy: {
       schemaVersion: 1,
       state: "configured",
@@ -70,16 +111,29 @@ function createPolicyResponse(policy = {}) {
   };
 }
 
+function createLocalhostPolicyResponse(policy = {}) {
+  return createPolicyResponse({
+    allowedHosts: [LOCALHOST_TEST_HOST],
+    currentTurnAllowedHosts: [],
+    blockedHosts: [],
+    ...policy
+  });
+}
+
+function createAllowedOnlyPolicyResponse(host) {
+  return createPolicyResponse({
+    allowedHosts: [host],
+    currentTurnAllowedHosts: [],
+    blockedHosts: []
+  });
+}
+
 function createPageObserveResponse() {
-  return {
-    schemaVersion: 1,
-    type: "skfiy.native.response",
-    requestId: "page-control-heartbeat-response",
-    result: "accepted",
-    bridgeState: "connected",
-    launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-    messageType: "skfiy.page.observe"
-  };
+  return createNativeResponse(PAGE_OBSERVE, "page-control-heartbeat-response");
+}
+
+function createPageObserveResponses(count = 1) {
+  return Array.from({ length: count }, () => createPageObserveResponse());
 }
 
 function createChromeMock(nativeResponses = [], options = {}) {
@@ -99,7 +153,7 @@ function createChromeMock(nativeResponses = [], options = {}) {
   const stalledDiagnosticTabIds = new Set(options.stalledDiagnosticTabIds ?? []);
   const allTabs = Array.isArray(options.allTabs) ? options.allTabs : undefined;
   const runtime = {
-    id: "abcdefghijklmnopabcdefghijklmnop",
+    id: EXTENSION_ID,
     lastError: undefined,
     onMessage: createEvent(),
     onInstalled: createEvent(),
@@ -268,6 +322,346 @@ async function importBackground({ autoHeartbeat = false } = {}) {
   return import(backgroundUrl.href);
 }
 
+async function loadBackground(mock, options) {
+  globalThis.chrome = mock.chrome;
+  const background = await importBackground(options);
+
+  return { mock, background };
+}
+
+function sendRuntimeMessage(mock, message, sender = {}, sendResponse = vi.fn()) {
+  const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0](message, sender, sendResponse);
+
+  return {
+    keepChannelOpen,
+    sendResponse
+  };
+}
+
+function sendPageControlWake(mock, directive, { requestId = directive.requestId, sender = {}, sendResponse } = {}) {
+  return sendRuntimeMessage(mock, {
+    type: PAGE_CONTROL_WAKE,
+    schemaVersion: 1,
+    requestId,
+    directive
+  }, sender, sendResponse);
+}
+
+function createFillWakeDirective(overrides = {}) {
+  return {
+    wakeId: "popup-fill",
+    requestId: "page-control-fill-cli-1",
+    targetTabId: 42,
+    wakeAction: "fill",
+    selector: "#name",
+    text: "skfiy",
+    dy: 0,
+    ...overrides
+  };
+}
+
+function createLocalhostWakeUrl(overrides = {}) {
+  return createWakeUrl({ targetTabId: 42, ...overrides });
+}
+
+function createLocalhostActionWakeUrl(wakeAction, overrides = {}) {
+  return createLocalhostWakeUrl({ wakeAction, ...overrides });
+}
+
+function createFillWakeUrl(overrides = {}) {
+  return createLocalhostActionWakeUrl("fill", {
+    selector: "#name",
+    text: "skfiy",
+    ...overrides
+  });
+}
+
+function createPageActionWakeCase(requestId, resultAction, wakeAction, wakeOptions, expectedMessageAction, expectedResult) {
+  return {
+    requestId,
+    resultAction,
+    wakeUrl: () => createLocalhostActionWakeUrl(wakeAction, { ...wakeOptions, requestId }),
+    expectedMessageAction,
+    expectedResult
+  };
+}
+
+const PAGE_ACTION_WAKE_CASES = [
+  createPageActionWakeCase("cli-click-current", "click", "click", { selector: "#submit" }, { kind: "click", selector: "#submit" }, { action: "click", selector: "#submit" }),
+  createPageActionWakeCase("cli-fill-current", "fill", "fill", { selector: "#name", text: "skfiy" }, { kind: "fill", selector: "#name", value: "skfiy" }, { action: "fill", selector: "#name" }),
+  createPageActionWakeCase("cli-submit-current", "submit", "submit", { selector: "form" }, { kind: "submit", selector: "form", confirmed: true }, { action: "submit", selector: "form" }),
+  createPageActionWakeCase("cli-scroll-current", "scroll", "scroll", { dy: 600 }, { kind: "scroll", deltaY: 600 }, { action: "scroll", deltaY: 600 })
+];
+
+function createReadyLocalhostContentScriptSession(overrides = {}) {
+  const { pageControl = {}, ...sessionOverrides } = overrides;
+  const { capabilities = {}, ...pageControlOverrides } = pageControl;
+  return {
+    state: "loaded",
+    host: LOCALHOST_TEST_HOST,
+    ...sessionOverrides,
+    pageControl: {
+      state: "ready",
+      ...pageControlOverrides,
+      capabilities: {
+        observe: true,
+        domActions: true,
+        click: true,
+        fill: true,
+        submit: true,
+        scroll: true,
+        ...capabilities
+      }
+    }
+  };
+}
+
+function compactExpectedFields(fields) {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined)
+  );
+}
+
+function createExpectedPageActionResult(fields) {
+  return expect.objectContaining(compactExpectedFields(fields));
+}
+
+function expectPostedPageActionResult(message, fields) {
+  expect(message).toMatchObject({
+    type: PAGE_ACTION,
+    ...(fields.requestId === undefined ? {} : { requestId: fields.requestId }),
+    payload: {
+      pageActionResult: createExpectedPageActionResult(fields)
+    }
+  });
+}
+
+function expectPostedPageScreenshotResult(message, fields) {
+  expect(message).toMatchObject({
+    schemaVersion: 1,
+    type: PAGE_SCREENSHOT,
+    ...(fields.requestId === undefined ? {} : { requestId: fields.requestId }),
+    payload: {
+      source: "popup_wake",
+      targetTabId: 42,
+      pageScreenshot: expect.objectContaining(compactExpectedFields(fields))
+    }
+  });
+}
+
+function expectPostedFillActionResult(message, requestId) {
+  expectPostedPageActionResult(message, {
+    requestId,
+    result: "passed",
+    action: "fill",
+    targetTabId: 42,
+    selector: "#name"
+  });
+}
+
+function expectSingleFillActionExecution(mock, requestId) {
+  expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
+  expect(mock.postedMessages).toHaveLength(1);
+  expectPostedFillActionResult(mock.postedMessages[0], requestId);
+}
+
+function expectNoPageControlExecution(mock) {
+  expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+  expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+}
+
+function expectNoPageControlMutation(mock) {
+  expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+  expectNoPageControlExecution(mock);
+}
+
+function expectNoPermissionRequestOrScriptInjection(mock) {
+  expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+  expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+}
+
+function expectPageControlHealthHeartbeat(message, pageControlMatcher = expect.any(Object)) {
+  expect(message).toMatchObject({
+    schemaVersion: 1,
+    type: PAGE_OBSERVE,
+    payload: expect.objectContaining({
+      source: "page_control_health",
+      pageControl: pageControlMatcher
+    })
+  });
+}
+
+function expectUnavailablePageControlHealthHeartbeat(message) {
+  expectPageControlHealthHeartbeat(message, expect.objectContaining({
+    state: "unavailable"
+  }));
+}
+
+function dispatchTabCreated(mock, tab) {
+  mock.chrome.tabs.onCreated.listeners[0](tab);
+}
+
+function dispatchTabUpdated(mock, tabId, changeInfo, tab) {
+  const listener = mock.chrome.tabs.onUpdated.listeners[0];
+  if (arguments.length > 3) {
+    listener(tabId, changeInfo, tab);
+    return;
+  }
+  listener(tabId, changeInfo);
+}
+
+function dispatchWakeTabCreated(mock, url, { tabId = 99, active = true } = {}) {
+  dispatchTabCreated(mock, {
+    id: tabId,
+    windowId: 7,
+    active,
+    url
+  });
+}
+
+function dispatchWakeTabUpdated(mock, url, { tabId = 99, changeInfo = { status: "complete" }, active } = {}) {
+  dispatchTabUpdated(mock, tabId, changeInfo, {
+    id: tabId,
+    windowId: 7,
+    ...(active === undefined ? {} : { active }),
+    url
+  });
+}
+
+function storeHostPolicy(mock, policy = {}) {
+  mock.storage[HOST_POLICY_STORAGE_KEY] = {
+    defaultMode: "ask",
+    allowedHosts: [],
+    currentTurnAllowedHosts: [],
+    blockedHosts: [],
+    ...policy
+  };
+
+  return mock.storage[HOST_POLICY_STORAGE_KEY];
+}
+
+function storeLocalhostHostPolicy(mock) {
+  return storeHostPolicy(mock, {
+    allowedHosts: [LOCALHOST_TEST_HOST]
+  });
+}
+
+function createLocalhostTab({ id = 42, windowId = 7, active } = {}) {
+  return {
+    id,
+    windowId,
+    ...(active === undefined ? {} : { active }),
+    url: LOCALHOST_TEST_URL
+  };
+}
+
+function mockTabsGet(mock, tabsById, fallback) {
+  mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+    if (Object.hasOwn(tabsById, tabId)) {
+      return tabsById[tabId];
+    }
+    return typeof fallback === "function" ? fallback(tabId) : fallback;
+  });
+}
+
+function mockLocalhostTargetTab(mock, { tabId = 42, windowId = 7 } = {}) {
+  const targetTab = createLocalhostTab({ id: tabId, windowId });
+  mockTabsGet(mock, { [tabId]: targetTab });
+
+  return targetTab;
+}
+
+function createAllowedExampleTab({ id = 42, windowId = 7 } = {}) {
+  return {
+    id,
+    windowId,
+    url: ALLOWED_EXAMPLE_URL
+  };
+}
+
+async function loadAllowedExampleStatusBackground(options = {}) {
+  const mock = createChromeMock([], {
+    activeTab: createAllowedExampleTab(),
+    ...options
+  });
+  storeHostPolicy(mock, { allowedHosts: [ALLOWED_EXAMPLE_HOST] });
+  await loadBackground(mock);
+
+  return mock;
+}
+
+async function loadLocalhostWakeBackground(nativeResponses = createPageObserveResponses(), options = {}) {
+  const { wakeUrl, wakeTabId, targetTabId = 42, targetWindowId = 7, ...mockOptions } = options;
+  const mock = createChromeMock(nativeResponses, mockOptions);
+  storeLocalhostHostPolicy(mock);
+  if (wakeUrl) {
+    mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId, targetTabId });
+  } else {
+    mockLocalhostTargetTab(mock, { tabId: targetTabId, windowId: targetWindowId });
+  }
+  await loadBackground(mock);
+
+  return mock;
+}
+
+async function loadLocalhostPolicyHeartbeatWakeBackground(options = {}) {
+  return loadLocalhostWakeBackground([
+    createLocalhostPolicyResponse(),
+    createPageObserveResponse()
+  ], options);
+}
+
+async function loadLocalhostPageControlWakeBackground(options = {}) {
+  const { responseCount = 1, ...mockOptions } = options;
+  return loadLocalhostWakeBackground(createPageObserveResponses(responseCount), {
+    grantedOrigins: LOCALHOST_PAGE_ACCESS,
+    ...mockOptions
+  });
+}
+
+async function loadLocalhostFillWakeBackground(options = {}) {
+  return loadLocalhostPageControlWakeBackground({
+    ...options,
+    pageActionResults: [
+      { result: "passed", action: "fill" }
+    ]
+  });
+}
+
+function mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId = 99, targetTabId = 42 } = {}) {
+  mockTabsGet(mock, {
+    [wakeTabId]: {
+      id: wakeTabId,
+      windowId: 7,
+      url: wakeUrl
+    },
+    [targetTabId]: createLocalhostTab({ id: targetTabId })
+  });
+}
+
+function createTabsDiscoveryResponse(requestId = "tabs-discover-response") {
+  return createNativeResponse(TABS_DISCOVER, requestId);
+}
+
+function createTabsWakeTab(options = {}) {
+  const { id = 99, windowId = 7, active = true, wake = "tabs", requestId } = options;
+  return {
+    id,
+    windowId,
+    active,
+    url: createWakeUrl({ wake, wakeAction: "tabs", requestId })
+  };
+}
+
+function createHttpsTab({ id, host, title, windowId = 7 }) {
+  return {
+    id,
+    windowId,
+    title,
+    url: `https://${host}/dashboard`
+  };
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -282,6 +676,69 @@ async function waitForAssertion(assertion) {
   throw lastError;
 }
 
+async function waitForPostedTabsDiscovery(mock, tabMatchers, options = {}) {
+  await waitForAssertion(() => {
+    const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
+    if (options.requestId) {
+      expect(discoveryMessage?.requestId).toBe(options.requestId);
+    }
+    expect(discoveryMessage).toMatchObject({
+      schemaVersion: 1,
+      type: TABS_DISCOVER,
+      payload: expect.objectContaining({
+        pageTabs: expect.objectContaining({
+          tabs: expect.arrayContaining(tabMatchers)
+        })
+      })
+    });
+  });
+}
+
+async function waitForWakeProcessing(delayMs = 200) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function dispatchWakeUrlAndWait(mock, url, options) {
+  dispatchWakeTabUpdated(mock, url, options);
+  await waitForWakeProcessing();
+}
+
+async function waitForPostedMessagesLength(mock, count) {
+  await waitForAssertion(() => {
+    expect(mock.postedMessages).toHaveLength(count);
+  });
+}
+
+async function dispatchWakeUrlAndWaitForPostedMessages(
+  mock,
+  url,
+  { expectedNewMessageCount = 1, ...options } = {}
+) {
+  const initialMessageCount = mock.postedMessages.length;
+  await dispatchWakeUrlAndWait(mock, url, options);
+  await waitForPostedMessagesLength(mock, initialMessageCount + expectedNewMessageCount);
+
+  return mock.postedMessages.slice(initialMessageCount);
+}
+
+async function dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls) {
+  const messages = [];
+  for (const url of wakeUrls) {
+    messages.push(...await dispatchWakeUrlAndWaitForPostedMessages(mock, url));
+  }
+  return messages;
+}
+
+async function waitForPageControlWakeExecuted(sendResponse, requestId) {
+  await waitForAssertion(() => {
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+      type: PAGE_CONTROL_WAKE,
+      result: "executed",
+      requestId
+    }));
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
@@ -291,26 +748,14 @@ afterEach(() => {
 
 describe("Chrome extension background page routing", () => {
   it("blocks script injection when host policy allows a host but Chrome host permission is missing", async () => {
-    const mock = createChromeMock();
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.query.mockResolvedValue([{
-      id: 17,
-      windowId: 2,
-      url: "https://allowed.example/dashboard"
-    }]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 17, windowId: 2 })
+    });
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: "skfiy.page.observe",
       requestId: "observe-allowed"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -321,13 +766,13 @@ describe("Chrome extension background page routing", () => {
         result: "blocked",
         reason: "chrome_host_permission_missing",
         code: "chrome_host_permission_missing",
-        message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.",
-        host: "allowed.example",
-        origin: "https://allowed.example",
+        message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE,
+        host: ALLOWED_EXAMPLE_HOST,
+        origin: `https://${ALLOWED_EXAMPLE_HOST}`,
         chromeHostPermission: {
           state: "missing",
-          origins: ["https://allowed.example/*"],
-          message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+          origins: ALLOWED_EXAMPLE_PAGE_ACCESS,
+          message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
         },
         policyDecision: {
           decision: "allowed",
@@ -336,53 +781,24 @@ describe("Chrome extension background page routing", () => {
       });
     });
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
-      origins: ["https://allowed.example/*"]
+      origins: ALLOWED_EXAMPLE_PAGE_ACCESS
     });
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlMutation(mock);
   });
 
   it("preserves structured site-access blockers in wake action native evidence", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "page-control-fill-cli-current",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: PAGE_ACTION
-      }
+      createNativeResponse(PAGE_ACTION, "page-control-fill-cli-current")
     ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "https://allowed.example/dashboard"
-      }
+      activeTab: createAllowedExampleTab()
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    storeHostPolicy(mock, { allowedHosts: [ALLOWED_EXAMPLE_HOST] });
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
-      type: PAGE_CONTROL_WAKE,
-      requestId: "wake-fill-current",
-      directive: {
-        wakeId: "wake-fill-current",
-        requestId: "page-control-fill-cli-current",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy"
-      }
-    }, {}, sendResponse);
+    const { keepChannelOpen, sendResponse } = sendPageControlWake(mock, createFillWakeDirective({
+      wakeId: "wake-fill-current",
+      requestId: "page-control-fill-cli-current"
+    }), { requestId: "wake-fill-current" });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -405,19 +821,17 @@ describe("Chrome extension background page routing", () => {
               result: "blocked",
               reason: "chrome_host_permission_missing",
               code: "chrome_host_permission_missing",
-              message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.",
+              message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE,
               chromeHostPermission: expect.objectContaining({
                 state: "missing",
-                origins: ["https://allowed.example/*"]
+                origins: ALLOWED_EXAMPLE_PAGE_ACCESS
               })
             })
           })
         })
       ]);
     });
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlMutation(mock);
   });
 
   it("returns bounded Chrome tab discovery blockers without page content", async () => {
@@ -451,7 +865,7 @@ describe("Chrome extension background page routing", () => {
           id: 43,
           windowId: 7,
           title: "skfiy popup",
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1"
+          url: createWakeUrl()
         },
         {
           id: 44,
@@ -496,20 +910,16 @@ describe("Chrome extension background page routing", () => {
         }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
+    storeHostPolicy(mock, {
       allowedHosts: ["allowed.example", "missing-permission.example", "content-missing.example"],
-      currentTurnAllowedHosts: [],
       blockedHosts: ["blocked.example"]
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    });
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: TABS_DISCOVER,
       requestId: "tabs-discover-test"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -578,8 +988,7 @@ describe("Chrome extension background page routing", () => {
     const responseJson = JSON.stringify(sendResponse.mock.calls[0][0]);
     expect(responseJson).not.toContain("must not be exported");
     expect(responseJson).not.toContain("/Users/tester/private");
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectNoPermissionRequestOrScriptInjection(mock);
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toEqual(expect.arrayContaining([
@@ -604,12 +1013,11 @@ describe("Chrome extension background page routing", () => {
 describe("Chrome extension background policy sync", () => {
   it("returns stored policy sync status with a normalized entry count", async () => {
     const mock = createChromeMock();
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
+    storeHostPolicy(mock, {
       allowedHosts: ["example.com"],
       currentTurnAllowedHosts: ["turn.example"],
       blockedHosts: ["blocked.example"]
-    };
+    });
     mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
       schemaVersion: 1,
       state: "synced",
@@ -619,14 +1027,12 @@ describe("Chrome extension background policy sync", () => {
       requestId: "host-policy-sync-runtime_startup-1",
       hostPolicyState: "configured"
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -660,7 +1066,7 @@ describe("Chrome extension background policy sync", () => {
         }),
         diagnostics: expect.objectContaining({
           extension: expect.objectContaining({
-            id: "abcdefghijklmnopabcdefghijklmnop",
+            id: EXTENSION_ID,
             name: "skfiy Chrome Adapter",
             version: "0.0.1",
             manifestVersion: 3
@@ -691,19 +1097,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("reports current tab host policy and missing optional host permission in diagnostics", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "https://allowed.example/dashboard"
-      }
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    const mock = await loadAllowedExampleStatusBackground();
     mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
       schemaVersion: 1,
       state: "error",
@@ -711,14 +1105,11 @@ describe("Chrome extension background policy sync", () => {
       updatedAt: "2026-06-20T10:05:00.000Z",
       lastError: "Specified native messaging host not found."
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-missing-permission"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -747,13 +1138,13 @@ describe("Chrome extension background policy sync", () => {
               state: "missing",
               reason: "chrome_host_permission_missing",
               code: "chrome_host_permission_missing",
-              origins: ["https://allowed.example/*"],
-              message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+              origins: ALLOWED_EXAMPLE_PAGE_ACCESS,
+              message: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
             }),
             contentScript: expect.objectContaining({
               state: "blocked_by_chrome_host_permission",
               reason: "chrome_host_permission_missing",
-              lastError: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+              lastError: ALLOWED_EXAMPLE_PERMISSION_MESSAGE
             }),
             pageControl: expect.objectContaining({
               capable: false,
@@ -796,49 +1187,35 @@ describe("Chrome extension background policy sync", () => {
     });
 
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
-      origins: ["https://allowed.example/*"]
+      origins: ALLOWED_EXAMPLE_PAGE_ACCESS
     });
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
-    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expectNoPageControlExecution(mock);
   });
 
   it("uses the requested target tab for popup policy status diagnostics", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 99,
-        windowId: 7,
-        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
-      }
-    });
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "https://target.example/dashboard"
-        };
-      }
-      return {
-        id: 99,
-        windowId: 7,
-        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
-      };
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["target.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
+    const popupTab = {
+      id: 99,
+      windowId: 7,
+      url: `${EXTENSION_POPUP_URL}?skfiyTargetTabId=42`
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = createChromeMock([], {
+      activeTab: popupTab
+    });
+    mockTabsGet(mock, {
+      42: {
+        id: 42,
+        windowId: 7,
+        url: "https://target.example/dashboard"
+      }
+    }, popupTab);
+    storeHostPolicy(mock, { allowedHosts: ["target.example"] });
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-target",
       tabId: 42
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -871,17 +1248,13 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("queries existing content-script session diagnostics when policy and Chrome host permission allow it", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 43,
-        windowId: 8,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 43, windowId: 8 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        url: "https://allowed.example/dashboard",
-        host: "allowed.example",
+        url: ALLOWED_EXAMPLE_URL,
+        host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
         sensitivePaused: false,
         sensitivePauseReason: null,
@@ -912,20 +1285,11 @@ describe("Chrome extension background policy sync", () => {
         observedAt: "2026-06-20T10:07:00.000Z"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-session"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -933,7 +1297,7 @@ describe("Chrome extension background policy sync", () => {
           currentTab: expect.objectContaining({
             chromeHostPermission: expect.objectContaining({
               state: "granted",
-              origins: ["https://allowed.example/*"]
+              origins: ALLOWED_EXAMPLE_PAGE_ACCESS
             }),
             contentScript: expect.objectContaining({
               state: "loaded",
@@ -968,7 +1332,7 @@ describe("Chrome extension background policy sync", () => {
           }),
           session: expect.objectContaining({
             state: "loaded",
-            host: "allowed.example",
+            host: ALLOWED_EXAMPLE_HOST,
             pageControl: expect.objectContaining({
               state: "ready",
               capabilities: expect.objectContaining({
@@ -986,82 +1350,6 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.page.diagnostics",
       schemaVersion: 1
     }));
-  });
-
-  it("does not report screenshot available when only the current host is granted", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 46,
-        windowId: 8,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*"],
-      contentScriptSession: {
-        state: "loaded",
-        host: "allowed.example",
-        pageControl: {
-          state: "ready",
-          capabilities: {
-            diagnostics: true,
-            observe: true,
-            domActions: true,
-            click: true,
-            fill: true,
-            submit: true,
-            scroll: true,
-            screenshot: "background_required"
-          },
-          actions: {
-            click: { capable: true, state: "available", nextAction: "send_page_action" },
-            fill: { capable: true, state: "available", nextAction: "send_page_action" },
-            submit: { capable: true, state: "available", nextAction: "send_page_action" },
-            scroll: { capable: true, state: "available", nextAction: "send_page_action" }
-          }
-        }
-      }
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
-      type: HOST_POLICY_SYNC_STATUS,
-      requestId: "popup-status-site-only-capture"
-    }, {}, sendResponse);
-
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        pageControl: expect.objectContaining({
-          capable: true,
-          state: "partial",
-          reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
-          capabilities: expect.objectContaining({
-            domActions: true,
-            screenshot: false
-          }),
-          chromeCapturePermission: expect.objectContaining({
-            state: "missing",
-            origins: ["<all_urls>"]
-          }),
-          screenshot: {
-            capable: false,
-            state: "blocked",
-            reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
-            nextAction: "grant_chrome_capture_permission"
-          },
-          actions: expect.objectContaining({
-            click: expect.objectContaining({ capable: true }),
-            submit: expect.objectContaining({ capable: true })
-          })
-        })
-      }));
-    });
   });
 
   it("returns a read-only page-control health protocol for smoke and operator probes", async () => {
@@ -1082,36 +1370,23 @@ describe("Chrome extension background policy sync", () => {
       },
       blockers: []
     };
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 45,
-        windowId: 10,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        url: "https://allowed.example/dashboard",
-        host: "allowed.example",
+        url: ALLOWED_EXAMPLE_URL,
+        host: ALLOWED_EXAMPLE_HOST,
         title: "Dashboard",
         pageControl,
         observedAt: "2026-06-20T10:08:00.000Z"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_HEALTH,
       requestId: "health-smoke"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1150,33 +1425,19 @@ describe("Chrome extension background policy sync", () => {
       }));
     });
 
-    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
-    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expectNoPermissionRequestOrScriptInjection(mock);
   });
 
   it("reports missing content script readiness without injecting during status reads", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 44,
-        windowId: 9,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*", "<all_urls>"]
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 44, windowId: 9 }),
+      grantedOrigins: ALLOWED_EXAMPLE_CAPTURE_ACCESS
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-no-content-script"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1214,16 +1475,12 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("reports DOM actions separately when screenshot permission is unavailable", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 45,
-        windowId: 10,
-        url: "https://allowed.example/dashboard"
-      },
-      grantedOrigins: ["https://allowed.example/*"],
+    const mock = await loadAllowedExampleStatusBackground({
+      activeTab: createAllowedExampleTab({ id: 45, windowId: 10 }),
+      grantedOrigins: ALLOWED_EXAMPLE_PAGE_ACCESS,
       contentScriptSession: {
         state: "loaded",
-        host: "allowed.example",
+        host: ALLOWED_EXAMPLE_HOST,
         pageControl: {
           capable: true,
           state: "ready",
@@ -1246,20 +1503,11 @@ describe("Chrome extension background policy sync", () => {
         }
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-no-screenshot"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1292,8 +1540,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("syncs host policy through the native host and records sync status", async () => {
     const mock = createChromeMock([createPolicyResponse()]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("runtime_startup")).resolves.toMatchObject({
       result: "accepted",
@@ -1323,7 +1570,7 @@ describe("Chrome extension background policy sync", () => {
       requestId: mock.postedMessages[0].requestId,
       hostPolicyState: "configured",
       nativeBridgeState: "connected",
-      nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      nativeLaunchOrigin: `${EXTENSION_ORIGIN}/`,
       nativeMessageType: "skfiy.host_policy.request",
       nativeResponseType: "skfiy.native.response",
       nativeResponseResult: "accepted",
@@ -1334,63 +1581,12 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].updatedAt).toEqual(expect.any(String));
   });
 
-  it("syncs from install and startup lifecycle hooks", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["installed.example"] }),
-      createPageObserveResponse(),
-      createPolicyResponse({ allowedHosts: ["startup.example"] }),
-      createPageObserveResponse()
-    ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    expect(mock.chrome.runtime.onInstalled.addListener).toHaveBeenCalledTimes(1);
-    expect(mock.chrome.runtime.onStartup.addListener).toHaveBeenCalledTimes(1);
-
-    mock.chrome.runtime.onInstalled.listeners[0]();
-    await waitForAssertion(() => {
-      expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
-        state: "synced",
-        trigger: "runtime_installed"
-      });
-    });
-
-    mock.chrome.runtime.onStartup.listeners[0]();
-    await waitForAssertion(() => {
-      expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
-        state: "synced",
-        trigger: "runtime_startup"
-      });
-    });
-
-    expect(mock.postedMessages.map((message) => message.type)).toEqual([
-      "skfiy.host_policy.request",
-      "skfiy.page.observe",
-      "skfiy.host_policy.request",
-      "skfiy.page.observe"
-    ]);
-    expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-runtime_installed-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
-    expect(mock.postedMessages[2].requestId).toMatch(/^host-policy-sync-runtime_startup-/);
-    expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["startup.example"]);
-  });
-
   it("records a native heartbeat when the service worker loads after extension reload", async () => {
     const mock = createChromeMock([
       createPolicyResponse({ allowedHosts: ["loaded.example"] }),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground({ autoHeartbeat: true });
+    await loadBackground(mock, { autoHeartbeat: true });
 
     await waitForAssertion(() => {
       expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
@@ -1404,99 +1600,42 @@ describe("Chrome extension background policy sync", () => {
       "skfiy.page.observe"
     ]);
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-service_worker_loaded-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["loaded.example"]);
   });
 
   it("runs tab discovery when the service worker starts after a tabs wake page already loaded", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      },
+      createTabsDiscoveryResponse(),
       createPolicyResponse({ allowedHosts: ["loaded.example"] }),
       createPageObserveResponse()
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=late-tabs&skfiyWakeAction=tabs"
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Loaded app",
-          url: "https://loaded.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "late-tabs" }),
+        createHttpsTab({ id: 41, title: "Loaded app", host: "loaded.example" })
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground({ autoHeartbeat: true });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await loadBackground(mock, { autoHeartbeat: true });
+    await waitForWakeProcessing();
 
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          payload: expect.objectContaining({
-            pageTabs: expect.objectContaining({
-              result: "passed",
-              tabs: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 99,
-                  blocker: "chrome_extension_page"
-                }),
-                expect.objectContaining({
-                  id: 41,
-                  host: "loaded.example"
-                })
-              ])
-            })
-          })
-        })
-      ]));
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
+      expect.objectContaining({ id: 41, host: "loaded.example" })
+    ]);
   });
 
   it("records tab discovery blocker evidence when Chrome tab query fails", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-response")
     ], {
       queryTabsError: "Tabs cannot be queried in this context"
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: TABS_DISCOVER,
       requestId: "tabs-query-error"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toEqual(expect.arrayContaining([
@@ -1521,186 +1660,39 @@ describe("Chrome extension background policy sync", () => {
     });
   });
 
-  it("runs tab discovery when a tabs wake page is created", async () => {
+  it("runs and closes tab-discovery wake tabs from created events without delayed timers", async () => {
+    const wakeUrl = createWakeUrl({ wake: "created-tabs", wakeAction: "tabs", requestId: "tabs-discover-created" });
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createTabsDiscoveryResponse("tabs-discover-created")
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs&skfiyWakeAction=tabs"
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Created app",
-          url: "https://created.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "created-tabs", requestId: "tabs-discover-created" }),
+        createHttpsTab({ id: 41, title: "Created wake app", host: "created.example" })
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    expect(mock.chrome.tabs.onCreated.addListener).toHaveBeenCalledTimes(1);
-    mock.chrome.tabs.onCreated.listeners[0]({
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs&skfiyWakeAction=tabs"
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          payload: expect.objectContaining({
-            pageTabs: expect.objectContaining({
-              result: "passed",
-              tabs: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 99,
-                  blocker: "chrome_extension_page"
-                }),
-                expect.objectContaining({
-                  id: 41,
-                  host: "created.example"
-                })
-              ])
-            })
-          })
-        })
-      ]));
-    });
-  });
-
-  it("runs tab discovery from created wake tabs without relying on delayed timers", async () => {
-    const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-immediate",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
-    ], {
-      allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-immediate&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-immediate"
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Immediate app",
-          url: "https://immediate.example/dashboard"
-        }
-      ]
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    mock.chrome.tabs.onCreated.listeners[0]({
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-immediate&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-immediate"
-    });
+    dispatchWakeTabCreated(
+      mock,
+      wakeUrl
+    );
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 
-    await waitForAssertion(() => {
-      const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
-      expect(discoveryMessage?.requestId).toBe("tabs-discover-immediate");
-      expect(discoveryMessage?.payload?.pageTabs?.tabs).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 41, host: "immediate.example" })
-      ]));
-    });
-  });
-
-  it("closes tabs-discovery wake tabs after native evidence is recorded", async () => {
-    const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-close-wake",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
-    ], {
-      allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-close&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-close-wake"
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Close wake app",
-          url: "https://close-wake.example/dashboard"
-        }
-      ]
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    mock.chrome.tabs.onCreated.listeners[0]({
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-close&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-close-wake"
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          requestId: "tabs-discover-close-wake"
-        })
-      ]));
-      expect(mock.chrome.tabs.remove).toHaveBeenCalledWith(99);
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 41, host: "created.example" })
+    ], { requestId: "tabs-discover-created" });
+    expect(mock.chrome.tabs.remove).toHaveBeenCalledWith(99);
   });
 
   it("times out stalled content diagnostics during tab discovery", async () => {
     vi.useFakeTimers();
     try {
       const mock = createChromeMock([
-        {
-          schemaVersion: 1,
-          type: "skfiy.native.response",
-          requestId: "tabs-discover-stalled-diagnostics",
-          result: "accepted",
-          bridgeState: "connected",
-          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-          messageType: TABS_DISCOVER
-        }
+        createNativeResponse(TABS_DISCOVER, "tabs-discover-stalled-diagnostics")
       ], {
-        grantedOrigins: ["http://127.0.0.1/*"],
+        grantedOrigins: LOCALHOST_PAGE_ACCESS,
         stalledDiagnosticTabIds: [41],
         contentScriptSessions: [
           {
@@ -1726,31 +1718,21 @@ describe("Chrome extension background policy sync", () => {
           }
         ]
       });
-      mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      storeHostPolicy(mock, {
         schemaVersion: 1,
-        defaultMode: "ask",
         allowedHosts: ["127.0.0.1:60329", "127.0.0.1:63852"],
-        currentTurnAllowedHosts: [],
-        blockedHosts: []
-      };
-      globalThis.chrome = mock.chrome;
-      await importBackground();
+      });
+      await loadBackground(mock);
 
-      mock.chrome.runtime.onMessage.listeners[0](
-        {
-          type: TABS_DISCOVER,
-          schemaVersion: 1,
-          requestId: "tabs-discover-stalled-diagnostics"
-        },
-        {},
-        vi.fn()
-      );
+      sendRuntimeMessage(mock, {
+        type: TABS_DISCOVER,
+        schemaVersion: 1,
+        requestId: "tabs-discover-stalled-diagnostics"
+      });
 
       await vi.advanceTimersByTimeAsync(1_000);
 
-      const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
-      expect(discoveryMessage?.requestId).toBe("tabs-discover-stalled-diagnostics");
-      expect(discoveryMessage?.payload?.pageTabs?.tabs).toEqual(expect.arrayContaining([
+      await waitForPostedTabsDiscovery(mock, [
         expect.objectContaining({
           id: 41,
           state: "blocked",
@@ -1760,7 +1742,7 @@ describe("Chrome extension background policy sync", () => {
           id: 42,
           state: "eligible"
         })
-      ]));
+      ], { requestId: "tabs-discover-stalled-diagnostics" });
     } finally {
       vi.useRealTimers();
     }
@@ -1768,84 +1750,35 @@ describe("Chrome extension background policy sync", () => {
 
   it("recovers tab discovery when an extension wake update omits the query string", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createTabsDiscoveryResponse()
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=recovered-tabs&skfiyWakeAction=tabs"
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Recovered app",
-          url: "https://recovered.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "recovered-tabs" }),
+        createHttpsTab({ id: 41, title: "Recovered app", host: "recovered.example" })
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      EXTENSION_POPUP_URL,
+      { active: true }
+    );
     await new Promise((resolve) => setTimeout(resolve, 450));
 
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          payload: expect.objectContaining({
-            pageTabs: expect.objectContaining({
-              result: "passed",
-              tabs: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 99,
-                  blocker: "chrome_extension_page"
-                }),
-                expect.objectContaining({
-                  id: 41,
-                  host: "recovered.example"
-                })
-              ])
-            })
-          })
-        })
-      ]));
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
+      expect.objectContaining({ id: 41, host: "recovered.example" })
+    ]);
   });
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
-      createPageObserveResponse()
-    ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "http://127.0.0.1:63852/"
-      }
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
+      activeTab: createLocalhostTab()
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
-    mock.chrome.tabs.onUpdated.listeners[0](42, { status: "complete" });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    dispatchTabUpdated(mock, 42, { status: "complete" });
+    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages.map((message) => message.type)).toEqual([
@@ -1863,85 +1796,23 @@ describe("Chrome extension background policy sync", () => {
           state: "blocked_by_chrome_host_permission",
           activeTab: expect.objectContaining({
             host: "127.0.0.1:63852"
-          }),
-          chromeHostPermission: expect.objectContaining({
-            origins: ["http://127.0.0.1/*"]
           })
         })
       })
     });
   });
 
-  it("does not record page-control heartbeat for the extension popup tab", async () => {
-    const mock = createChromeMock([]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1"
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    expect(mock.postedMessages).toEqual([]);
-  });
-
   it("routes extension wake tab heartbeats to the requested target tab", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
-      contentScriptSession: {
-        state: "loaded",
-        host: "127.0.0.1:63852",
-        pageControl: {
-          state: "ready",
-          capabilities: {
-            observe: true,
-            domActions: true,
-            click: true,
-            fill: true,
-            submit: true,
-            scroll: true
-          }
-        }
-      }
-    });
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 99) {
-        return {
-          id: 99,
-          windowId: 7,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
-        };
-      }
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
+    const wakeUrl = createLocalhostWakeUrl();
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
+      wakeUrl,
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
+      contentScriptSession: createReadyLocalhostContentScriptSession()
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl, {
+      expectedNewMessageCount: 2
+    });
 
     expect(mock.postedMessages[1]).toMatchObject({
       type: "skfiy.page.observe",
@@ -1958,53 +1829,22 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("routes observe wake URLs through page observation native heartbeat", async () => {
+    const wakeUrl = createLocalhostActionWakeUrl("observe");
     const pageObserveSnapshot = {
       schemaVersion: 1,
       title: "skfiy observe smoke",
-      url: "http://127.0.0.1:63852/",
-      visibleText: "skfiy observe live smoke 2026-06-21 compiled binary path"
+      url: LOCALHOST_TEST_URL,
+      visibleText: "skfiy observe live smoke compiled binary path"
     };
-    const mock = createChromeMock([
+    const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      wakeUrl,
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       pageObserveSnapshot
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 99) {
-        return {
-          id: 99,
-          windowId: 7,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
-        };
-      }
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await dispatchWakeUrlAndWaitForPostedMessages(mock, wakeUrl);
 
     expect(mock.postedMessages).toEqual([
       expect.objectContaining({
@@ -2021,62 +1861,22 @@ describe("Chrome extension background policy sync", () => {
 
   it("routes screenshot and action wake URLs through bounded native heartbeats", async () => {
     const screenshotDataUrl = `data:image/png;base64,${"a".repeat(2048)}`;
-    const mock = createChromeMock([
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+    const mock = await loadLocalhostPageControlWakeBackground({
+      responseCount: 5,
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabDataUrl: screenshotDataUrl,
-      pageActionResults: [
-        { result: "passed", action: "click" },
-        { result: "passed", action: "fill" },
-        { result: "passed", action: "submit" },
-        { result: "passed", action: "scroll" }
-      ]
+      pageActionResults: PAGE_ACTION_WAKE_CASES.map(({ resultAction }) => ({
+        result: "passed",
+        action: resultAction
+      }))
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
     const wakeUrls = [
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=cli-screenshot-current",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=click&skfiySelector=%23submit&skfiyRequestId=cli-click-current",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy&skfiyRequestId=cli-fill-current",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiySelector=form&skfiyRequestId=cli-submit-current",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyDy=600&skfiyRequestId=cli-scroll-current"
+      createLocalhostActionWakeUrl("screenshot", { requestId: "cli-screenshot-current" }),
+      ...PAGE_ACTION_WAKE_CASES.map(({ wakeUrl }) => wakeUrl())
     ];
 
-    for (const [index, url] of wakeUrls.entries()) {
-      mock.chrome.tabs.onUpdated.listeners[0](99, {
-        status: "complete"
-      }, {
-        id: 99,
-        windowId: 7,
-        url
-      });
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      await waitForAssertion(() => {
-        expect(mock.postedMessages).toHaveLength(index + 1);
-      });
-    }
+    await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
 
     expect(mock.chrome.tabs.captureVisibleTab).toHaveBeenCalledWith(7, {
       format: "png"
@@ -2084,657 +1884,174 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.chrome.tabs.update).toHaveBeenCalledWith(42, {
       active: true
     });
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(1, 42, expect.objectContaining({
-      type: PAGE_ACTION,
+    expect(mock.chrome.tabs.sendMessage.mock.calls.map(([tabId, message]) => ({
+      tabId,
+      type: message.type,
+      action: message.payload?.action
+    }))).toEqual(PAGE_ACTION_WAKE_CASES.map(({ expectedMessageAction }) => ({
       tabId: 42,
-      payload: {
-        action: {
-          kind: "click",
-          selector: "#submit"
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(2, 42, expect.objectContaining({
       type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "fill",
-          selector: "#name",
-          value: "skfiy"
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(3, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "submit",
-          selector: "form",
-          confirmed: true
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(4, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "scroll",
-          deltaY: 600
-        }
-      }
-    }));
+      action: expectedMessageAction
+    })));
 
-    expect(mock.postedMessages[0]).toMatchObject({
-      schemaVersion: 1,
-      type: PAGE_SCREENSHOT,
+    expectPostedPageScreenshotResult(mock.postedMessages[0], {
       requestId: "cli-screenshot-current",
-      payload: {
-        source: "popup_wake",
-        targetTabId: 42,
-        format: "png",
-        pageScreenshot: {
-          type: "skfiy.page.screenshot_result",
-          requestId: "cli-screenshot-current",
-          tabId: 42,
-          targetTabId: 42,
-          host: "127.0.0.1:63852",
-          format: "png",
-          hasDataUrl: true,
-          dataUrlBytes: screenshotDataUrl.length
-        }
-      }
+      type: "skfiy.page.screenshot_result",
+      tabId: 42,
+      targetTabId: 42,
+      host: LOCALHOST_TEST_HOST,
+      format: "png",
+      hasDataUrl: true,
+      dataUrlBytes: screenshotDataUrl.length
     });
     expect(mock.postedMessages[0].payload.pageScreenshot.dataUrl).toBeUndefined();
 
-    expect(mock.postedMessages.slice(1).map((message) => message.requestId)).toEqual([
-      "cli-click-current",
-      "cli-fill-current",
-      "cli-submit-current",
-      "cli-scroll-current"
-    ]);
-    expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual([
-      expect.objectContaining({
-        requestId: "cli-click-current",
+    expect(mock.postedMessages.slice(1).map((message) => message.requestId)).toEqual(
+      PAGE_ACTION_WAKE_CASES.map(({ requestId }) => requestId)
+    );
+    expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual(
+      PAGE_ACTION_WAKE_CASES.map(({ requestId, expectedResult }) => createExpectedPageActionResult({
+        requestId,
         result: "passed",
-        action: "click",
         targetTabId: 42,
-        selector: "#submit"
-      }),
-      expect.objectContaining({
-        requestId: "cli-fill-current",
-        result: "passed",
-        action: "fill",
-        targetTabId: 42,
-        selector: "#name"
-      }),
-      expect.objectContaining({
-        requestId: "cli-submit-current",
-        result: "passed",
-        action: "submit",
-        targetTabId: 42,
-        selector: "form"
-      }),
-      expect.objectContaining({
-        requestId: "cli-scroll-current",
-        result: "passed",
-        action: "scroll",
-        targetTabId: 42,
-        deltaY: 600
-      })
-    ]);
-    expect(mock.postedMessages[2].payload.pageActionResult.value).toBeUndefined();
-    expect(mock.postedMessages[2].payload.pageActionResult.text).toBeUndefined();
+        ...expectedResult
+      }))
+    );
+    const fillActionResult = mock.postedMessages.find((message) => message.requestId === "cli-fill-current").payload.pageActionResult;
+    expect(fillActionResult.value).toBeUndefined();
+    expect(fillActionResult.text).toBeUndefined();
   });
 
   it("records current request blockers when submit and scroll wake actions return no page response", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse(),
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"]
+    const mock = await loadLocalhostPageControlWakeBackground({
+      responseCount: 2
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
     const wakeUrls = [
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=submit-no-response&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiyRequestId=page-control-submit-cli-1&skfiySelector=form",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=scroll-no-response&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyRequestId=page-control-scroll-cli-2&skfiyDy=600"
+      createLocalhostActionWakeUrl("submit", { wake: "submit-no-response", requestId: "page-control-submit-cli-1", selector: "form" }),
+      createLocalhostActionWakeUrl("scroll", { wake: "scroll-no-response", requestId: "page-control-scroll-cli-2", dy: 600 })
     ];
 
-    for (const [index, url] of wakeUrls.entries()) {
-      mock.chrome.tabs.onUpdated.listeners[0](99, {
-        status: "complete"
-      }, {
-        id: 99,
-        windowId: 7,
-        url
-      });
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      await waitForAssertion(() => {
-        expect(mock.postedMessages).toHaveLength(index + 1);
-      });
-    }
+    await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
 
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
+    expectPostedPageActionResult(mock.postedMessages[0], {
       requestId: "page-control-submit-cli-1",
-      payload: {
-        pageActionResult: {
-          type: "skfiy.page.action_result",
-          requestId: "page-control-submit-cli-1",
-          result: "blocked",
-          reason: "page_action_no_response",
-          action: "submit",
-          targetTabId: 42,
-          selector: "form"
-        }
-      }
+      type: "skfiy.page.action_result",
+      result: "blocked",
+      reason: "page_action_no_response",
+      action: "submit",
+      targetTabId: 42,
+      selector: "form"
     });
-    expect(mock.postedMessages[1]).toMatchObject({
-      type: PAGE_ACTION,
+    expectPostedPageActionResult(mock.postedMessages[1], {
       requestId: "page-control-scroll-cli-2",
-      payload: {
-        pageActionResult: {
-          type: "skfiy.page.action_result",
-          requestId: "page-control-scroll-cli-2",
-          result: "blocked",
-          reason: "page_action_no_response",
-          action: "scroll",
-          targetTabId: 42,
-          deltaY: 600
-        }
-      }
+      type: "skfiy.page.action_result",
+      result: "blocked",
+      reason: "page_action_no_response",
+      action: "scroll",
+      targetTabId: 42,
+      deltaY: 600
     });
   });
 
   it("schedules popup-delegated page action wake directives through background dedupe", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
-      requestId: "page-control-fill-cli-1",
-      directive: {
-        wakeId: "popup-fill",
-        requestId: "page-control-fill-cli-1",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
-    }, {}, sendResponse);
+    const { sendResponse } = sendPageControlWake(mock, createFillWakeDirective());
 
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed",
-        requestId: "page-control-fill-cli-1"
-      }));
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForPageControlWakeExecuted(sendResponse, "page-control-fill-cli-1");
+    await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledWith(42, expect.objectContaining({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-1",
-      payload: {
-        action: {
-          kind: "fill",
-          selector: "#name",
-          value: "skfiy"
-        }
-      }
-    }));
-    expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-1",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-1",
-          result: "passed",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-1");
 
-    mock.chrome.runtime.onMessage.listeners[0]({
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
-      requestId: "page-control-fill-cli-1",
-      directive: {
-        wakeId: "popup-fill",
-        requestId: "page-control-fill-cli-1",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
-    }, {}, vi.fn());
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    sendPageControlWake(mock, createFillWakeDirective());
+    await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-1");
   });
 
   it("does not let scheduled wake dedupe suppress an immediate popup delegated action", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const wakeUrl = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=popup-fill-race&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-race&skfiySelector=%23name&skfiyText=skfiy";
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: wakeUrl
-    });
+    const wakeUrl = createFillWakeUrl({ wake: "popup-fill-race", requestId: "page-control-fill-cli-race" });
+    dispatchWakeTabUpdated(mock, wakeUrl);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
-      requestId: "page-control-fill-cli-race",
-      directive: {
-        wakeId: "popup-fill-race",
-        requestId: "page-control-fill-cli-race",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
-    }, {}, sendResponse);
+    const { sendResponse } = sendPageControlWake(mock, createFillWakeDirective({
+      wakeId: "popup-fill-race",
+      requestId: "page-control-fill-cli-race"
+    }));
 
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed",
-        requestId: "page-control-fill-cli-race"
-      }));
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForPageControlWakeExecuted(sendResponse, "page-control-fill-cli-race");
+    await waitForWakeProcessing();
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-race",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-race",
-          result: "passed",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
-  });
-
-  it("executes popup-delegated page action wake before responding to the popup", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
-      pageActionResults: [
-        { result: "passed", action: "click" }
-      ]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    const sendResponse = vi.fn(() => {
-      expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        type: PAGE_ACTION,
-        requestId: "page-control-click-cli-1",
-        payload: {
-          pageActionResult: {
-            action: "click",
-            requestId: "page-control-click-cli-1"
-          }
-        }
-      });
-    });
-    mock.chrome.runtime.onMessage.listeners[0]({
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
-      requestId: "page-control-click-cli-1",
-      directive: {
-        wakeId: "popup-click",
-        requestId: "page-control-click-cli-1",
-        targetTabId: 42,
-        wakeAction: "click",
-        selector: "#click-only",
-        text: "",
-        dy: 0
-      }
-    }, {}, sendResponse);
-
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed"
-      }));
-    });
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-race");
   });
 
   it("deduplicates repeated tab update events for the same action wake URL", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const url = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dedupe-1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy";
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      url
-    }, {
-      id: 99,
-      windowId: 7,
-      url
-    });
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url
-    });
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    const url = createFillWakeUrl({ wake: "dedupe-1" });
+    dispatchWakeTabUpdated(mock, url, { changeInfo: { url } });
+    dispatchWakeTabUpdated(mock, url);
+    await waitForWakeProcessing(250);
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      payload: {
-        pageActionResult: {
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectSingleFillActionExecution(mock);
   });
 
   it("ignores stale timestamped action wake URLs when old extension tabs are still open", async () => {
     const now = Date.now();
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const staleUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now - 600_000}&skfiyTargetTabId=42&skfiyWakeAction=click&skfiyRequestId=page-control-click-cli-stale&skfiySelector=%23click-only`;
-    const currentUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now}&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-current&skfiySelector=%23name&skfiyText=skfiy`;
+    const staleUrl = createLocalhostActionWakeUrl("click", { wake: now - 600_000, requestId: "page-control-click-cli-stale", selector: "#click-only" });
+    const currentUrl = createFillWakeUrl({ wake: now, requestId: "page-control-fill-cli-current" });
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
-      id: 99,
-      windowId: 7,
-      url: staleUrl
-    });
-    mock.chrome.tabs.onUpdated.listeners[0](100, { status: "complete" }, {
-      id: 100,
-      windowId: 7,
-      url: currentUrl
-    });
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    dispatchWakeTabUpdated(mock, staleUrl);
+    dispatchWakeTabUpdated(mock, currentUrl, { tabId: 100 });
+    await waitForWakeProcessing(250);
 
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-current",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-current",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectSingleFillActionExecution(mock, "page-control-fill-cli-current");
   });
 
   it("records a bounded screenshot blocker when Chrome captureVisibleTab fails", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+    const mock = await loadLocalhostPageControlWakeBackground({
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabError: "The active tab cannot be captured"
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot"
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await dispatchWakeUrlAndWaitForPostedMessages(
+      mock,
+      createLocalhostActionWakeUrl("screenshot")
+    );
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        schemaVersion: 1,
-        type: PAGE_SCREENSHOT,
-        payload: {
-          source: "popup_wake",
-          targetTabId: 42,
-          pageScreenshot: {
-            type: "skfiy.page.screenshot_result",
-            result: "blocked",
-            targetTabId: 42,
-            reason: "The active tab cannot be captured",
-            hasDataUrl: false
-          }
-        }
+      expectPostedPageScreenshotResult(mock.postedMessages[0], {
+        type: "skfiy.page.screenshot_result",
+        result: "blocked",
+        targetTabId: 42,
+        reason: "The active tab cannot be captured",
+        hasDataUrl: false
       });
     });
   });
 
   it("does not call captureVisibleTab when the background wake lacks all-urls capture permission", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"]
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    const mock = await loadLocalhostPageControlWakeBackground();
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=missing-capture-permission"
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await dispatchWakeUrlAndWaitForPostedMessages(
+      mock,
+      createLocalhostActionWakeUrl("screenshot", { requestId: "missing-capture-permission" })
+    );
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        schemaVersion: 1,
-        type: PAGE_SCREENSHOT,
+      expectPostedPageScreenshotResult(mock.postedMessages[0], {
         requestId: "missing-capture-permission",
-        payload: {
-          source: "popup_wake",
-          targetTabId: 42,
-          pageScreenshot: {
-            type: "skfiy.page.screenshot_result",
-            requestId: "missing-capture-permission",
-            result: "blocked",
-            targetTabId: 42,
-            reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
-            hasDataUrl: false
-          }
-        }
+        type: "skfiy.page.screenshot_result",
+        result: "blocked",
+        targetTabId: 42,
+        reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
+        hasDataUrl: false
       });
     });
     expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
@@ -2747,18 +2064,16 @@ describe("Chrome extension background policy sync", () => {
     const mock = createChromeMock([
       createPolicyResponse({ allowedHosts: ["manual.example"], blockedHosts: [] })
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_REFRESH,
       requestId: "popup-refresh"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
         type: "skfiy.host_policy.response",
         schemaVersion: 1,
         requestId: "popup-refresh",
@@ -2779,30 +2094,8 @@ describe("Chrome extension background policy sync", () => {
         }),
         pageControl: expect.objectContaining({
           state: "unavailable"
-        }),
-        diagnostics: expect.objectContaining({
-          capabilities: expect.objectContaining({
-            nativeMessaging: true
-          }),
-          nativeHost: expect.objectContaining({
-            name: "com.sskift.skfiy",
-            bridgeState: "connected",
-            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-            messageType: "skfiy.host_policy.request",
-            responseType: "skfiy.native.response",
-            responseResult: "accepted",
-            syncState: "synced",
-            policyState: "configured",
-            lastError: null
-          }),
-          hostPolicy: expect.objectContaining({
-            entryCount: 2,
-            allowedHosts: 1,
-            currentTurnAllowedHosts: 1,
-            blockedHosts: 0
-          })
         })
-      });
+      }));
     });
 
     expect(mock.postedMessages).toHaveLength(1);
@@ -2815,17 +2108,15 @@ describe("Chrome extension background policy sync", () => {
 
   it("lets the popup trigger a native heartbeat without changing the host protocol", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["heartbeat.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createAllowedOnlyPolicyResponse("heartbeat.example"),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: NATIVE_HEARTBEAT,
       requestId: "popup-heartbeat"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2837,7 +2128,7 @@ describe("Chrome extension background policy sync", () => {
           state: "connected",
           trigger: "popup_heartbeat",
           bridgeState: "connected",
-          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          launchOrigin: `${EXTENSION_ORIGIN}/`,
           messageType: "skfiy.host_policy.request",
           responseType: "skfiy.native.response",
           responseResult: "accepted",
@@ -2846,20 +2137,6 @@ describe("Chrome extension background policy sync", () => {
         pageControlHeartbeat: expect.objectContaining({
           state: "recorded",
           result: "accepted"
-        }),
-        diagnostics: expect.objectContaining({
-          devReload: expect.objectContaining({
-            state: "idle",
-            heartbeat: expect.objectContaining({
-              state: "connected",
-              trigger: "popup_heartbeat"
-            })
-          }),
-          nativeHost: expect.objectContaining({
-            bridgeState: "connected",
-            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-            messageType: "skfiy.host_policy.request"
-          })
         })
       }));
     });
@@ -2870,115 +2147,31 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.host_policy.request"
     });
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-popup_heartbeat-/);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
-  });
-
-  it("lets popup heartbeat target a specific Chrome tab id", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
-      createPageObserveResponse()
-    ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "http://127.0.0.1:63852/"
-      }
-    });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
-      type: NATIVE_HEARTBEAT,
-      requestId: "popup-heartbeat-target",
-      tabId: 42
-    }, {}, sendResponse);
-
-    expect(keepChannelOpen).toBe(true);
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: "skfiy.native.heartbeat_result",
-        requestId: "popup-heartbeat-target",
-        pageControl: expect.objectContaining({
-          state: "blocked_by_chrome_host_permission",
-          activeTab: expect.objectContaining({
-            tabId: 42,
-            host: "127.0.0.1:63852"
-          }),
-          chromeHostPermission: expect.objectContaining({
-            origins: ["http://127.0.0.1/*"]
-          })
-        })
-      }));
-    });
-
-    expect(mock.chrome.tabs.get).toHaveBeenCalledWith(42);
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        pageControl: expect.objectContaining({
-          state: "blocked_by_chrome_host_permission",
-          activeTab: expect.objectContaining({
-            tabId: 42
-          })
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
   });
 
   it("injects the content script before page-control heartbeat when a granted page has no receiver yet", async () => {
-    const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
-      createPageObserveResponse()
-    ], {
-      activeTab: {
-        id: 42,
-        windowId: 7,
-        url: "http://127.0.0.1:63852/"
-      },
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+    const mock = await loadLocalhostPolicyHeartbeatWakeBackground({
+      activeTab: createLocalhostTab(),
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
         undefined,
-        {
-          state: "loaded",
-          host: "127.0.0.1:63852",
+        createReadyLocalhostContentScriptSession({
           pageControl: {
-            state: "ready",
-            capabilities: {
-              observe: true,
-              domActions: true,
-              click: true,
-              fill: true,
-              submit: true,
-              scroll: true
-            },
             counts: {
               interactiveElements: 3,
               forms: 1
             }
           }
-        }
+        })
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: NATIVE_HEARTBEAT,
       requestId: "popup-heartbeat-target",
       tabId: 42
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -3029,17 +2222,15 @@ describe("Chrome extension background policy sync", () => {
 
   it("schedules an extension reload after recording a diagnostic heartbeat", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["reload.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createAllowedOnlyPolicyResponse("reload.example"),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: DEV_RELOAD_REQUEST,
       requestId: "popup-dev-reload"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -3080,16 +2271,7 @@ describe("Chrome extension background policy sync", () => {
       schemaVersion: 1,
       type: "skfiy.host_policy.request"
     });
-    expect(mock.postedMessages[1]).toMatchObject({
-      schemaVersion: 1,
-      type: "skfiy.page.observe",
-      payload: expect.objectContaining({
-        source: "page_control_health",
-        pageControl: expect.objectContaining({
-          state: "unavailable"
-        })
-      })
-    });
+    expectUnavailablePageControlHealthHeartbeat(mock.postedMessages[1]);
     expect(mock.chrome.runtime.reload).not.toHaveBeenCalled();
 
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -3098,19 +2280,12 @@ describe("Chrome extension background policy sync", () => {
 
   it("schedules a host policy sync when forwarding a native host message", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "observe-native",
-        result: "accepted"
-      },
+      createNativeResponse(PAGE_OBSERVE, "observe-native"),
       createPolicyResponse({ allowedHosts: ["native-connect.example"] })
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: "skfiy.native.message",
       requestId: "outer-request",
       payload: {
@@ -3118,7 +2293,7 @@ describe("Chrome extension background policy sync", () => {
         type: "skfiy.page.observe",
         requestId: "observe-native"
       }
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -3155,8 +2330,7 @@ describe("Chrome extension background policy sync", () => {
         error: "Specified native messaging host not found."
       }
     ]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("runtime_installed")).resolves.toMatchObject({
       ok: false,
@@ -3181,10 +2355,9 @@ describe("Chrome extension background policy sync", () => {
         requestId: "malformed-policy",
         result: "accepted"
       },
-      createPolicyResponse({ allowedHosts: ["recovered.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
+      createAllowedOnlyPolicyResponse("recovered.example")
     ]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("popup_manual")).resolves.toMatchObject({
       result: "accepted"

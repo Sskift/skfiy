@@ -5,6 +5,13 @@ import type {
   TurnTranscriptAction,
   TurnTranscriptScreenshot
 } from "./computer-use/turn-transcript.js";
+import { readRecord } from "./record-utils.js";
+import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 1;
 export const RUNTIME_TURN_MARKER_SCHEMA_VERSION = 1;
@@ -52,6 +59,7 @@ export interface RuntimeSnapshot {
   schemaVersion: typeof RUNTIME_SNAPSHOT_SCHEMA_VERSION;
   observedAt: string;
   currentTurn: Record<string, unknown>;
+  routeOutcome: RouteOutcome;
   replay: Record<string, unknown>;
 }
 
@@ -66,6 +74,22 @@ export interface RuntimeSnapshotCurrentTurnInput {
   status?: string;
   message?: string;
   command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
+  routeOutcome?: RouteOutcome;
+  stopTurnBehavior?: RuntimeSnapshotStopTurnBehaviorInput;
+}
+
+export interface RuntimeSnapshotStopTurnBehaviorInput {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 export function createRuntimeSnapshotStatePath(homeDir: string): string {
@@ -93,15 +117,21 @@ export function createRuntimeSnapshotFromReplay({
   currentTurn,
   observedAt = new Date().toISOString()
 }: RuntimeSnapshotInput): RuntimeSnapshot {
+  const explicitRouteOutcome = readRuntimeRouteOutcomeRecord(currentTurn?.routeOutcome);
+
   if (!replay) {
+    const snapshotCurrentTurn = createRuntimeCurrentTurnPanel(currentTurn);
+    const snapshotReplay = {
+      state: "empty",
+      source: "runtime-snapshot"
+    };
+
     return {
       schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
       observedAt,
-      currentTurn: createRuntimeCurrentTurnPanel(currentTurn),
-      replay: {
-        state: "empty",
-        source: "runtime-snapshot"
-      }
+      currentTurn: snapshotCurrentTurn,
+      routeOutcome: explicitRouteOutcome ?? createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+      replay: snapshotReplay
     };
   }
 
@@ -129,7 +159,11 @@ export function createRuntimeSnapshotFromReplay({
       ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {}),
       ...(event.turnId ? { turnId: event.turnId } : {}),
       ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
-      ...(event.route ? { route: event.route } : {})
+      ...(event.route ? { route: event.route } : {}),
+      ...(event.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(event.routeReason) } : {}),
+      ...(event.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(event.denialKind) } : {}),
+      ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {}),
+      ...readRuntimeStopTurnBehaviorField(event.stopTurnBehavior)
     }));
   const verificationCount = replay.transcript.actions
     .filter((action) => action.type === "verify")
@@ -148,6 +182,7 @@ export function createRuntimeSnapshotFromReplay({
     {
       state,
       ...(replay.transcript.command ? { command: sanitizeRuntimeSnapshotText(replay.transcript.command) } : {}),
+      ...readLatestTimelineCurrentTurnFields(latestTimelineEvent),
       ...(latestApp?.name ? { targetApp: latestApp.name } : {}),
       ...(latestApp?.bundleId ? { targetBundleId: latestApp.bundleId } : {}),
       ...(replay.transcript.risk?.level ? { risk: replay.transcript.risk.level } : {}),
@@ -166,26 +201,28 @@ export function createRuntimeSnapshotFromReplay({
     },
     currentTurn
   );
+  const snapshotReplay = {
+    state: "available",
+    outcome: replay.transcript.outcome,
+    screenshotCount: replay.transcript.screenshots.length,
+    actionCount: replay.transcript.actions.length,
+    verificationCount,
+    timelineCount: replay.timeline.length,
+    ...(latestMessage ? { latestMessage } : {}),
+    ...(latestToolCall ? { latestToolCall } : {}),
+    screenshots: screenshotSummaries,
+    actions: actionSummaries,
+    verifications: verificationSummaries,
+    timelineTail,
+    source: "runtime-snapshot"
+  };
 
   return {
     schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
     observedAt,
     currentTurn: snapshotCurrentTurn,
-    replay: {
-      state: "available",
-      outcome: replay.transcript.outcome,
-      screenshotCount: replay.transcript.screenshots.length,
-      actionCount: replay.transcript.actions.length,
-      verificationCount,
-      timelineCount: replay.timeline.length,
-      ...(latestMessage ? { latestMessage } : {}),
-      ...(latestToolCall ? { latestToolCall } : {}),
-      screenshots: screenshotSummaries,
-      actions: actionSummaries,
-      verifications: verificationSummaries,
-      timelineTail,
-      source: "runtime-snapshot"
-    }
+    routeOutcome: explicitRouteOutcome ?? createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+    replay: snapshotReplay
   };
 }
 
@@ -253,6 +290,7 @@ export function readRuntimeSnapshotPanels({
   io
 }: RuntimeSnapshotReadInput): {
   currentTurn: Record<string, unknown>;
+  routeOutcome?: RouteOutcome;
   replay: Record<string, unknown>;
 } {
   if (!homeDir) {
@@ -268,6 +306,7 @@ export function readRuntimeSnapshotPanels({
     const parsed = JSON.parse(io.readFile(snapshotPath)) as unknown;
     const snapshot = readRecord(parsed);
     const currentTurn = readRecord(snapshot?.currentTurn);
+    const routeOutcome = readRuntimeRouteOutcomeRecord(snapshot?.routeOutcome);
     const replay = readRecord(snapshot?.replay);
 
     if (snapshot?.schemaVersion !== RUNTIME_SNAPSHOT_SCHEMA_VERSION || !currentTurn || !replay) {
@@ -276,6 +315,7 @@ export function readRuntimeSnapshotPanels({
 
     return {
       currentTurn: { ...currentTurn },
+      ...(routeOutcome ? { routeOutcome } : {}),
       replay: { ...replay }
     };
   } catch (error) {
@@ -284,6 +324,55 @@ export function readRuntimeSnapshotPanels({
       snapshotPath
     );
   }
+}
+
+function readRuntimeRouteOutcomeRecord(value: unknown): RouteOutcome | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const kind = readRuntimeRouteOutcomeKind(record.kind);
+  const title = readRuntimeRouteOutcomeString(record.title);
+  const outcomeValue = readRuntimeRouteOutcomeString(record.value);
+  const detail = readRuntimeRouteOutcomeString(record.detail);
+  const tone = readRuntimeRouteOutcomeTone(record.tone);
+  const source = readRuntimeRouteOutcomeString(record.source);
+  const routeLabel = readRuntimeRouteOutcomeString(record.routeLabel);
+  const state = readRuntimeRouteOutcomeString(record.state);
+  const denialKind = readRuntimeRouteOutcomeString(record.denialKind);
+  const policyKind = readRuntimeRouteOutcomeString(record.policyKind);
+
+  if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
+    return undefined;
+  }
+
+  return {
+    kind,
+    title,
+    value: outcomeValue,
+    detail,
+    tone,
+    source,
+    routeLabel,
+    state,
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {})
+  };
+}
+
+function readRuntimeRouteOutcomeKind(value: unknown): RouteOutcome["kind"] | undefined {
+  return isRouteOutcomeKind(value) ? value : undefined;
+}
+
+function readRuntimeRouteOutcomeTone(value: unknown): RouteOutcome["tone"] | undefined {
+  return isRouteOutcomeTone(value) ? value : undefined;
+}
+
+function readRuntimeRouteOutcomeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0
+    ? sanitizeRuntimeSnapshotText(value)
+    : undefined;
 }
 
 function createMissingRuntimePanels(
@@ -313,6 +402,10 @@ function readTurnStateFromOutcome(outcome: string): string {
   switch (outcome) {
     case "approval_required":
       return "approval_required";
+    case "needs_confirmation":
+      return "needs_confirmation";
+    case "needs_clarification":
+      return "needs_clarification";
     case "verification_failed":
       return "needs_confirmation";
     case "failed":
@@ -348,6 +441,8 @@ function createRuntimeCurrentTurnPanel(
   return {
     state,
     ...(command ? { command } : {}),
+    ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
+    ...readRuntimeStopTurnBehaviorField(currentTurn?.stopTurnBehavior),
     approvalRequired: state === "approval_required",
     approvalState: state === "approval_required" ? "required" : "not-required",
     stopState: isActiveTurnState(state) ? "available" : "inactive",
@@ -374,6 +469,8 @@ function mergeRuntimeCurrentTurnPanel(
     ...base,
     ...(state ? { state } : {}),
     ...(command ? { command } : {}),
+    ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
+    ...readRuntimeStopTurnBehaviorField(currentTurn.stopTurnBehavior),
     ...(message ? { latestMessage: message } : {}),
     approvalRequired: base.approvalRequired === true || nextState === "approval_required",
     approvalState: base.approvalRequired === true || nextState === "approval_required"
@@ -401,6 +498,39 @@ function readRuntimeCurrentTurnCommand(
   currentTurn?: RuntimeSnapshotCurrentTurnInput
 ): string | undefined {
   return currentTurn?.command ? sanitizeRuntimeSnapshotText(currentTurn.command) : undefined;
+}
+
+function readRuntimeCurrentTurnRouteMetadata(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): Record<string, string> {
+  return {
+    ...(currentTurn?.route ? { route: sanitizeRuntimeSnapshotText(currentTurn.route) } : {}),
+    ...(currentTurn?.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(currentTurn.routeReason) } : {}),
+    ...(currentTurn?.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(currentTurn.denialKind) } : {}),
+    ...(currentTurn?.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(currentTurn.policyKind) } : {})
+  };
+}
+
+function readRuntimeStopTurnBehaviorField(
+  stopTurnBehavior?: RuntimeSnapshotStopTurnBehaviorInput
+): Record<string, Record<string, string>> {
+  if (!stopTurnBehavior) {
+    return {};
+  }
+
+  const behavior = {
+    ...(stopTurnBehavior.result ? { result: sanitizeRuntimeSnapshotText(stopTurnBehavior.result) } : {}),
+    ...(stopTurnBehavior.source ? { source: sanitizeRuntimeSnapshotText(stopTurnBehavior.source) } : {}),
+    ...(stopTurnBehavior.command ? { command: sanitizeRuntimeSnapshotText(stopTurnBehavior.command) } : {}),
+    ...(stopTurnBehavior.beforeStatus ? { beforeStatus: sanitizeRuntimeSnapshotText(stopTurnBehavior.beforeStatus) } : {}),
+    ...(stopTurnBehavior.beforeMessage ? { beforeMessage: sanitizeRuntimeSnapshotText(stopTurnBehavior.beforeMessage) } : {}),
+    ...(stopTurnBehavior.afterStatus ? { afterStatus: sanitizeRuntimeSnapshotText(stopTurnBehavior.afterStatus) } : {}),
+    ...(stopTurnBehavior.afterMessage ? { afterMessage: sanitizeRuntimeSnapshotText(stopTurnBehavior.afterMessage) } : {})
+  };
+
+  return Object.keys(behavior).length > 0
+    ? { stopTurnBehavior: behavior }
+    : {};
 }
 
 function summarizeScreenshot(screenshot: TurnTranscriptScreenshot): Record<string, unknown> {
@@ -560,6 +690,24 @@ function summarizeVerification(
   };
 }
 
+function readLatestTimelineCurrentTurnFields(
+  event: TurnReplay["timeline"][number] | undefined
+): Record<string, unknown> {
+  if (!event) {
+    return {};
+  }
+
+  return {
+    ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {}),
+    ...(event.turnId ? { turnId: event.turnId } : {}),
+    ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+    ...(event.route ? { route: event.route } : {}),
+    ...(event.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(event.routeReason) } : {}),
+    ...(event.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(event.denialKind) } : {}),
+    ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {})
+  };
+}
+
 function sanitizeRuntimeSnapshotText(value: string): string {
   const redacted = value
     .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
@@ -570,6 +718,19 @@ function sanitizeRuntimeSnapshotText(value: string): string {
     : redacted;
 }
 
+function createRuntimeRouteOutcome(
+  currentTurn: Record<string, unknown>,
+  replay: Record<string, unknown>
+): RouteOutcome {
+  return readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "runtime-snapshot",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeRuntimeSnapshotText
+  });
+}
+
 function createDefaultRuntimeSnapshotIo(): RuntimeSnapshotIo {
   return {
     mkdir: async (targetPath) => {
@@ -578,10 +739,4 @@ function createDefaultRuntimeSnapshotIo(): RuntimeSnapshotIo {
     writeFile,
     rename
   };
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }

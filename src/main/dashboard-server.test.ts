@@ -1000,6 +1000,722 @@ describe("dashboard loopback HTTP response helper", () => {
     cleanup();
   });
 
+  it("renders route confirmation distinctly in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "needs_confirmation",
+        source: "runtime-snapshot",
+        approvalState: "required",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        latestMessage: "Confirm before organizing Finder."
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+      const approvalsPanel = document.querySelector('[data-user-panel="approvals"]');
+
+      expect(homePanel?.textContent).toContain("Confirm");
+      expect(homePanel?.textContent).toContain("Route needs confirmation");
+      expect(homePanel?.textContent).toContain("Confirm route");
+      expect(homePanel?.textContent).not.toContain("Approval required");
+      expect(homePanel?.textContent).not.toContain("Review the pending approval");
+      expect(approvalsPanel?.textContent).toContain("Route confirmation: Confirm before organizing Finder.");
+      expect(approvalsPanel?.textContent).not.toContain("Computer Use approval");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders route clarification aliases distinctly in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        timelineTail: [
+          {
+            status: "needs-clarification",
+            routeReason: "No supported desktop control route matched this request."
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Clarify");
+      expect(homePanel?.textContent).toContain("Route needs clarification");
+      expect(homePanel?.textContent).toContain("Clarify route");
+      expect(homePanel?.textContent).toContain("No supported desktop control route matched this request.");
+      expect(homePanel?.textContent).not.toContain("Route state unknown");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders replay-only route completion in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        outcome: "completed",
+        latestToolCall: {
+          route: "chrome",
+          summary: "Chrome page opened."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Done");
+      expect(homePanel?.textContent).toContain("Route completed");
+      expect(homePanel?.textContent).toContain("Chrome page opened.");
+      expect(homePanel?.textContent).not.toContain("Ready for an agent task");
+      expect(homePanel?.textContent).not.toContain("Ready for the next agent task");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("normalizes explicit route outcome kind aliases in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      routeOutcome: {
+        kind: "passed",
+        state: "verified",
+        value: "passed",
+        detail: "Chrome page action passed."
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Done");
+      expect(homePanel?.textContent).toContain("Route completed");
+      expect(homePanel?.textContent).toContain("Chrome page action passed.");
+      expect(homePanel?.textContent).not.toContain("Route state unknown");
+      expect(homePanel?.textContent).not.toContain("Ready for an agent task");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it.each([
+    [
+      "current-turn completion alias",
+      {
+        currentTurn: {
+          state: "passed",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Chrome page action passed."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Done",
+        expectedTitle: "Route completed",
+        expectedNext: "Route completed",
+        expectedDetail: "Chrome page action passed.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "replay failure alias",
+      {
+        currentTurn: {},
+        replay: {
+          state: "available",
+          source: "runtime-snapshot",
+          latestToolCall: {
+            route: "chrome",
+            status: "error",
+            summary: "Chrome action returned an error."
+          }
+        },
+        expectedLabel: "Failed",
+        expectedTitle: "Route failed",
+        expectedNext: "Review route failure",
+        expectedDetail: "Chrome action returned an error.",
+        unexpectedTitle: "Ready for an agent task"
+      }
+    ],
+    [
+      "approval alias",
+      {
+        currentTurn: {
+          state: "requires-approval",
+          source: "runtime-snapshot",
+          route: "finder",
+          latestMessage: "Finder file moves need review."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Approval",
+        expectedTitle: "Route approval required",
+        expectedNext: "Review pending approval",
+        expectedDetail: "Finder file moves need review.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "app-policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked-by-app-policy",
+          source: "runtime-snapshot",
+          route: "ghostty",
+          latestMessage: "Ghostty is denied by app policy.",
+          approvalRequired: true
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Policy denied",
+        expectedTitle: "App policy denied route",
+        expectedNext: "Review app policy denial",
+        expectedDetail: "Ghostty is denied by app policy.",
+        unexpectedTitle: "Approval required"
+      }
+    ],
+    [
+      "Chrome host policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked_by_chrome_host_policy",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Chrome policy denied",
+        expectedTitle: "Chrome host policy denied route",
+        expectedNext: "Review Chrome host policy denial",
+        expectedDetail: "Chrome host policy blocked this approved task: blocked.example",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "pageControl host policy denial alias",
+      {
+        currentTurn: {
+          state: "blocked_by_host_policy",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Host policy blocked this approved page action."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Chrome policy denied",
+        expectedTitle: "Chrome host policy denied route",
+        expectedNext: "Review Chrome host policy denial",
+        expectedDetail: "Host policy blocked this approved page action.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "user denial alias",
+      {
+        currentTurn: {
+          state: "denied-by-user",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "User denied this browser mutation."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Denied",
+        expectedTitle: "User denied route",
+        expectedNext: "Route denied by user",
+        expectedDetail: "User denied this browser mutation.",
+        unexpectedTitle: "Route state unknown"
+      }
+    ],
+    [
+      "canceled alias",
+      {
+        currentTurn: {
+          state: "canceled",
+          source: "runtime-snapshot",
+          route: "chrome",
+          latestMessage: "Browser task canceled before execution."
+        },
+        replay: { state: "available", source: "runtime-snapshot" },
+        expectedLabel: "Cancelled",
+        expectedTitle: "Route cancelled",
+        expectedNext: "Route cancelled",
+        expectedDetail: "Browser task canceled before execution.",
+        unexpectedTitle: "Route failed"
+      }
+    ]
+  ])("normalizes route aliases in the fallback Home panel for %s", async (_label, fixture) => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: fixture.currentTurn,
+      replay: fixture.replay,
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain(fixture.expectedLabel);
+      expect(homePanel?.textContent).toContain(fixture.expectedTitle);
+      expect(homePanel?.textContent).toContain(fixture.expectedNext);
+      expect(homePanel?.textContent).toContain(fixture.expectedDetail);
+      expect(homePanel?.textContent).not.toContain(fixture.unexpectedTitle);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders replay verification failures as route confirmation in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {},
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        transcript: {
+          outcome: "verification_failed"
+        },
+        latestToolCall: {
+          route: "ghostty",
+          summary: "Completion marker was not observed."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Confirm");
+      expect(homePanel?.textContent).toContain("Route needs confirmation");
+      expect(homePanel?.textContent).toContain("Confirm route");
+      expect(homePanel?.textContent).toContain("Completion marker was not observed.");
+      expect(homePanel?.textContent).not.toContain("Route failed");
+      expect(homePanel?.textContent).not.toContain("Review route failure");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("redacts fallback route outcome details before rendering the Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        source: "runtime-snapshot",
+        route: "chrome",
+        targetApp: "/Users/tester/Profile token=target-secret"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied token=secret-token",
+        detail: "Chrome route denied by app policy at /Users/tester/Profile with token=secret-token and Bearer abc.def",
+        state: "blocked"
+      },
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        latestToolCall: {
+          route: "chrome",
+          summary: "Chrome route denied by app policy at /Users/tester/Profile with token=secret-token."
+        }
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+      const text = homePanel?.textContent ?? "";
+
+      expect(text).toContain("Policy denied");
+      expect(text).toContain("App policy denied route");
+      expect(text).toContain("token=[redacted]");
+      expect(text).toContain("Bearer [redacted]");
+      expect(text).toContain("[path]");
+      expect(text).not.toContain("secret-token");
+      expect(text).not.toContain("target-secret");
+      expect(text).not.toContain("abc.def");
+      expect(text).not.toContain("/Users/tester");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders pending approval before running state in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "running",
+        source: "runtime-snapshot",
+        route: "finder",
+        approvalState: "pending",
+        approvalRequired: true,
+        command: "organize Downloads",
+        latestMessage: "Finder file moves need review."
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Approval");
+      expect(homePanel?.textContent).toContain("Route approval required");
+      expect(homePanel?.textContent).toContain("Review pending approval");
+      expect(homePanel?.textContent).not.toContain("Route running");
+      expect(homePanel?.textContent).not.toContain("Monitor running route");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps Task stopped visible in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "cancelled",
+        source: "runtime-snapshot",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Stopped");
+      expect(homePanel?.textContent).toContain("Route stopped");
+      expect(homePanel?.textContent).toContain("Task stopped");
+      expect(homePanel?.textContent).not.toContain("Ready for the next agent task");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders Chrome host policy denial distinctly in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        source: "runtime-snapshot",
+        route: "chrome",
+        policyKind: "chrome-host-policy",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Chrome policy denied");
+      expect(homePanel?.textContent).toContain("Chrome host policy denied route");
+      expect(homePanel?.textContent).toContain("Review Chrome host policy denial");
+      expect(homePanel?.textContent).not.toContain("Route blocked");
+      expect(homePanel?.textContent).not.toContain("Resolve route blocker");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it.each([
+    {
+      label: "app-policy",
+      currentTurn: {
+        state: "denied",
+        source: "runtime-snapshot",
+        route: "finder",
+        policyKind: "app-policy",
+        routeReason: "Finder is denied by app policy.",
+        latestMessage: "Finder is denied by app policy."
+      },
+      expectedLabel: "Policy denied",
+      expectedTitle: "App policy denied route",
+      expectedNextAction: "Review app policy denial"
+    },
+    {
+      label: "Chrome host policy",
+      currentTurn: {
+        state: "denied",
+        source: "runtime-snapshot",
+        route: "chrome",
+        policyKind: "chrome-host-policy",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      expectedLabel: "Chrome policy denied",
+      expectedTitle: "Chrome host policy denied route",
+      expectedNextAction: "Review Chrome host policy denial"
+    }
+  ])("renders denied $label metadata distinctly in the fallback Home panel", async ({
+    currentTurn,
+    expectedLabel,
+    expectedTitle,
+    expectedNextAction
+  }) => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn,
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain(expectedLabel);
+      expect(homePanel?.textContent).toContain(expectedTitle);
+      expect(homePanel?.textContent).toContain(expectedNextAction);
+      expect(homePanel?.textContent).not.toContain("User denied route");
+      expect(homePanel?.textContent).not.toContain("Route denied by user");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders blocked user denial metadata distinctly in the fallback Home panel", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:01:00.000Z"
+        },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "blocked",
+        source: "runtime-snapshot",
+        route: "finder",
+        denialKind: "user",
+        latestMessage: "User denied this Finder organization request.",
+        command: "organize Downloads"
+      },
+      replay: { state: "available", source: "runtime-snapshot" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const homePanel = document.querySelector('[data-user-panel="home"]');
+
+      expect(homePanel?.textContent).toContain("Denied");
+      expect(homePanel?.textContent).toContain("User denied route");
+      expect(homePanel?.textContent).toContain("Route denied by user");
+      expect(homePanel?.textContent).not.toContain("Route blocked");
+      expect(homePanel?.textContent).not.toContain("Resolve route blocker");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("renders runtime snapshot empty state without treating fresh installs as stale", async () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const cleanup = await renderDashboardHtmlWithSnapshot({
@@ -1221,6 +1937,8 @@ describe("dashboard loopback HTTP response helper", () => {
           currentTurn: {
             state: "approval_required",
             source: "runtime-snapshot",
+            route: "chrome",
+            routeReason: "Chrome navigation changes browser state.",
             targetApp: "Chrome token=secret-token",
             risk: "medium",
             approvalState: "pending",
@@ -1295,6 +2013,16 @@ describe("dashboard loopback HTTP response helper", () => {
           risk: "medium",
           approvalState: "pending"
         },
+        routeOutcome: {
+          kind: "approval_required",
+          title: "Route approval required",
+          value: "approval_required",
+          state: "approval_required",
+          detail: "Chrome navigation changes browser state.",
+          tone: "warning",
+          source: "runtime-snapshot",
+          routeLabel: "chrome"
+        },
         replay: {
           state: "available",
           source: "runtime-snapshot",
@@ -1365,6 +2093,8 @@ describe("dashboard loopback HTTP response helper", () => {
           port: 8787
         },
         currentTurnState: "approval_required",
+        routeOutcomeKind: "approval_required",
+        routeOutcomeState: "approval_required",
         replayState: "available",
         readinessState: "needs-evidence",
         alertCount: 1,
@@ -1901,7 +2631,7 @@ describe("dashboard loopback HTTP response helper", () => {
       },
       readdir: () => [],
       stat: (targetPath: string) => ({
-        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-06-23T10:00:00.000Z") : 0
+        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-07-07T10:00:00.000Z") : 0
       }),
       homeDir: () => "/Users/tester",
       pid: () => 4242,
@@ -2208,6 +2938,38 @@ describe("dashboard loopback HTTP response helper", () => {
         expect.objectContaining({ id: "communication-style" })
       ]));
       expect(snapshot.personalMemory?.personalSkills).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "dashboard-knowledge-surface" })
+      ]));
+
+      const unmuted = await requestUrl(`${dashboard.url}api/personal-skills`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "unmute",
+          skillId: "dashboard-knowledge-surface"
+        })
+      });
+
+      expect(unmuted.status).toBe(200);
+      expect(JSON.parse(unmuted.body)).toMatchObject({
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "unmuted",
+        personalSkills: {
+          disabledSkillIds: [],
+          mutedSkillCount: 0
+        }
+      });
+      expect(JSON.parse(files[personalSkillsPath])).toMatchObject({
+        disabledSkillIds: []
+      });
+      expect(unmuted.body).not.toContain("Obsidian-like knowledge surfaces");
+
+      const unmutedSnapshotResponse = await requestUrl(`${dashboard.url}snapshot.json`);
+      const unmutedSnapshot = JSON.parse(unmutedSnapshotResponse.body) as DashboardSnapshot;
+      expect(unmutedSnapshot.personalMemory?.mutedPersonalSkillIds ?? []).toEqual([]);
+      expect(unmutedSnapshot.personalMemory?.personalSkills).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: "dashboard-knowledge-surface" })
       ]));
 

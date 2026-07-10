@@ -1,20 +1,17 @@
 # skfiy
 
-skfiy is a local-first macOS desktop pet that fronts a Background Agent, with a
-packaged CLI, local Dashboard, and app adapters for local experiments. The pet's
-primary job is ordinary assistant conversation through a selected provider
-(Codex, Claude Code, or Hermes). When the Background Agent explicitly asks
-skfiy for desktop control, skfiy turns that bounded intent into a permissioned
-Computer Use tool request, checks app policy, permissions, risk, and approval,
-and then records replay evidence.
-
-Ghostty, Chromium/Chrome, Finder, screenshots, and tmux supervision are the
-current product routes for Computer Use evidence; generic visible-app control
+skfiy is an agent-first macOS Computer Use runtime with a pixel desktop pet,
+packaged CLI, local dashboard, and app adapters for local experiments. It is
+designed around explicit desktop routes: observe supported
+macOS app fixtures, decide the next action, execute clicks, typing, dragging,
+and hotkeys, then verify the result from screenshots, OCR, accessibility
+metadata, and replay events. Ghostty, Chromium/Chrome, Finder, screenshots, and
+tmux supervision are the current product routes; generic visible-app control
 remains a design direction until it has an adapter contract and real smoke
-evidence.
+result.
 
 The first version keeps the public surface narrow while the control loop is
-hardened: the desktop pet opens the Background Agent, app policy gates any
+hardened: the desktop pet opens the background agent, app policy gates any
 desktop-control intent, Computer Use is a tool the agent can invoke, and task
 state remains visible in the floating companion. The pet art is now
 manifest-driven and separate from the backend: skfiy first looks for a local
@@ -22,67 +19,47 @@ manifest-driven and separate from the backend: skfiy first looks for a local
 then falls back to bundled original skins when no local origin art has been
 imported.
 
-## Current Local Evidence
+## Smoke Policy
 
-Use the short git commit in local artifact file names. For the current machine,
-Finder Automation has passed with the compiled `skfiy.app` identity; if a future
-Finder smoke blocks, classify the artifact by domain instead of treating every
-Finder failure as an Automation grant problem.
+Default smoke runs are output-free and report typed results on stdout. Use
+`--output .skfiy-smoke/<name>.json` only for explicit release, dogfood, or
+debugging evidence capture.
 
-- UI permission and pet drag smoke: passed,
-  `.skfiy-smoke/ui-<commit>.json`.
-- Ghostty terminal-adapter smoke: passed,
-  `.skfiy-smoke/ghostty-<commit>.json`.
-- Chromium/Chrome Computer Use smoke: passed,
-  `.skfiy-smoke/chrome-<commit>.json`.
-- Binary CLI command matrix smoke: repeatable product gate,
-  `.skfiy-smoke/cli-<commit>.json`.
-- Dashboard CLI smoke: repeatable product gate,
-  `.skfiy-smoke/dashboard-<commit>.json`.
-- Codex plugin MCP smoke: packaged CLI product gate,
-  `.skfiy-smoke/codex-plugin-<commit>.json`.
-- Long-horizon `money-run` tmux supervision smoke: passed,
-  `.skfiy-smoke/money-run-<commit>.json`.
-- Finder item drag/drop smoke: passed for the Automation grant path,
-  `.skfiy-smoke/finder-automation-granted-passed.json`.
-
-Finder desktop-session blockers are separate from Screen Recording,
-Accessibility, and Finder Automation. If the artifact reports
-`com.apple.loginwindow` or display sleep, unlock the Mac and keep the display
-awake first; if it reports an Automation blocker, grant the compiled
-`skfiy.app` permission to control Finder and rerun:
+Run Finder smoke from an unlocked, awake desktop. If it reports
+`com.apple.loginwindow`, unlock the Mac and keep the display awake first; if it
+then reports an Automation blocker, grant the compiled `skfiy.app` permission to
+control Finder and rerun:
 
 ```bash
-npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
+npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed
 ```
 
-Alpha artifact generation is intentionally separate from local smoke evidence.
-After the required smokes pass for a commit, generate release/dogfood artifacts
-with the alpha script instead of keeping stale zips around:
+Alpha artifact generation is intentionally separate from default local smoke
+runs. After the required smokes pass for a commit, generate release/dogfood
+artifacts with the alpha script instead of keeping stale zips around:
 
 ```bash
 npm run alpha:artifact
 ```
 
-Generated evidence directories are ignored by git. Keep only the current commit
-artifacts needed for active debugging and dogfood status; old alpha zips,
-historic smoke output, stale dogfood downloads, `.DS_Store`, and helper build
-caches can be deleted locally.
+Generated evidence directories are ignored by git. Keep only the files needed
+for active debugging, release, or dogfood status; old alpha zips, historic
+smoke output, stale dogfood downloads, `.DS_Store`, and helper build caches can
+be deleted locally.
 
 ## Documentation Map
 
-- [docs/README.md](docs/README.md): repository documentation index, archive
+- [docs/README.md](docs/README.md): repository documentation index, single-plan
   policy, and local artifact cleanup rules.
 - [docs/development-workflow.md](docs/development-workflow.md): mandatory
   product-path testing contract for user-visible work.
 - [docs/internal-alpha-build.md](docs/internal-alpha-build.md): unsigned alpha
   artifact, GitHub pre-release, dogfood, and cohort workflow.
-- [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): canonical
-  extension install, native host setup, Browser Context readiness, permission
-  recovery, and bridge diagnostics.
-Research notes are not a live task source. Keep dated research only while it has
-open product value; once a pattern is represented by the active plan,
-canonical docs, and tests, delete the note instead of letting it drift.
+- [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): manual
+  unpacked extension install, native host setup, and bridge diagnostics.
+- Historical research and implementation notes are not kept as live repo
+  checklists. Fold durable operational instructions back into the README or
+  workflow docs.
 
 ## MVP Scope
 
@@ -207,32 +184,23 @@ The pet opens the background agent. The agent can answer, clarify, refuse, or
 ask skfiy to run a desktop-control intent. Computer Use is not a competing
 mode; it is the permissioned tool layer the agent calls for app control.
 
-By default the Background Agent uses Codex through `codex exec`. Configure the
+By default the background agent uses Codex through `codex exec`. Configure the
 provider explicitly when dogfooding another CLI:
 
 - `SKFIY_ASSISTANT_AGENT=codex` to route pet chat through `codex exec`.
 - `SKFIY_ASSISTANT_AGENT=claude-code` to route pet chat through `claude --print`.
-- `SKFIY_ASSISTANT_AGENT=hermes` to route pet chat through bounded Hermes chat.
-- `SKFIY_CODEX_BIN=/path/to/codex`, `SKFIY_CLAUDE_CODE_BIN=/path/to/claude`, or
-  `SKFIY_HERMES_BIN=/path/to/hermes` when the binaries are not on the app's
-  launch `PATH`.
+- `SKFIY_CODEX_BIN=/path/to/codex` or `SKFIY_CLAUDE_CODE_BIN=/path/to/claude`
+  when the binaries are not on the app's launch `PATH`.
 - `SKFIY_ASSISTANT_AGENT_CWD=/some/workdir` to choose the agent working
   directory.
 - `SKFIY_ASSISTANT_AGENT_TIMEOUT_MS=45000` to tune the bounded response wait.
 
-CLI providers are invoked as bounded, non-interactive background answerers with
-the skfiy identity prompt injected. Codex runs with a read-only sandbox and
-`approval_policy="never"`; Claude Code runs in print mode with tools disabled;
-Hermes uses bounded chat settings and must not use `--oneshot` or `--yolo`.
-They must not directly execute desktop actions from the pet chat path. Explicit
-app-control intents are still admitted by skfiy, checked against app policy, and
-executed by skfiy's Computer Use orchestrators.
-
-Provider readiness is deliberately conservative. A discovered binary or version
-probe is reported as `version-ok`; only a bounded dry-run chat response is
-`chat-ready`. Auth, quota, or permission failures stay typed as provider
-blockers so the pet and Dashboard do not imply that a provider can answer when
-only the executable was found.
+Both CLI providers are invoked as bounded, non-interactive background answerers:
+Codex runs with a read-only sandbox and `approval_policy="never"`; Claude Code
+runs in print mode with tools disabled. They must not directly execute desktop
+actions from the pet chat path. Explicit app-control intents are still admitted
+by skfiy, checked against app policy, and executed by skfiy's Computer Use
+orchestrators.
 
 ## Safety Model
 
@@ -264,10 +232,7 @@ helpers only.
 The local dashboard is an audit plane, not the primary pet UI. It binds to
 `127.0.0.1`, keeps tokens out of stdout by default, and exposes runtime health,
 permissions, current turn, replay, smoke evidence, extension state, and
-long-horizon supervision. Its first screen is an operator workspace for
-Background Agent provider readiness, Browser Context, Computer Use tool status,
-permission actions, and build/smoke evidence; the graph is an auxiliary evidence
-view, not the homepage center. The extension state currently includes packaged CLI
+long-horizon supervision. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
 heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
 `/api/chrome-host-policy` so local operator flows can show, set, and reset the
@@ -289,30 +254,15 @@ launcher response. It also writes
 `~/Library/Application Support/skfiy/dashboard-server.json`, so
 `skfiy status --json` and `skfiy doctor --json` can auto-discover the current
 dashboard, verify the recorded PID, and probe the descriptor plus
-`/api/chrome-host-policy` without requiring `--dashboard-url`. The descriptor
-also records a build identity. A reachable loopback dashboard with a mismatched
-build identity is `stale-dashboard-build-mismatch`, not ready.
-
+`/api/chrome-host-policy` without requiring `--dashboard-url`.
 Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
 display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
-evidence, stale dashboard builds, release drift, Browser Context host-policy or
-Chrome optional-permission blockers, Background Agent auth blockers, and
-money-run panes that need operator attention. The dashboard also reads the
-latest Finder smoke artifact so a desktop-preflight blocker such as
-`com.apple.loginwindow` is shown as `finder-automation-unproven` instead of
-being misread as a Finder Automation grant failure. The dashboard shell groups
-those alerts into Desktop session, Permissions, Chrome bridge, Smoke evidence,
-Release drift, and Runtime snapshot bands so operators see the failing domain
-before opening raw JSON.
-
-Automation monitors are skfiy-owned app-process schedulers. Dashboard
-`run-now` calls are bounded, read-only one-shots and report
-`mutatesSession: false`; they do not prove that a background scheduler is still
-running. Monitor rows include scheduler state, last check, next check, last
-result, observed tmux session, and session-mutation evidence. If persisted state
-says the last result was observing but the app-process scheduler is inactive,
-the Dashboard and CLI must report the monitor as scheduler-inactive instead of
-currently observing.
+evidence, and release drift. The dashboard also reads the latest Finder smoke
+artifact so a desktop-preflight blocker such as `com.apple.loginwindow` is shown
+as `finder-automation-unproven` instead of being misread as a Finder Automation
+grant failure. The dashboard shell groups those alerts into Desktop session,
+Permissions, Chrome bridge, Smoke evidence, Release drift, and Runtime snapshot
+bands so operators see the failing domain before opening raw JSON.
 
 The Chrome smoke now also records `installedExtensionRun`; on this machine it is
 a known blocker because branded `Google Chrome` 146 no longer honors automated
@@ -439,16 +389,23 @@ npm run build
 ./dist/skfiy commands --json
 ./dist/skfiy status --json
 ./dist/skfiy doctor --json
-npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
-npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
-npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
-npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
-npm run smoke:cli:basic -- --output .skfiy-smoke/cli-basic.json
-npm run smoke:cli -- --output .skfiy-smoke/cli-command-matrix.json
-npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
-npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json
-npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
-npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json
+npm run smoke:desktop-session
+npm run smoke:ui
+npm run smoke:ghostty -- --matrix
+npm run smoke:chrome
+npm run smoke:cli:basic
+npm run smoke:cli
+npm run smoke:dashboard
+npm run smoke:codex-plugin
+npm run smoke:finder -- --item-drag-drop
+npm run smoke:money-run
+```
+
+For release or dogfood evidence capture, rerun the required smoke commands with
+commit-scoped `--output .skfiy-smoke/...` paths, then generate the alpha
+artifact:
+
+```bash
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-matrix.json \
@@ -610,9 +567,9 @@ treat locked console, `com.apple.loginwindow`, display sleep, or black-screen
 evidence as desktop-session blockers.
 `dogfood:status` validates that the tracking issue body still includes `Desktop Session Preflight`
 and adds a refresh command when that guidance is missing.
-A stale `docs/release-evidence/latest-alpha.json` now blocks collect readiness, so
-`dogfood:status` will keep returning waiting status until the release evidence
-points at the selected alpha.
+A stale local `docs/release-evidence/latest-alpha.json` blocks collect readiness,
+so `dogfood:status` will keep returning waiting status until the release
+evidence points at the selected alpha or is regenerated for the current release run.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.

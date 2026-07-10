@@ -1,5 +1,10 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
+import { readRecord } from "./record-utils.js";
+import {
+  readExplicitRouteOutcome,
+  readRouteOutcome
+} from "../shared/route-outcome.js";
 
 export interface DashboardOperatorEvidenceInput {
   descriptor: DashboardDescriptor;
@@ -36,6 +41,16 @@ export function createDashboardOperatorEvidence({
   const readiness = summarizeReadiness(readRecord(snapshot.operatorReadiness));
   const currentTurn = summarizeCurrentTurn(readRecord(snapshot.currentTurn));
   const replay = summarizeReplay(readRecord(snapshot.replay));
+  const inferredRouteOutcome = readRouteOutcome({
+    currentTurn: readRecord(snapshot.currentTurn),
+    replay: readRecord(snapshot.replay),
+    defaultSource: "current-turn",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeText
+  });
+  const routeOutcome = readExplicitRouteOutcome(snapshot.routeOutcome, inferredRouteOutcome, {
+    sanitizeString: sanitizeText
+  }) ?? inferredRouteOutcome;
 
   return {
     schemaVersion: 1,
@@ -55,6 +70,7 @@ export function createDashboardOperatorEvidence({
       schemaVersion: snapshot.schemaVersion,
       generatedAt: sanitizeText(snapshot.generatedAt),
       currentTurn,
+      routeOutcome,
       replay,
       readiness,
       alerts,
@@ -67,6 +83,11 @@ export function createDashboardOperatorEvidence({
       dashboardUrl: descriptor.url,
       bind: { ...descriptor.bind },
       currentTurnState: currentTurn.state,
+      routeOutcomeKind: routeOutcome.kind,
+      routeOutcomeState: routeOutcome.state,
+      routeOutcomeRouteLabel: routeOutcome.routeLabel,
+      routeOutcomeDenialKind: routeOutcome.denialKind,
+      routeOutcomePolicyKind: routeOutcome.policyKind,
       replayState: replay.state,
       readinessState: readiness.state,
       alertCount: alerts.total,
@@ -90,7 +111,8 @@ function summarizeCurrentTurn(turn: Record<string, unknown> | undefined): Record
     targetApp: readSafeString(turn?.targetApp),
     risk: readSafeString(turn?.risk),
     approvalState: readSafeString(turn?.approvalState),
-    stopState: readSafeString(turn?.stopState)
+    stopState: readSafeString(turn?.stopState),
+    latestAction: summarizeEvidenceAction(readRecord(turn?.latestAction))
   });
 }
 
@@ -100,8 +122,49 @@ function summarizeReplay(replay: Record<string, unknown> | undefined): Record<st
     source: readSafeString(replay?.source),
     screenshotCount: readFiniteNumber(replay?.screenshotCount),
     actionCount: readFiniteNumber(replay?.actionCount),
-    verificationCount: readFiniteNumber(replay?.verificationCount)
+    verificationCount: readFiniteNumber(replay?.verificationCount),
+    latestAction: summarizeEvidenceAction(readRecordArray(replay?.actions).at(-1))
   });
+}
+
+function summarizeEvidenceAction(action: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!action) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {};
+  const allowedKeys = [
+    "type",
+    "route",
+    "status",
+    "decision",
+    "reason",
+    "summary",
+    "evidenceSummary",
+    "artifactCount",
+    "operationCount",
+    "destructiveOperationCount",
+    "createFolderCount",
+    "moveFileCount",
+    "selectedCount",
+    "source",
+    "textLength",
+    "key",
+    "action",
+    "stage",
+    "message"
+  ];
+
+  for (const key of allowedKeys) {
+    const value = action[key];
+    if (typeof value === "string") {
+      summary[key] = sanitizeText(value);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      summary[key] = value;
+    }
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 function summarizeReadiness(readiness: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -258,12 +321,6 @@ function countStrings(values: string[]): Record<string, number> {
   }, {});
 }
 
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-}
-
 function readSafeString(value: unknown, fallback?: string): string | undefined {
   if (typeof value !== "string" || value.length === 0) {
     return fallback;
@@ -275,6 +332,12 @@ function readSafeString(value: unknown, fallback?: string): string | undefined {
 function readSafeStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((entry) => readSafeString(entry)).filter((entry): entry is string => Boolean(entry))
+    : [];
+}
+
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map((entry) => readRecord(entry)).filter((entry): entry is Record<string, unknown> => Boolean(entry))
     : [];
 }
 
@@ -292,7 +355,8 @@ function sanitizeText(value: string): string | undefined {
   const sanitized = value
     .replace(SECRET_QUERY_PATTERN, "$1redacted-secret")
     .replace(SECRET_TEXT_PATTERN, "redacted-secret")
-    .replace(AUTH_HEADER_PATTERN, "redacted-secret");
+    .replace(AUTH_HEADER_PATTERN, "redacted-secret")
+    .replace(/(?:\/Users\/[^\s]+|\/tmp\/[^\s]+|\/var\/[^\s]+|\/repo\/[^\s]+)/g, "[path]");
 
   return sanitized.length > 0 ? sanitized : undefined;
 }

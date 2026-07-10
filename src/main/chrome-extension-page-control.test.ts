@@ -7,13 +7,13 @@ import type { ChromeAppleEventsTab } from "./chrome-extension-page-control";
 import type { ChromeNativeHostIo } from "./chrome-native-host";
 
 const EXTENSION_ID = "plcpkkhlcacihjfohlojdknnkademlno";
-const GENERATED_AT = "2026-06-21T10:10:00.000Z";
+const GENERATED_AT = "2026-07-10T10:10:00.000Z";
 
 function createConnectionRecord(overrides: Record<string, unknown>): string {
   return `${JSON.stringify({
     schemaVersion: 1,
     hostName: "com.sskift.skfiy",
-    observedAt: "2026-06-21T10:09:59.900Z",
+    observedAt: "2026-07-10T10:09:59.900Z",
     launchOrigin: `chrome-extension://${EXTENSION_ID}/`,
     messageType: "skfiy.page.observe",
     requestId: "page-control-health-popup_wake-1",
@@ -33,7 +33,7 @@ describe("Chrome extension page control invoker", () => {
         requestId: "popup-observe-native-1",
         pageObservation: {
           title: "skfiy observe smoke",
-          visibleText: "skfiy observe live smoke 2026-06-21 compiled binary path"
+          visibleText: "skfiy observe live smoke compiled binary path"
         }
       }),
       createConnectionRecord({ requestId: "page-control-health-after" })
@@ -129,7 +129,7 @@ describe("Chrome extension page control invoker", () => {
           state: "ready"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.screenshot",
           requestId: "popup-screenshot-native-1",
           pageScreenshot: {
@@ -187,7 +187,7 @@ describe("Chrome extension page control invoker", () => {
           state: "ready"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.action",
           requestId: "page-control-fill-cli-previous",
           pageActionResult: {
@@ -300,7 +300,7 @@ describe("Chrome extension page control invoker", () => {
           state: "partial"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.action",
           requestId: "page-control-fill-cli-current",
           pageActionResult: {
@@ -366,7 +366,7 @@ describe("Chrome extension page control invoker", () => {
           ]
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.action",
           requestId: "page-control-fill-cli-current",
           pageActionResult: {
@@ -469,7 +469,7 @@ describe("Chrome extension page control invoker", () => {
           state: "ready"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.action",
           requestId: "page-control-fill-cli-current",
           pageActionResult: {
@@ -520,7 +520,7 @@ describe("Chrome extension page control invoker", () => {
           state: "ready"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:09:59.999Z",
+          observedAt: "2026-07-10T10:09:59.999Z",
           messageType: "skfiy.page.screenshot",
           requestId: "popup-screenshot-native-old",
           pageScreenshot: {
@@ -608,7 +608,7 @@ describe("Chrome extension page control invoker", () => {
           state: "ready"
         },
         latestCommand: {
-          observedAt: "2026-06-21T10:10:00.100Z",
+          observedAt: "2026-07-10T10:10:00.100Z",
           messageType: "skfiy.page.screenshot",
           requestId: "popup-screenshot-native-1",
           pageScreenshot: {
@@ -744,7 +744,7 @@ describe("Chrome extension page control invoker", () => {
         messageType: "skfiy.page.observe",
         requestId: "page-control-health-popup_wake-1",
         latestCommand: {
-          observedAt: "2026-06-21T10:09:59.000Z",
+          observedAt: "2026-07-10T10:09:59.000Z",
           messageType: "skfiy.page.screenshot"
         }
       })),
@@ -817,7 +817,7 @@ describe("Chrome extension page control invoker", () => {
         messageType: "skfiy.page.observe",
         requestId: "page-control-health-popup_wake-1",
         latestCommand: {
-          observedAt: "2026-06-21T10:10:01.000Z",
+          observedAt: "2026-07-10T10:10:01.000Z",
           messageType: "skfiy.tabs.discover",
           requestId: "tabs-discover-cli-test",
           pageTabs: {
@@ -884,7 +884,7 @@ describe("Chrome extension page control invoker", () => {
         messageType: "skfiy.page.observe",
         requestId: "page-control-health-popup_wake-1",
         latestCommand: {
-          observedAt: "2026-06-21T10:10:01.000Z",
+          observedAt: "2026-07-10T10:10:01.000Z",
           messageType: "skfiy.tabs.discover",
           requestId: "tabs-discover-cli-stale",
           pageTabs: {

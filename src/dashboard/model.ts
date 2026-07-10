@@ -4,11 +4,23 @@ import type {
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
   DashboardPendingPersonalMemoryWrite,
+  DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemoryJournalEntry,
+  DashboardPersonalSkillActionResponse,
   DashboardPersonalMemoryUsageBucket,
   DashboardProviderSummary,
   DashboardSnapshot
 } from "./contracts";
+import {
+  readExplicitRouteOutcome,
+  readRouteOutcome as readSharedRouteOutcome,
+  type RouteOutcome,
+  type RouteOutcomeKind
+} from "../shared/route-outcome.js";
+import {
+  DASHBOARD_RUNTIME_SNAPSHOT_STALE_SECONDS,
+  type DashboardRuntimeSnapshotFreshnessState
+} from "../shared/dashboard-runtime.js";
 
 export type Tone = "success" | "warning" | "danger" | "neutral";
 
@@ -16,6 +28,28 @@ export interface DashboardStatusItem {
   label: string;
   value: string;
   tone: Tone;
+}
+
+export interface DashboardCommandHint {
+  id: string;
+  label: string;
+  command: string;
+  mutates: boolean;
+}
+
+export interface DashboardChromeSetupGuideSummary {
+  source: string;
+  nativeHostState: string;
+  liveConnectionState: string;
+  nextActions: string[];
+  commands: DashboardCommandHint[];
+}
+
+export interface DashboardMutationReceipt {
+  title: string;
+  result: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
 }
 
 export interface DashboardReadinessSummary {
@@ -39,8 +73,29 @@ export interface DashboardUserAttentionSummary extends DashboardOperatorScanSumm
   source: string;
 }
 
+export interface DashboardOperatorReadinessChecks {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardRuntimeHealthSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardComputerUseReadiness {
   desktop: {
+    value: string;
+    detail: string;
+    tone: Tone;
+  };
+  permissionSummary: {
     value: string;
     detail: string;
     tone: Tone;
@@ -58,12 +113,46 @@ export interface DashboardAppReadinessLane {
   tone: Tone;
 }
 
+export interface DashboardSmokeArtifactDetail {
+  id: string;
+  title: string;
+  value: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardSmokeArtifactInventory {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardDogfoodSummary {
   releaseState: string;
   releaseDriftState: string;
   cohortLabel: string;
   detail: string;
   tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardAlertGroup {
+  id: "desktop" | "permissions" | "chrome" | "evidence" | "release" | "runtime" | "other";
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardAlertGroupSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  groups: DashboardAlertGroup[];
 }
 
 export interface DashboardCapabilitySummary {
@@ -109,6 +198,42 @@ export interface DashboardAutomationSummary {
   tone: Tone;
 }
 
+export interface DashboardPanelCatalogItem {
+  id: string;
+  title: string;
+  signalCount: number;
+  actionCount: number;
+  signals: string[];
+  actions: string[];
+  tone: Tone;
+}
+
+export interface DashboardPanelCatalogSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+  panels: DashboardPanelCatalogItem[];
+}
+
+export interface DashboardPromptStackBlock {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+}
+
+export interface DashboardPromptStackSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+  blocks: DashboardPromptStackBlock[];
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -119,6 +244,33 @@ export interface DashboardRecentActivity {
   screenshotCount?: number;
   verificationCount?: number;
 }
+
+export interface DashboardHomeSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardAppsSitesSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardActivityFeedSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export type DashboardRouteOutcomeKind = RouteOutcomeKind;
+export type DashboardRouteOutcome = RouteOutcome;
 
 export interface DashboardAssistantProviderView {
   label: string;
@@ -135,11 +287,60 @@ export interface DashboardLatestTaskSignal {
   source: string;
 }
 
+export interface DashboardApprovalQueueSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardRuntimeEvidenceSummary {
   title: string;
   value: string;
   detail: string;
   tone: Tone;
+}
+
+export interface DashboardOperatorEvidenceSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardRuntimeSnapshotDetail {
+  id: "current-turn" | "replay";
+  title: string;
+  value: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardLongHorizonSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardAgentSupervisionSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+interface DashboardRuntimeSnapshotFreshness {
+  state: DashboardRuntimeSnapshotFreshnessState;
+  source: string;
+  observedAt?: string;
+  reason?: string;
+  ageSeconds?: number;
+  stale: boolean;
 }
 
 export interface DashboardNextAction {
@@ -156,6 +357,7 @@ export interface DashboardChromeHostPolicySummary {
   updatedAt?: string;
   defaultMode: string;
   entries: string[];
+  items: DashboardStatusItem[];
   tone: Tone;
 }
 
@@ -225,6 +427,8 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   const browserContext = readBrowserContextSummary(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const routeOutcome = readRouteOutcome(snapshot);
+  const latestTaskSignal = readLatestTaskSignal(snapshot);
 
   pushNode(nodes, {
     id: providerId,
@@ -247,16 +451,29 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       id: "turn:current",
       label: "Current turn",
       kind: "turn",
-      tone: readLatestTaskSignal(snapshot).tone,
+      tone: latestTaskSignal.tone,
       detail: readString(snapshot.currentTurn.command) ?? readLatestMessage(snapshot)
     });
     pushEdge(edges, {
       from: "computer-use",
       to: "turn:current",
-      label: snapshot.currentTurn.approvalRequired === true || currentTurnState.includes("approval")
-        ? "requires approval"
-        : "routes action"
+      label: readCurrentTurnGraphEdgeLabel(routeOutcome, snapshot.currentTurn, currentTurnState)
     });
+    if (shouldShowRouteOutcomeGraphNode(routeOutcome)) {
+      pushNode(nodes, {
+        id: "route:current",
+        label: routeOutcome.title,
+        kind: "turn",
+        tone: routeOutcome.tone,
+        detail: createRouteOutcomeGraphDetail(routeOutcome)
+      });
+      pushEdge(edges, {
+        from: "computer-use",
+        to: "route:current",
+        label: readCurrentTurnGraphEdgeLabel(routeOutcome, snapshot.currentTurn, currentTurnState)
+      });
+      pushEdge(edges, { from: "route:current", to: "turn:current", label: "summarizes turn" });
+    }
   }
 
   if (personalMemory && (personalMemory.userEntryCount > 0 || personalMemory.recentUserEntries.length > 0)) {
@@ -477,6 +694,115 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   };
 }
 
+function shouldShowRouteOutcomeGraphNode(routeOutcome: DashboardRouteOutcome): boolean {
+  return routeOutcome.kind !== "idle" && routeOutcome.kind !== "unknown";
+}
+
+function createRouteOutcomeGraphDetail(routeOutcome: DashboardRouteOutcome): string {
+  const route = routeOutcome.routeLabel === "unknown" ? "route unknown" : `route ${routeOutcome.routeLabel}`;
+  return `${routeOutcome.value} · state ${routeOutcome.state} · ${route} · ${routeOutcome.detail}`;
+}
+
+function readCurrentTurnGraphEdgeLabel(
+  routeOutcome: DashboardRouteOutcome,
+  currentTurn: Record<string, unknown>,
+  currentTurnState: string
+): string {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return "requires approval";
+    case "needs_confirmation":
+      return "needs confirmation";
+    case "needs_clarification":
+      return "needs clarification";
+    case "app_policy_denied":
+      return "denied by app policy";
+    case "chrome_host_policy_denied":
+      return "denied by Chrome host policy";
+    case "user_denied":
+      return "denied by user";
+    case "blocked":
+      return "blocked route";
+    case "cancelled":
+      return "cancelled route";
+    case "stopped":
+      return "stopped route";
+    case "failed":
+      return "failed route";
+    case "completed":
+      return "completed route";
+    default:
+      return currentTurn.approvalRequired === true || currentTurnState.includes("approval")
+        ? "requires approval"
+        : "routes action";
+  }
+}
+
+export function readPersonalMutationReceipt(
+  response: DashboardPersonalMemoryActionResponse | DashboardPersonalSkillActionResponse | null | undefined
+): DashboardMutationReceipt | null {
+  if (!response) {
+    return null;
+  }
+
+  const record = response as unknown as Record<string, unknown>;
+  const result = readString(response.result) ?? "reported";
+  const command = readString(response.command);
+  const source = readString(response.source);
+  const plannedMutation = readBoolean(record.plannedMutation);
+  const executesSystemMutation = readBoolean(record.executesSystemMutation);
+  const applied = readNumber(record.applied);
+  const ignored = readNumber(record.ignored);
+  const blocked = readNumber(record.blocked);
+  const pendingWriteCount = readNumber(record.pendingWriteCount);
+  const personalSkills = readRecord(record.personalSkills);
+  const mutedSkillCount = readNumber(personalSkills?.mutedSkillCount);
+  const items: DashboardStatusItem[] = [];
+
+  if (command) {
+    items.push({ label: "command", value: command, tone: "neutral" });
+  }
+  if (source) {
+    items.push({ label: "source", value: source, tone: "neutral" });
+  }
+  if (typeof plannedMutation === "boolean") {
+    items.push({
+      label: "planned mutation",
+      value: plannedMutation ? "yes" : "no",
+      tone: plannedMutation ? "warning" : "success"
+    });
+  }
+  if (typeof executesSystemMutation === "boolean") {
+    items.push({
+      label: "system mutation",
+      value: executesSystemMutation ? "yes" : "no",
+      tone: executesSystemMutation ? "warning" : "success"
+    });
+  }
+  if (typeof applied === "number") {
+    items.push({ label: "applied", value: String(applied), tone: applied > 0 ? "success" : "neutral" });
+  }
+  if (typeof ignored === "number") {
+    items.push({ label: "ignored", value: String(ignored), tone: ignored > 0 ? "warning" : "neutral" });
+  }
+  if (typeof blocked === "number") {
+    items.push({ label: "blocked", value: String(blocked), tone: blocked > 0 ? "danger" : "success" });
+  }
+  if (typeof pendingWriteCount === "number") {
+    items.push({ label: "pending writes", value: String(pendingWriteCount), tone: pendingWriteCount > 0 ? "warning" : "success" });
+  }
+  if (typeof mutedSkillCount === "number") {
+    items.push({ label: "muted skills", value: String(mutedSkillCount), tone: mutedSkillCount > 0 ? "warning" : "success" });
+  }
+
+  return {
+    title: command === "dashboard personal skills" ? "Personal skill mutation receipt" : "Personal memory mutation receipt",
+    result,
+    tone: readMutationReceiptTone({ result, blocked }),
+    items
+  };
+}
+
 function readRecentMemorySessions(
   personalMemory: NonNullable<DashboardSnapshot["personalMemory"]>
 ) {
@@ -505,6 +831,8 @@ function createSessionNodeDetail(
 }
 
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {
+  const routeOutcome = readRouteOutcome(snapshot);
+  const turnState = readString(snapshot.currentTurn.state) ?? "idle";
   return [
     {
       label: "Desktop",
@@ -524,8 +852,8 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
     },
     {
       label: "Turn",
-      value: readString(snapshot.currentTurn.state) ?? "idle",
-      tone: snapshot.currentTurn.state === "failed" ? "danger" : "neutral"
+      value: turnState,
+      tone: routeOutcome.kind === "idle" ? "neutral" : routeOutcome.tone
     }
   ];
 }
@@ -571,11 +899,122 @@ export function readAutomationSummary(snapshot: DashboardSnapshot): DashboardAut
   };
 }
 
+export function readRuntimeHealthSummary(snapshot: DashboardSnapshot): DashboardRuntimeHealthSummary {
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const packageInfo = readRecord(runtime.package) ?? {};
+  const app = readRecord(runtime.app) ?? {};
+  const helper = readRecord(runtime.helper) ?? {};
+  const cli = readRecord(runtime.cli) ?? {};
+  const dashboard = readRecord(runtime.dashboard) ?? {};
+  const extension = readRecord(runtime.extension) ?? {};
+  const desktopSession = readRecord(runtime.desktopSession) ?? {};
+  const pageControl = readRecord(extension.pageControl)
+    ?? readRecord(findSmokeArtifact(snapshot, "chrome")?.pageControl);
+  const dashboardState = readString(dashboard.state) ?? "unknown";
+  const componentStates = [
+    readString(app.state),
+    readString(helper.state),
+    readString(cli.state),
+    dashboardState,
+    readString(extension.state),
+    readString(desktopSession.state)
+  ].filter((state): state is string => Boolean(state));
+  const tone = readRuntimeHealthTone(componentStates);
+  const version = readString(packageInfo.version) ?? "unknown";
+
+  return {
+    title: "Runtime health",
+    value: dashboardState,
+    detail: version === "unknown"
+      ? "Local runtime health from the dashboard snapshot."
+      : `skfiy ${version} local runtime health from the dashboard snapshot.`,
+    tone,
+    items: [
+      createStatusItem("version", version),
+      createStatusItem("app", readString(app.state) ?? "unknown", readRuntimeComponentTone(readString(app.state))),
+      createStatusItem("helper", readString(helper.state) ?? "unknown", readRuntimeComponentTone(readString(helper.state))),
+      createStatusItem("cli", readString(cli.state) ?? "unknown", readRuntimeComponentTone(readString(cli.state))),
+      createStatusItem("dashboard", dashboardState, readRuntimeComponentTone(dashboardState)),
+      createStatusItem("pid", formatUnknownNumber(readNumber(dashboard.pid))),
+      createStatusItem("uptime", formatUnknownNumber(readNumber(dashboard.uptimeSeconds))),
+      createStatusItem("extension", readString(extension.state) ?? "unknown", readRuntimeComponentTone(readString(extension.state))),
+      createStatusItem("pageControl", formatRuntimePageControlState(pageControl), readRuntimePageControlTone(pageControl)),
+      createStatusItem(
+        "pageControl next",
+        readString(pageControl?.nextAction) ?? readString(pageControl?.reason) ?? "needs-action"
+      ),
+      createStatusItem(
+        "desktop",
+        readString(desktopSession.state) ?? "unknown",
+        readRuntimeComponentTone(readString(desktopSession.state))
+      )
+    ]
+  };
+}
+
+function readRuntimeHealthTone(states: string[]): Tone {
+  const tones = states.map(readRuntimeComponentTone);
+  if (tones.some((tone) => tone === "danger")) {
+    return "danger";
+  }
+  if (tones.length > 0 && tones.every((tone) => tone === "success")) {
+    return "success";
+  }
+  if (tones.some((tone) => tone === "warning")) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function readRuntimeComponentTone(state: string | undefined): Tone {
+  if (
+    state === "installed"
+    || state === "running"
+    || state === "connected"
+    || state === "ready"
+    || state === "controllable"
+    || state === "passed"
+  ) {
+    return "success";
+  }
+  if (
+    state === "blocked"
+    || state === "missing"
+    || state === "failed"
+    || state === "invalid"
+    || state === "stale"
+    || state === "unavailable"
+  ) {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function formatRuntimePageControlState(pageControl: Record<string, unknown> | undefined): string {
+  const state = readString(pageControl?.state) ?? "not-probed";
+  return `${pageControl?.capable === true ? "capable" : "not capable"}/${state}`;
+}
+
+function readRuntimePageControlTone(pageControl: Record<string, unknown> | undefined): Tone {
+  const state = readString(pageControl?.state);
+  if (pageControl?.capable === true && (state === "ready" || state === "partial" || state === "sensitive-paused")) {
+    return "success";
+  }
+
+  return readRuntimeComponentTone(state);
+}
 export function readChromeControlState(snapshot: DashboardSnapshot): DashboardChromeControlState {
   const extension = readRecord(snapshot.runtimeHealth.extension);
   const nativeHost = readRecord(snapshot.runtimeHealth.nativeHost);
   const desktopSession = readRecord(snapshot.runtimeHealth.desktopSession);
-  const pageControl = readRecord(extension?.pageControl);
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const pageControl = readRecord(extension?.pageControl)
+    ?? readRecord(chromeArtifact?.pageControl);
   const activeTab = readRecord(pageControl?.activeTab);
   const capabilities = readRecord(pageControl?.capabilities);
   const contentScript = readRecord(pageControl?.contentScript);
@@ -601,7 +1040,7 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     ?? readString(extension?.nativeHostState)
     ?? "unknown";
   const screenshotLane = readChromeScreenshotLane(pageControl, capabilities);
-  const tabDiscovery = readChromeTabDiscoverySummary(extension);
+  const tabDiscovery = readChromeTabDiscoverySummary(extension, chromeArtifact);
   const hostPolicy = readChromeHostPolicySummary(
     readRecord(extension?.hostPolicy)
       ?? readRecord(snapshot.runtimeHealth.chromeHostPolicy)
@@ -650,6 +1089,358 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     browserContextAccessSteps,
     hostPolicy
   };
+}
+
+export function readChromeControlCommandHints(
+  chromeControl: DashboardChromeControlState
+): DashboardCommandHint[] {
+  const extensionId = chromeControl.extensionId;
+  const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
+  if (
+    !extensionId
+    || targetTabId === undefined
+  ) {
+    return [];
+  }
+
+  const commandHints: DashboardCommandHint[] = [];
+  if (chromeControl.browserContextAccessSteps.some((step) => step.id === "open-skfiy-chrome-popup")) {
+    commandHints.push({
+      id: "open-popup",
+      label: "Open access page",
+      command: `POST /api/chrome-control-action ${JSON.stringify({
+        action: "open-popup",
+        extensionId,
+        targetTabId
+      })}`,
+      mutates: true
+    });
+  }
+
+  if (!chromeControl.actionable) {
+    return commandHints;
+  }
+
+  const commandFor = (action: string) =>
+    `./dist/skfiy chrome ${action} --extension-id ${extensionId} --target-tab-id ${targetTabId}`;
+
+  commandHints.push(
+    {
+      id: "observe",
+      label: "Observe current page",
+      command: `${commandFor("observe")} --json`,
+      mutates: false
+    },
+    {
+      id: "screenshot",
+      label: "Screenshot current page",
+      command: `${commandFor("screenshot")} --json`,
+      mutates: false
+    },
+    {
+      id: "click",
+      label: "Click confirmed selector",
+      command: `${commandFor("click")} --selector <selector> --json`,
+      mutates: true
+    },
+    {
+      id: "fill",
+      label: "Fill approved field",
+      command: `${commandFor("fill")} --selector <selector> --text <text> --json`,
+      mutates: true
+    },
+    {
+      id: "submit",
+      label: "Submit approved test form",
+      command: `${commandFor("submit")} --selector form --json`,
+      mutates: true
+    },
+    {
+      id: "scroll",
+      label: "Scroll current page",
+      command: `${commandFor("scroll")} --dy 600 --json`,
+      mutates: true
+    }
+  );
+  return commandHints;
+}
+
+export function readChromeSetupGuideSummary(snapshot: DashboardSnapshot): DashboardChromeSetupGuideSummary {
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const nativeHost = readRecord(snapshot.runtimeHealth.nativeHost) ?? {};
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const runtimeGuide = readChromeSetupGuide(readRecord(extension.setupGuide), "runtime");
+  const nativeHostGuide = readChromeSetupGuide(readRecord(nativeHost.setupGuide), "native-host");
+  const artifactGuide = readChromeSetupGuide(readRecord(chromeArtifact?.setupGuide), "smoke-artifact");
+  const guide = runtimeGuide ?? nativeHostGuide ?? artifactGuide;
+  const nativeHostState = readString(nativeHost.state) ?? "unknown";
+  const liveConnectionState = readString(extension.liveConnection)
+    ?? readNestedString(extension, ["connection", "liveConnection"])
+    ?? readNestedString(extension, ["connection", "state"])
+    ?? (readString(extension.state) === "connected" ? "connected" : undefined)
+    ?? "unknown";
+  const extensionId = readChromeExtensionId(extension, nativeHost) ?? "<extension-id>";
+
+  return {
+    source: guide?.source ?? "derived",
+    nativeHostState,
+    liveConnectionState,
+    nextActions: guide?.nextActions.length
+      ? guide.nextActions
+      : createDefaultChromeSetupNextActions(nativeHostState, liveConnectionState, chromeArtifact),
+    commands: guide?.commands.length
+      ? guide.commands
+      : createDefaultChromeSetupCommands(extensionId)
+  };
+}
+
+function readChromeSetupGuide(
+  guide: Record<string, unknown> | undefined,
+  source: DashboardChromeSetupGuideSummary["source"]
+): Pick<DashboardChromeSetupGuideSummary, "source" | "nextActions" | "commands"> | undefined {
+  if (!guide) {
+    return undefined;
+  }
+
+  const nextActions = readChromeSetupActionTexts(guide.nextActions);
+  const commands = dedupeChromeSetupCommands([
+    ...readChromeSetupCommands(guide.commands),
+    ...readChromeSetupCommands(guide.copyableCommands),
+    ...readChromeNamedSetupCommands(guide)
+  ]);
+  if (nextActions.length === 0 && commands.length === 0) {
+    return undefined;
+  }
+
+  return {
+    source,
+    nextActions,
+    commands
+  };
+}
+
+function readChromeSetupActionTexts(value: unknown): string[] {
+  return (Array.isArray(value) ? value : [])
+    .flatMap((entry) => {
+      if (typeof entry === "string") {
+        return [entry];
+      }
+
+      const record = readRecord(entry);
+      if (!record) {
+        return [];
+      }
+
+      const command = Array.isArray(record.command)
+        ? formatChromeSetupCommandParts(record.command)
+        : readString(record.copyText);
+      const text = readString(record.title)
+        ?? readString(record.guidance)
+        ?? readString(record.nextAction)
+        ?? readString(record.reason)
+        ?? readString(record.copyText);
+      if (text && command && text !== command) {
+        return [`${text} ${command}`];
+      }
+      if (text) {
+        return [text];
+      }
+      return command ? [command] : [];
+    });
+}
+
+function readChromeSetupCommands(value: unknown): DashboardCommandHint[] {
+  if (Array.isArray(value)) {
+    if (value.every((entry) => typeof entry === "string")) {
+      return normalizeChromeSetupCommand(value, "command");
+    }
+
+    return value.flatMap((entry, index) => normalizeChromeSetupCommand(entry, `command-${index + 1}`));
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  return Object.entries(record).flatMap(([key, entry]) =>
+    normalizeChromeSetupCommand(entry, key)
+  );
+}
+
+function readChromeNamedSetupCommands(guide: Record<string, unknown>): DashboardCommandHint[] {
+  return [
+    ["install-host", guide.installHostCommand],
+    ["status", guide.verifyStatusCommand],
+    ["smoke", guide.smokeCommand]
+  ].flatMap(([id, value]) => normalizeChromeSetupCommand(value, String(id)));
+}
+
+function normalizeChromeSetupCommand(value: unknown, idHint: string): DashboardCommandHint[] {
+  const id = normalizeChromeSetupCommandId(idHint);
+  if (typeof value === "string") {
+    return createChromeSetupCommandHint(id, readChromeSetupCommandLabel(id), value);
+  }
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+    return createChromeSetupCommandHint(id, readChromeSetupCommandLabel(id), formatChromeSetupCommandParts(value));
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const command = readString(record.copyText)
+    ?? readString(record.commandText)
+    ?? readString(record.commandLine)
+    ?? readChromeSetupCommandFromRecord(record)
+    ?? readString(record.command ?? record.value);
+  if (!command) {
+    return [];
+  }
+
+  return createChromeSetupCommandHint(
+    normalizeChromeSetupCommandId(readString(record.id) ?? idHint),
+    readString(record.label) ?? readChromeSetupCommandLabel(id),
+    command,
+    readBoolean(record.mutates)
+  );
+}
+
+function readChromeSetupCommandFromRecord(record: Record<string, unknown>): string | undefined {
+  const command = readString(record.command);
+  const args = readStringArray(record.args);
+  if (!command || args.length === 0) {
+    return undefined;
+  }
+
+  return formatChromeSetupCommandParts([command, ...args]);
+}
+
+function createChromeSetupCommandHint(
+  id: string,
+  label: string,
+  command: string,
+  explicitMutates?: boolean
+): DashboardCommandHint[] {
+  const normalizedCommand = normalizeDefaultSmokeCommand(command, id);
+  if (!normalizedCommand) {
+    return [];
+  }
+
+  return [{
+    id,
+    label,
+    command: normalizedCommand,
+    mutates: explicitMutates ?? (id === "install-host" || normalizedCommand.includes(" install-host "))
+  }];
+}
+
+function dedupeChromeSetupCommands(commands: DashboardCommandHint[]): DashboardCommandHint[] {
+  const seen = new Set<string>();
+  const deduped: DashboardCommandHint[] = [];
+  for (const command of commands) {
+    const key = `${command.id}\n${command.command}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(command);
+  }
+
+  return deduped;
+}
+
+function formatChromeSetupCommandParts(parts: unknown[]): string {
+  return parts.map((part) => {
+    const text = String(part);
+    return /^[A-Za-z0-9_./:=@%+-]+$/.test(text) ? text : JSON.stringify(text);
+  }).join(" ");
+}
+
+function normalizeDefaultSmokeCommand(command: string, id: string): string {
+  const trimmed = command.trim();
+  const isSmokeCommand = id === "smoke"
+    || /\bsmoke:chrome\b/u.test(trimmed)
+    || /\bsmoke\s+chrome\b/u.test(trimmed);
+  if (!isSmokeCommand) {
+    return trimmed;
+  }
+
+  return trimmed
+    .replace(/\s+--output(?:=|\s+)(?:"[^"]+"|'[^']+'|\S+)/gu, "")
+    .replace(/\s+--\s*$/u, "")
+    .trim();
+}
+
+function createDefaultChromeSetupCommands(extensionId: string): DashboardCommandHint[] {
+  return [
+    {
+      id: "install-host",
+      label: "Install host",
+      command: `skfiy chrome install-host --extension-id ${extensionId}`,
+      mutates: true
+    },
+    {
+      id: "status",
+      label: "Status",
+      command: `skfiy chrome status --json --extension-id ${extensionId}`,
+      mutates: false
+    },
+    {
+      id: "smoke",
+      label: "Smoke",
+      command: "npm run smoke:chrome",
+      mutates: false
+    }
+  ];
+}
+
+function createDefaultChromeSetupNextActions(
+  nativeHostState: string,
+  liveConnectionState: string,
+  chromeArtifact: Record<string, unknown> | undefined
+): string[] {
+  if (nativeHostState !== "installed") {
+    return ["Install or repair the Chrome Native Messaging host from the packaged skfiy binary."];
+  }
+  if (liveConnectionState !== "connected") {
+    return ["Refresh the installed extension heartbeat, then rerun Chrome status."];
+  }
+  if (readString(chromeArtifact?.result) !== "passed") {
+    return ["Run the Chrome smoke with the default output-free command."];
+  }
+
+  return [];
+}
+
+function normalizeChromeSetupCommandId(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    || "command";
+}
+
+function readChromeSetupCommandLabel(idHint: string): string {
+  const id = normalizeChromeSetupCommandId(idHint);
+  if (id === "install-host") {
+    return "Install host";
+  }
+  if (id === "status") {
+    return "Status";
+  }
+  if (id === "smoke") {
+    return "Smoke";
+  }
+
+  return id
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ")
+    || "Command";
 }
 
 function readBrowserContextAccessSteps(
@@ -830,13 +1621,18 @@ function readChromeScreenshotLane(
   return "fallback available";
 }
 
-function readChromeTabDiscoverySummary(extension: Record<string, unknown> | undefined): {
+function readChromeTabDiscoverySummary(
+  extension: Record<string, unknown> | undefined,
+  chromeArtifact: Record<string, unknown> | undefined
+): {
   label: string;
   reason?: string;
 } {
   const candidate = [
     readRecord(extension?.tabDiscovery),
-    readRecord(extension?.pageTabs)
+    readRecord(extension?.pageTabs),
+    readRecord(chromeArtifact?.tabDiscovery),
+    readRecord(chromeArtifact?.pageTabs)
   ].find(Boolean);
   if (!candidate) {
     return { label: "not-probed" };
@@ -867,16 +1663,82 @@ function readChromeHostPolicySummary(
   const policy = readRecord(hostPolicy?.policy);
   const entries = summarizeChromeHostPolicyEntries(readChromeHostPolicyEntries(hostPolicy, policy));
   const state = readString(hostPolicy?.state) ?? "unknown";
+  const source = formatChromeHostPolicySource(hostPolicy);
+  const updatedAt = readString(hostPolicy?.updatedAt);
+  const defaultMode = readString(policy?.defaultMode) ?? "ask";
+  const tone = state === "invalid" ? "danger" : state === "configured" ? "success" : "warning";
 
   return {
     state,
     reason: readString(hostPolicy?.reason),
-    source: readString(hostPolicy?.source),
-    updatedAt: readString(hostPolicy?.updatedAt),
-    defaultMode: readString(policy?.defaultMode) ?? "ask",
+    source,
+    updatedAt,
+    defaultMode,
     entries,
-    tone: state === "invalid" ? "danger" : state === "configured" ? "success" : "warning"
+    items: createChromeHostPolicyItems({ policy, state, source, updatedAt, defaultMode, entries, tone }),
+    tone
   };
+}
+
+function createChromeHostPolicyItems({
+  policy,
+  state,
+  source,
+  updatedAt,
+  defaultMode,
+  entries,
+  tone
+}: {
+  policy: Record<string, unknown> | undefined;
+  state: string;
+  source?: string;
+  updatedAt?: string;
+  defaultMode: string;
+  entries: string[];
+  tone: Tone;
+}): DashboardStatusItem[] {
+  const alwaysAllowedHosts = readStringArray(policy?.allowedHosts);
+  const currentTurnHosts = readStringArray(policy?.currentTurnAllowedHosts);
+  const blockedHosts = readStringArray(policy?.blockedHosts);
+
+  return [
+    createStatusItem("chrome policy", state, tone),
+    createStatusItem("source", source ?? "unknown"),
+    createStatusItem("updated", updatedAt ?? "unknown"),
+    createStatusItem("entries", formatStringList(entries)),
+    createStatusItem("default", defaultMode),
+    createStatusItem("always allow", formatStringList(alwaysAllowedHosts), alwaysAllowedHosts.length > 0 ? "success" : "neutral"),
+    createStatusItem("current turn", formatStringList(currentTurnHosts), currentTurnHosts.length > 0 ? "warning" : "neutral"),
+    createStatusItem("blocked", formatStringList(blockedHosts), blockedHosts.length > 0 ? "danger" : "neutral"),
+    createStatusItem("endpoint", "/api/chrome-host-policy")
+  ];
+}
+
+function formatChromeHostPolicySource(hostPolicy: Record<string, unknown> | undefined): string | undefined {
+  const source = readString(hostPolicy?.source);
+  if (source) {
+    return formatChromeHostPolicySourceValue(source);
+  }
+
+  const policyPath = readString(hostPolicy?.path);
+  if (!policyPath) {
+    return undefined;
+  }
+
+  return formatChromeHostPolicySourceValue(policyPath);
+}
+
+function formatChromeHostPolicySourceValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "unknown";
+  }
+
+  if (!/[\\/]/.test(trimmed) && !trimmed.startsWith("~")) {
+    return trimmed;
+  }
+
+  return trimmed.split(/[\\/]/).filter(Boolean).at(-1) ?? "local policy file";
 }
 
 function summarizeChromeHostPolicyEntries(entries: string[]): string[] {
@@ -1037,12 +1899,111 @@ export function readReadinessSummary(snapshot: DashboardSnapshot): DashboardRead
   };
 }
 
+export function readOperatorReadinessChecks(snapshot: DashboardSnapshot): DashboardOperatorReadinessChecks {
+  const readiness = readRecord(snapshot.operatorReadiness) ?? {};
+  const commandSurface = readRecord(readiness.commandSurface) ?? {};
+  const extensionReadiness = readRecord(readiness.extensionReadiness) ?? {};
+  const packagedBinary = readRecord(readiness.packagedBinary) ?? {};
+  const recentSmokeEvidence = readRecord(readiness.recentSmokeEvidence) ?? {};
+  const state = readString(readiness.state) ?? "unknown";
+  const passedTargets = readStringArray(recentSmokeEvidence.recentPassedTargets);
+  const missingTargets = readStringArray(recentSmokeEvidence.missingTargets);
+  const tone = readOperatorReadinessTone(state);
+
+  return {
+    title: "Operator readiness checks",
+    value: state,
+    detail: missingTargets.length > 0
+      ? `Missing fresh evidence: ${missingTargets.join(", ")}.`
+      : state === "ready"
+        ? "Command surface, packaged runtime, and smoke evidence are aligned."
+        : "Review readiness checks before starting the next Computer Use turn.",
+    tone,
+    items: [
+      createStatusItem("state", state, tone),
+      createStatusItem(
+        "command surface",
+        readString(commandSurface.state) ?? "unknown",
+        readOperatorCheckTone(readString(commandSurface.state))
+      ),
+      createStatusItem(
+        "extension",
+        readString(extensionReadiness.state) ?? "unknown",
+        readOperatorCheckTone(readString(extensionReadiness.state))
+      ),
+      createStatusItem(
+        "binary",
+        readString(packagedBinary.state) ?? "unknown",
+        readOperatorCheckTone(readString(packagedBinary.state))
+      ),
+      createStatusItem(
+        "signing",
+        readString(packagedBinary.signingState) ?? "unknown",
+        readSigningTone(readString(packagedBinary.signingState))
+      ),
+      createStatusItem("smoke passed", formatStringList(passedTargets)),
+      createStatusItem("smoke missing", formatStringList(missingTargets), missingTargets.length > 0 ? "warning" : "success")
+    ]
+  };
+}
+
+function readOperatorReadinessTone(state: string): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "blocked") {
+    return "danger";
+  }
+  if (state === "unknown" || state === "missing") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function readOperatorCheckTone(state: string | undefined): Tone {
+  if (state === "ready" || state === "installed" || state === "connected" || state === "passed") {
+    return "success";
+  }
+  if (state === "blocked" || state === "missing" || state === "failed" || state === "invalid") {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function readSigningTone(state: string | undefined): Tone {
+  if (state === "signed" || state === "valid" || state === "not-required") {
+    return "success";
+  }
+  if (state === "invalid" || state === "missing") {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function formatStringList(values: string[]): string {
+  return values.length > 0 ? values.join(", ") : "none";
+}
+
 export function readComputerUseReadiness(snapshot: DashboardSnapshot): DashboardComputerUseReadiness {
   const desktopSession = readRecord(snapshot.runtimeHealth.desktopSession);
   const desktopState = readString(desktopSession?.state) ?? "unknown";
   const frontmost = readString(desktopSession?.frontmostLocalizedName)
     ?? readString(desktopSession?.frontmostBundleId)
     ?? "No frontmost app reported";
+  const permissions = [
+    createPermissionStatus("Screen Recording", snapshot.permissions.screenRecording),
+    createPermissionStatus("Accessibility", snapshot.permissions.accessibility),
+    createPermissionStatus("Finder Automation", snapshot.permissions.finderAutomation)
+  ];
 
   return {
     desktop: {
@@ -1054,13 +2015,48 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
           ? "danger"
           : "warning"
     },
-    permissions: [
-      createPermissionStatus("Screen Recording", snapshot.permissions.screenRecording),
-      createPermissionStatus("Accessibility", snapshot.permissions.accessibility),
-      createPermissionStatus("Finder Automation", snapshot.permissions.finderAutomation)
-    ],
+    permissionSummary: readPermissionSummary(permissions),
+    permissions,
     accessSteps: readComputerUseAccessSteps(snapshot)
   };
+}
+
+function readPermissionSummary(permissions: DashboardStatusItem[]): DashboardComputerUseReadiness["permissionSummary"] {
+  const attention = permissions.filter((permission) => isPermissionAttentionState(permission.value));
+  if (attention.length === 0) {
+    return {
+      value: "Ready",
+      detail: "Screen Recording, Accessibility, and Finder Automation are ready.",
+      tone: "success"
+    };
+  }
+  const verb = attention.length === 1 ? "needs" : "need";
+
+  return {
+    value: `${attention.length} needed`,
+    detail: `${formatPermissionLabelList(attention.map((permission) => permission.label))} ${verb} attention.`,
+    tone: "warning"
+  };
+}
+
+function formatPermissionLabelList(labels: string[]): string {
+  if (labels.length <= 1) {
+    return labels[0] ?? "Permissions";
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+function isPermissionAttentionState(value: string): boolean {
+  const normalized = value.toLowerCase().replaceAll("_", "-").replaceAll(" ", "-");
+  return normalized === "denied"
+    || normalized === "unknown"
+    || normalized === "not-determined"
+    || normalized === "missing"
+    || normalized === "blocked";
 }
 
 function readComputerUseAccessSteps(snapshot: DashboardSnapshot): DashboardComputerUseAccessStep[] {
@@ -1153,16 +2149,176 @@ export function readUnsupportedSmokeEvidence(snapshot: DashboardSnapshot): strin
     : undefined;
 }
 
+export function readSmokeArtifactInventory(snapshot: DashboardSnapshot): DashboardSmokeArtifactInventory {
+  const artifacts = readRecordArray(snapshot.smokeEvidence.artifacts);
+  const staleCount = artifacts.filter((artifact) => artifact.stale === true).length;
+  const passedCount = artifacts.filter((artifact) => readString(artifact.result) === "passed").length;
+  const attentionCount = artifacts.filter((artifact) => {
+    const result = readString(artifact.result) ?? "unknown";
+    return artifact.stale === true || !["passed", "available"].includes(result);
+  }).length;
+  const value = artifacts.length === 0
+    ? "none"
+    : staleCount > 0
+      ? "stale"
+      : attentionCount > 0
+        ? "attention"
+        : "fresh";
+  const tone = artifacts.length === 0
+    ? "warning"
+    : staleCount > 0 || attentionCount > 0
+      ? "warning"
+      : "success";
+
+  return {
+    title: "Artifact inventory",
+    value,
+    detail: artifacts.length === 0
+      ? "No smoke artifacts found."
+      : `${artifacts.length} artifacts: ${passedCount} passed, ${attentionCount} attention, ${staleCount} stale.`,
+    tone,
+    items: artifacts.length > 0
+      ? artifacts.map((artifact) => createStatusItem(
+        readString(artifact.target) ?? "unknown",
+        formatSmokeArtifactInventoryValue(artifact),
+        artifact.stale === true ? "warning" : readSmokeDetailTone(readString(artifact.result) ?? "missing")
+      ))
+      : [createStatusItem("artifacts", "none", "warning")]
+  };
+}
+
+function formatSmokeArtifactInventoryValue(artifact: Record<string, unknown>): string {
+  const result = readString(artifact.result) ?? "unknown";
+  return artifact.stale === true ? `${result} (stale)` : result;
+}
+
+export function readSmokeArtifactDetails(snapshot: DashboardSnapshot): DashboardSmokeArtifactDetail[] {
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const pageSafety = readRecord(chromeArtifact?.pageSafety);
+  const pageControl = readRecord(readRecord(snapshot.runtimeHealth.extension)?.pageControl)
+    ?? readRecord(chromeArtifact?.pageControl);
+  const finderArtifact = findSmokeArtifact(snapshot, "finder");
+  const finder = readRecord(finderArtifact?.finder);
+
+  return [
+    createChromePageSafetyDetail(pageSafety),
+    createChromePageControlDetail(pageControl),
+    createFinderSmokeDetail(finder)
+  ];
+}
+
+function createChromePageSafetyDetail(
+  pageSafety: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const state = readString(pageSafety?.state) ?? "empty";
+  const sensitivePause = pageSafety?.sensitivePause === true;
+  const sensitivePage = formatChromePageSafetyRun(pageSafety, "sensitive-page");
+  const formPrefill = formatChromePageSafetyRun(pageSafety, "sensitive-form-prefill");
+
+  return {
+    id: "chrome-page-safety",
+    title: "Chrome page safety",
+    value: state,
+    tone: readSmokeDetailTone(state),
+    items: [
+      createStatusItem("state", state, readSmokeDetailTone(state)),
+      createStatusItem("sensitive pause", sensitivePause ? "yes" : "no", sensitivePause ? "warning" : "success"),
+      createStatusItem("pause count", formatUnknownNumber(readNumber(pageSafety?.pauseCount))),
+      createStatusItem("checked runs", formatUnknownNumber(readNumber(pageSafety?.checkedRuns))),
+      createStatusItem("finding kinds", readChromePageSafetyFindingKinds(pageSafety).join(", ") || "none"),
+      createStatusItem("sensitive page", sensitivePage.value, sensitivePage.tone),
+      createStatusItem("form prefill", formPrefill.value, formPrefill.tone),
+      createStatusItem("reason", readChromePageSafetyReason(pageSafety)),
+      createStatusItem("source", readString(pageSafety?.source) ?? "chrome-smoke-empty")
+    ]
+  };
+}
+
+function createChromePageControlDetail(
+  pageControl: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const state = readString(pageControl?.state) ?? "not-probed";
+  const capabilities = readRecord(pageControl?.capabilities);
+  const tone = readSmokeDetailTone(state);
+
+  return {
+    id: "chrome-page-control",
+    title: "Chrome pageControl",
+    value: state,
+    tone,
+    items: [
+      createStatusItem("state", state, tone),
+      createStatusItem("capable", pageControl?.capable === true ? "capable" : "not capable", pageControl?.capable === true ? "success" : "warning"),
+      createStatusItem("active tab", formatChromePageControlActiveTab(readRecord(pageControl?.activeTab))),
+      createStatusItem("content script", formatChromePageControlContentScript(readRecord(pageControl?.contentScript))),
+      createStatusItem("DOM actions", formatChromePageControlCapability(capabilities?.domActions)),
+      createStatusItem("screenshot", formatChromePageControlCapability(capabilities?.screenshot)),
+      createStatusItem("click/fill/submit/scroll", formatChromePageControlActions(capabilities)),
+      createStatusItem("reason", readString(pageControl?.reason) ?? "Chrome pageControl readiness has not been probed yet."),
+      createStatusItem("next", readString(pageControl?.nextAction) ?? "needs-action"),
+      createStatusItem("source", readString(pageControl?.source) ?? "dashboard-empty")
+    ]
+  };
+}
+
+function createFinderSmokeDetail(
+  finder: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const result = readString(finder?.result) ?? "missing";
+  const desktopPreflight = readRecord(finder?.desktopPreflight);
+  const finderObservation = readRecord(finder?.finderObservation);
+  const finderSemanticObservation = readRecord(finder?.finderSemanticObservation);
+  const finderItemDragDrop = readRecord(finder?.finderItemDragDrop);
+  const tone = readSmokeDetailTone(result);
+
+  return {
+    id: "finder-smoke",
+    title: "Finder smoke",
+    value: result,
+    tone,
+    items: [
+      createStatusItem("result", result, tone),
+      createStatusItem("desktop preflight", formatFinderSmokeProbe(desktopPreflight), readSmokeDetailTone(readString(desktopPreflight?.result) ?? "missing")),
+      createStatusItem("frontmost bundle", readString(desktopPreflight?.frontmostBundleId) ?? "unknown"),
+      createStatusItem("display asleep", formatBoolean(desktopPreflight?.mainDisplayAsleep)),
+      createStatusItem("desktop controllable", formatBoolean(desktopPreflight?.controllable)),
+      createStatusItem("finder observation", formatFinderSmokeProbe(finderObservation), readSmokeDetailTone(readString(finderObservation?.result) ?? "missing")),
+      createStatusItem("accessibility trusted", formatBoolean(finderObservation?.accessibilityTrusted)),
+      createStatusItem("finder semantic", formatFinderSmokeProbe(finderSemanticObservation), readSmokeDetailTone(readString(finderSemanticObservation?.result) ?? "missing")),
+      createStatusItem("finder drag/drop", formatFinderSmokeProbe(finderItemDragDrop), readSmokeDetailTone(readString(finderItemDragDrop?.result) ?? "missing")),
+      createStatusItem("reason", readString(finder?.reason) ?? "Latest Finder smoke has not reported desktop preflight evidence yet."),
+      createStatusItem("source", readString(finder?.source) ?? "finder-smoke-empty")
+    ]
+  };
+}
+
 export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoodSummary {
   const release = readRecord(snapshot.dogfoodRelease);
   const releaseState = readString(release?.state) ?? "unknown";
   const drift = readRecord(release?.releaseDrift);
   const releaseDriftState = readString(drift?.state) ?? "unknown";
   const cohort = readRecord(release?.cohort);
+  const latestAlpha = readRecord(release?.latestAlpha);
+  const manifest = readRecord(release?.manifest);
+  const currentHead = readRecord(release?.currentHead);
   const acceptedReports = readNumber(cohort?.acceptedReportCount) ?? 0;
   const distinctTesters = readNumber(cohort?.distinctRealTesterCount) ?? 0;
+  const totalReports = readNumber(cohort?.totalReports);
   const ready = cohort?.ready === true;
   const passedReady = cohort?.passedReady === true;
+  const releaseCommit = readString(drift?.releaseCommitSha)
+    ?? readString(latestAlpha?.shortCommit)
+    ?? readString(latestAlpha?.commitSha);
+  const headCommit = readString(drift?.currentHeadCommitSha)
+    ?? readString(currentHead?.shortCommit)
+    ?? readString(currentHead?.commitSha);
+  const manifestState = readString(manifest?.state) ?? "unknown";
+  const latestAlphaState = readString(latestAlpha?.state) ?? "unknown";
+  const zipSha = readString(manifest?.zipSha256) ?? readString(latestAlpha?.zipSha256);
+  const coverage = readRecord(cohort?.workflowCoverage);
+  const passedCoverage = readRecord(cohort?.passedWorkflowCoverage);
+  const cohortReadyValue = ready ? passedReady ? "passed" : "partial" : "no";
+  const cohortReadyTone: Tone = ready ? passedReady ? "success" : "warning" : "neutral";
 
   return {
     releaseState,
@@ -1177,8 +2333,116 @@ export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoo
       ? "warning"
       : releaseState === "cohort-ready" && passedReady
         ? "success"
-        : "neutral"
+        : "neutral",
+    items: [
+      createStatusItem("state", releaseState, readDogfoodStateTone(releaseState, passedReady)),
+      createStatusItem(
+        "alpha",
+        readString(latestAlpha?.tagName) ?? latestAlphaState,
+        readDogfoodStateTone(latestAlphaState, passedReady)
+      ),
+      createStatusItem(
+        "release commit",
+        formatShortCommit(releaseCommit),
+        releaseDriftState === "behind-head" ? "warning" : "neutral"
+      ),
+      createStatusItem(
+        "head commit",
+        formatShortCommit(headCommit),
+        releaseDriftState === "behind-head" ? "warning" : "neutral"
+      ),
+      createStatusItem("manifest", manifestState, manifestState === "present" ? "success" : "warning"),
+      createStatusItem("zip sha", formatShortSha(zipSha)),
+      createStatusItem("cohort ready", cohortReadyValue, cohortReadyTone),
+      createStatusItem(
+        "reports",
+        totalReports === undefined
+          ? `${acceptedReports} accepted / ${distinctTesters} testers`
+          : `${acceptedReports} accepted / ${distinctTesters} testers / ${totalReports} total`
+      ),
+      createStatusItem("workflow coverage", formatCoverageSummary(coverage), readCoverageTone(coverage)),
+      createStatusItem("passed workflows", formatCoverageSummary(passedCoverage), readCoverageTone(passedCoverage)),
+      createStatusItem(
+        "drift",
+        readDogfoodDriftLabel(releaseDriftState, releaseCommit, headCommit),
+        releaseDriftState === "behind-head" ? "warning" : "success"
+      )
+    ]
   };
+}
+
+function readDogfoodStateTone(state: string, passedReady: boolean): Tone {
+  if (
+    state === "passed-cohort-ready"
+    || (state === "cohort-ready" && passedReady)
+    || state === "published"
+    || state === "present"
+  ) {
+    return "success";
+  }
+  if (state === "missing" || state === "invalid") {
+    return "danger";
+  }
+  if (state === "waiting-for-dogfood" || state === "cohort-ready") {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function readDogfoodDriftLabel(
+  state: string,
+  releaseCommit: string | undefined,
+  headCommit: string | undefined
+): string {
+  if (state === "behind-head") {
+    return `${state} ${formatShortCommit(releaseCommit)} -> ${formatShortCommit(headCommit)}`;
+  }
+
+  return state;
+}
+
+function formatShortCommit(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  return /^[a-f0-9]{7,40}$/iu.test(value) ? value.slice(0, 7) : value;
+}
+
+function formatShortSha(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  return /^[a-f0-9]{12,}$/iu.test(value) ? value.slice(0, 12) : value;
+}
+
+function formatCoverageSummary(coverage: Record<string, unknown> | undefined): string {
+  if (!coverage) {
+    return "unknown";
+  }
+
+  const entries = Object.entries(coverage).filter(([, value]) => typeof value === "boolean");
+  if (entries.length === 0) {
+    return "unknown";
+  }
+
+  const covered = entries.filter(([, value]) => value === true).length;
+  return `${covered}/${entries.length}`;
+}
+
+function readCoverageTone(coverage: Record<string, unknown> | undefined): Tone {
+  if (!coverage) {
+    return "neutral";
+  }
+
+  const entries = Object.entries(coverage).filter(([, value]) => typeof value === "boolean");
+  if (entries.length === 0) {
+    return "neutral";
+  }
+
+  return entries.every(([, value]) => value === true) ? "success" : "warning";
 }
 
 export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardProviderSummary[] {
@@ -1236,6 +2500,146 @@ export function readCapabilitySummaries(snapshot: DashboardSnapshot): DashboardC
       tone: latestSignal.tone
     }
   ];
+}
+
+export function readDashboardPanelSummary(snapshot: DashboardSnapshot): DashboardPanelCatalogSummary {
+  const panels = readRecordArray(snapshot.descriptor.panels).map(readDashboardPanelCatalogItem);
+  const signalCount = panels.reduce((total, panel) => total + panel.signalCount, 0);
+  const actionCount = panels.reduce((total, panel) => total + panel.actionCount, 0);
+  const auth = readRecord(snapshot.descriptor.auth);
+  const updates = readRecord(snapshot.descriptor.updates);
+  const eventStore = readRecord(snapshot.descriptor.eventStore);
+  const bind = snapshot.descriptor.bind;
+  const tone: Tone = panels.length > 0 ? "success" : "warning";
+
+  return {
+    title: "Dashboard panels",
+    value: panels.length === 0 ? "no panels" : `${panels.length} panels`,
+    detail: panels.length === 0
+      ? "The dashboard descriptor did not advertise any operator panels."
+      : `${signalCount} signals and ${actionCount} local action${actionCount === 1 ? "" : "s"} are advertised by the local descriptor.`,
+    tone,
+    items: [
+      createStatusItem("bind", `${bind.host}:${bind.port}`),
+      createStatusItem("auth", readString(auth?.mode) ?? "unknown"),
+      createStatusItem("updates", readString(updates?.transport) ?? "unknown"),
+      createStatusItem("event store", readString(eventStore?.mode) ?? "unknown"),
+      createStatusItem("signals", signalCount),
+      createStatusItem("actions", actionCount, actionCount > 0 ? "warning" : "neutral")
+    ],
+    panels
+  };
+}
+
+export function readPromptStackSummary(snapshot: DashboardSnapshot): DashboardPromptStackSummary {
+  const providers = readProviderSummaries(snapshot);
+  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
+  const memory = snapshot.personalMemory;
+  const browserContext = readBrowserContextSummary(snapshot);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const userEntryCount = memory?.userEntryCount ?? 0;
+  const agentEntryCount = memory?.agentEntryCount ?? 0;
+  const sessionCount = memory?.sessionCount ?? 0;
+  const recalledSessionCount = memory?.recentSessions?.length ?? (memory?.latestSession ? 1 : 0);
+  const skillCount = memory?.personalSkills?.length ?? 0;
+  const pendingWriteCount = memory?.pendingWriteCount ?? memory?.pendingWrites?.length ?? 0;
+  const workingProfile = memory?.workingProfile;
+  const blocks: DashboardPromptStackBlock[] = [
+    {
+      id: "identity",
+      label: "Background Agent identity",
+      value: assistant ? `${assistant.label} (${assistant.mode})` : "unknown",
+      detail: "Provider identity is tracked separately from Computer Use Planner settings.",
+      tone: assistant && assistant.health !== "unavailable" ? "success" : "warning"
+    },
+    {
+      id: "memory",
+      label: "Personal memory",
+      value: `${userEntryCount} user / ${agentEntryCount} agent`,
+      detail: pendingWriteCount > 0
+        ? `${pendingWriteCount} pending ${pendingWriteCount === 1 ? "write stays" : "writes stay"} outside durable prompt memory.`
+        : "Durable memory counts are available for prompt context.",
+      tone: userEntryCount + agentEntryCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "session-recall",
+      label: "Session recall",
+      value: `${recalledSessionCount}/${sessionCount} recent`,
+      detail: recalledSessionCount > 0
+        ? "Recent session recall is available without echoing session text."
+        : "No recalled sessions are present in the snapshot.",
+      tone: recalledSessionCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "personal-skills",
+      label: "Personal skills",
+      value: `${skillCount} skill${skillCount === 1 ? "" : "s"}`,
+      detail: skillCount > 0
+        ? "Distilled skill hints are available without exposing raw evidence text."
+        : "No distilled personal skills are available yet.",
+      tone: skillCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "working-profile",
+      label: "Working profile",
+      value: workingProfile ? workingProfile.source : "missing",
+      detail: workingProfile
+        ? `${workingProfile.skillCount} skills, ${workingProfile.sessionCount} sessions, ${workingProfile.memoryEntryCount} memory entries shape the portable profile.`
+        : "No derived working profile is present in the snapshot.",
+      tone: workingProfile ? "success" : "neutral"
+    },
+    {
+      id: "browser-context",
+      label: "Browser Context",
+      value: browserContext.state,
+      detail: browserContext.title ?? browserContext.url ?? browserContext.reason,
+      tone: browserContext.tone
+    },
+    {
+      id: "route-context",
+      label: "Route context",
+      value: routeOutcome.value,
+      detail: routeOutcome.detail,
+      tone: routeOutcome.kind === "idle" ? "success" : routeOutcome.tone
+    }
+  ];
+  const warningCount = blocks.filter((block) => block.tone === "warning").length;
+  const dangerCount = blocks.filter((block) => block.tone === "danger").length;
+  const readyCount = blocks.filter((block) => block.tone === "success").length;
+  const tone: Tone = dangerCount > 0 ? "danger" : warningCount > 0 ? "warning" : "success";
+
+  return {
+    title: "Prompt stack",
+    value: `${readyCount}/${blocks.length} ready`,
+    detail: "Snapshot-backed Background Agent prompt context inventory.",
+    tone,
+    items: [
+      createStatusItem("memory", `${userEntryCount + agentEntryCount} durable entries`, userEntryCount + agentEntryCount > 0 ? "success" : "neutral"),
+      createStatusItem("session recall", `${recalledSessionCount} recent`, recalledSessionCount > 0 ? "success" : "neutral"),
+      createStatusItem("skills", skillCount, skillCount > 0 ? "success" : "neutral"),
+      createStatusItem("working profile", workingProfile ? "present" : "missing", workingProfile ? "success" : "neutral"),
+      createStatusItem("Browser Context", browserContext.state, browserContext.tone),
+      createStatusItem("route", routeOutcome.value, routeOutcome.kind === "idle" ? "success" : routeOutcome.tone)
+    ],
+    blocks
+  };
+}
+
+function readDashboardPanelCatalogItem(panel: Record<string, unknown>): DashboardPanelCatalogItem {
+  const id = readString(panel.id) ?? "unknown-panel";
+  const title = readString(panel.title) ?? titleize(id);
+  const signals = readStringArray(panel.signals);
+  const actions = readStringArray(panel.actions);
+
+  return {
+    id,
+    title,
+    signalCount: signals.length,
+    actionCount: actions.length,
+    signals,
+    actions,
+    tone: actions.length > 0 ? "warning" : "neutral"
+  };
 }
 
 export function readAssistantProviderView(snapshot: DashboardSnapshot): DashboardAssistantProviderView {
@@ -1382,6 +2786,89 @@ export function readUserAttentionSummary(snapshot: DashboardSnapshot): Dashboard
   };
 }
 
+export function readAppsSitesSummary(snapshot: DashboardSnapshot): DashboardAppsSitesSummary {
+  const chromeControl = readChromeControlState(snapshot);
+
+  return {
+    title: "Apps and sites",
+    value: readAppsSitesValue(chromeControl),
+    detail: readAppsSitesDetail(chromeControl),
+    tone: readAppsSitesTone(chromeControl),
+    items: [
+      createStatusItem(
+        "Chrome",
+        chromeControl.liveConnection === "connected" ? "Connected" : "Extension needs refresh",
+        chromeControl.liveConnection === "connected" ? "success" : "warning"
+      ),
+      createStatusItem(
+        "Native host",
+        chromeControl.nativeHostState,
+        chromeControl.nativeHostState === "installed" ? "success" : "warning"
+      ),
+      createStatusItem("Current page", chromeControl.activeTabLabel),
+      createStatusItem("Host policy", chromeControl.hostPolicy.state, chromeControl.hostPolicy.tone),
+      createStatusItem("Browser Context", chromeControl.browserContext.state, chromeControl.browserContext.tone),
+      createStatusItem("Screenshot", chromeControl.screenshotLane, readScreenshotLaneTone(chromeControl.screenshotLane)),
+      createStatusItem("Tab discovery", chromeControl.tabDiscoveryLabel)
+    ]
+  };
+}
+
+function readAppsSitesValue(chromeControl: DashboardChromeControlState): string {
+  if (chromeControl.actionable && chromeControl.screenshotLane !== "ready") {
+    return "Partial";
+  }
+  if (chromeControl.actionable && chromeControl.tone === "success") {
+    return "Ready";
+  }
+  if (chromeControl.actionable) {
+    return "Partial";
+  }
+  if (chromeControl.tone === "danger") {
+    return "Blocked";
+  }
+  if (chromeControl.liveConnection !== "connected" || chromeControl.nativeHostState !== "installed") {
+    return "Refresh";
+  }
+
+  return "Review";
+}
+
+function readAppsSitesTone(chromeControl: DashboardChromeControlState): Tone {
+  if (chromeControl.actionable && chromeControl.screenshotLane !== "ready") {
+    return "warning";
+  }
+
+  return chromeControl.tone;
+}
+
+function readAppsSitesDetail(chromeControl: DashboardChromeControlState): string {
+  if (chromeControl.actionable && chromeControl.screenshotLane === "ready") {
+    return "Chrome DOM actions and screenshot capture are ready for this HTTP(S) page.";
+  }
+  if (chromeControl.actionable) {
+    return "Chrome DOM actions are ready; screenshots may need Chrome capture permission or desktop fallback.";
+  }
+
+  return chromeControl.nextAction
+    ?? chromeControl.browserContext.nextAction
+    ?? chromeControl.reason
+    ?? chromeControl.browserContext.reason;
+}
+
+function readScreenshotLaneTone(value: string): Tone {
+  if (value === "ready") {
+    return "success";
+  }
+  if (value === "blocked") {
+    return "danger";
+  }
+  if (value.includes("permission") || value.includes("fallback")) {
+    return "warning";
+  }
+
+  return "neutral";
+}
 function readBrowserContextDetail(browserContext: DashboardBrowserContextSummary): string {
   return browserContext.title
     ?? browserContext.url
@@ -1458,6 +2945,131 @@ export function readAlertMessages(snapshot: DashboardSnapshot): string[] {
     .filter((message): message is string => Boolean(message));
 }
 
+export function readAlertGroupSummary(snapshot: DashboardSnapshot): DashboardAlertGroupSummary {
+  const groups = readAlertGroups(snapshot.alerts);
+  const errorCount = snapshot.alerts.filter((alert) => readString(alert.severity) === "error").length;
+  const warningCount = snapshot.alerts.filter((alert) => readString(alert.severity) === "warning").length;
+  const tone: Tone = errorCount > 0 ? "danger" : warningCount > 0 ? "warning" : "success";
+
+  return {
+    title: "Alerts",
+    value: snapshot.alerts.length === 0 ? "clear" : `${snapshot.alerts.length} alert${snapshot.alerts.length === 1 ? "" : "s"}`,
+    detail: snapshot.alerts.length === 0
+      ? "No dashboard alerts are active."
+      : `Grouped by ${groups.length} blocker area${groups.length === 1 ? "" : "s"}.`,
+    tone,
+    groups
+  };
+}
+
+function readAlertGroups(alerts: Array<Record<string, unknown>>): DashboardAlertGroup[] {
+  const grouped = new Map<DashboardAlertGroup["id"], {
+    definition: AlertGroupDefinition;
+    alerts: Array<Record<string, unknown>>;
+    severityRank: number;
+  }>();
+
+  for (const alert of alerts) {
+    const definition = classifyAlertGroup(alert);
+    const existing = grouped.get(definition.id) ?? {
+      definition,
+      alerts: [],
+      severityRank: 0
+    };
+    existing.alerts.push(alert);
+    existing.severityRank = Math.max(existing.severityRank, readAlertSeverityRank(alert));
+    grouped.set(definition.id, existing);
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) =>
+      right.severityRank - left.severityRank || left.definition.order - right.definition.order
+    )
+    .map(({ definition, alerts: groupAlerts }) => {
+      const tone = groupAlerts.reduce<Tone>((highest, alert) =>
+        readHigherAlertTone(highest, readAlertTone(alert)), "neutral");
+      const firstAlert = groupAlerts[0];
+
+      return {
+        id: definition.id,
+        title: definition.title,
+        value: `${groupAlerts.length} alert${groupAlerts.length === 1 ? "" : "s"}`,
+        detail: readString(firstAlert?.message)
+          ?? readString(firstAlert?.code)
+          ?? "Review dashboard alert.",
+        tone,
+        items: groupAlerts.map((alert) => createStatusItem(
+          readString(alert.code) ?? "alert",
+          readString(alert.message) ?? readString(alert.severity) ?? "Review dashboard alert.",
+          readAlertTone(alert)
+        ))
+      };
+    });
+}
+
+interface AlertGroupDefinition {
+  id: DashboardAlertGroup["id"];
+  title: string;
+  order: number;
+}
+
+function classifyAlertGroup(alert: Record<string, unknown>): AlertGroupDefinition {
+  const code = readString(alert.code) ?? "";
+  if (code.startsWith("desktop-") || code === "desktop-session-blocked") {
+    return { id: "desktop", title: "Desktop session", order: 10 };
+  }
+  if (code.includes("recording") || code.includes("accessibility") || code.includes("finder-automation")) {
+    return { id: "permissions", title: "Permissions", order: 20 };
+  }
+  if (code.startsWith("chrome-") || code.startsWith("extension-")) {
+    return { id: "chrome", title: "Chrome bridge", order: 30 };
+  }
+  if (code.startsWith("smoke-")) {
+    return { id: "evidence", title: "Smoke evidence", order: 40 };
+  }
+  if (code.startsWith("release-")) {
+    return { id: "release", title: "Release drift", order: 50 };
+  }
+  if (code.startsWith("runtime-snapshot")) {
+    return { id: "runtime", title: "Runtime snapshot", order: 60 };
+  }
+
+  return { id: "other", title: "Other", order: 90 };
+}
+
+function readAlertSeverityRank(alert: Record<string, unknown>): number {
+  const severity = readString(alert.severity);
+  if (severity === "error") {
+    return 3;
+  }
+  if (severity === "warning") {
+    return 2;
+  }
+  if (severity === "info") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function readHigherAlertTone(left: Tone, right: Tone): Tone {
+  return readToneSeverity(right) > readToneSeverity(left) ? right : left;
+}
+
+function readToneSeverity(tone: Tone): number {
+  if (tone === "danger") {
+    return 3;
+  }
+  if (tone === "warning") {
+    return 2;
+  }
+  if (tone === "success") {
+    return 1;
+  }
+
+  return 0;
+}
+
 export function readLatestMessage(snapshot: DashboardSnapshot): string {
   return readString(snapshot.currentTurn.latestMessage)
     ?? readString(snapshot.replay.latestMessage)
@@ -1477,9 +3089,177 @@ export function readRecentActivity(snapshot: DashboardSnapshot): DashboardRecent
   };
 }
 
+export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSummary {
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const desktopSession = readRecord(runtime.desktopSession) ?? {};
+  const freshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const assistant = readHomeAssistantState(snapshot, snapshot.currentTurn, freshness, routeOutcome);
+  const nextAction = readHomeNextAction(snapshot, routeOutcome);
+
+  return {
+    title: "Home",
+    value: assistant.label,
+    detail: assistant.detail,
+    tone: assistant.tone,
+    items: [
+      createStatusItem("assistant", assistant.detail, assistant.tone),
+      createStatusItem(
+        "current task",
+        readString(snapshot.currentTurn.command)
+          ?? readString(snapshot.currentTurn.latestMessage)
+          ?? "No active task"
+      ),
+      createStatusItem(
+        "target",
+        readString(snapshot.currentTurn.targetApp)
+          ?? readRouteOutcomeTargetLabel(routeOutcome)
+          ?? readString(desktopSession.frontmostLocalizedName)
+          ?? "None"
+      ),
+      createStatusItem("risk", readString(snapshot.currentTurn.risk) ?? "not evaluated"),
+      createStatusItem("next", nextAction.detail, nextAction.tone),
+      createStatusItem("stop", readString(snapshot.currentTurn.stopState) ?? "inactive")
+    ]
+  };
+}
+
+function readHomeAssistantState(
+  snapshot: DashboardSnapshot,
+  turn: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness,
+  routeOutcome: DashboardRouteOutcome
+): { label: string; detail: string; tone: Tone } {
+  if (snapshot.alerts.some((alert) => readString(alert.severity) === "error")) {
+    return { label: "Blocked", detail: "Needs your attention", tone: "danger" };
+  }
+  if (freshness.state === "stale") {
+    return { label: "Stale", detail: "Runtime stream is stale", tone: "warning" };
+  }
+
+  const turnState = readString(turn.state);
+  if (turnState === "approval_required") {
+    return { label: "Waiting", detail: "Approval required", tone: "warning" };
+  }
+  const routeAssistant = readHomeAssistantStateFromRouteOutcome(routeOutcome);
+  if (routeAssistant) {
+    return routeAssistant;
+  }
+  if (turnState === "executing") {
+    return { label: "Acting", detail: "Executing a task", tone: "warning" };
+  }
+  if (turnState === "observing") {
+    return { label: "Watching", detail: "Reading the desktop", tone: "warning" };
+  }
+
+  if (turnState === "failed") {
+    return { label: "Failed", detail: "Last task failed", tone: "danger" };
+  }
+  if (turnState === "completed") {
+    return { label: "Done", detail: "Last task completed", tone: "success" };
+  }
+
+  return { label: "Idle", detail: "Ready for an agent task", tone: "success" };
+}
+
+function readHomeAssistantStateFromRouteOutcome(
+  routeOutcome: DashboardRouteOutcome
+): { label: string; detail: string; tone: Tone } | undefined {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return { label: "Approval", detail: routeOutcome.title, tone: "warning" };
+    case "needs_confirmation":
+      return { label: "Confirm", detail: routeOutcome.title, tone: "warning" };
+    case "needs_clarification":
+      return { label: "Clarify", detail: routeOutcome.title, tone: "warning" };
+    case "app_policy_denied":
+      return { label: "Policy denied", detail: routeOutcome.title, tone: "danger" };
+    case "chrome_host_policy_denied":
+      return { label: "Chrome policy denied", detail: routeOutcome.title, tone: "danger" };
+    case "user_denied":
+      return { label: "Denied", detail: routeOutcome.title, tone: "neutral" };
+    case "blocked":
+      return { label: "Blocked", detail: routeOutcome.title, tone: "danger" };
+    case "cancelled":
+      return { label: "Cancelled", detail: routeOutcome.title, tone: "neutral" };
+    case "stopped":
+      return { label: "Stopped", detail: routeOutcome.title, tone: "neutral" };
+    case "failed":
+      return { label: "Failed", detail: routeOutcome.title, tone: "danger" };
+    case "completed":
+      return { label: "Done", detail: routeOutcome.title, tone: "success" };
+    default:
+      return undefined;
+  }
+}
+
+function readRouteOutcomeTargetLabel(routeOutcome: DashboardRouteOutcome): string | undefined {
+  return routeOutcome.routeLabel !== "unknown" ? routeOutcome.routeLabel : undefined;
+}
+
+function readHomeNextAction(
+  snapshot: DashboardSnapshot,
+  routeOutcome: DashboardRouteOutcome
+): { detail: string; tone: Tone } {
+  const blocker = snapshot.alerts.find((alert) => {
+    const severity = readString(alert.severity);
+    return severity === "error" || severity === "warning";
+  });
+  if (blocker) {
+    return {
+      detail: readString(blocker.message) ?? readString(blocker.code) ?? "Review dashboard alert.",
+      tone: readAlertTone(blocker)
+    };
+  }
+
+  const routeNextAction = readNextActionFromRouteOutcome(routeOutcome);
+  if (routeNextAction && routeOutcome.kind !== "approval_required") {
+    return { detail: routeNextAction.title, tone: routeNextAction.tone };
+  }
+
+  if (readString(snapshot.currentTurn.approvalState) === "required") {
+    return { detail: "Review the pending approval.", tone: "warning" };
+  }
+
+  if (routeNextAction) {
+    return { detail: routeNextAction.title, tone: routeNextAction.tone };
+  }
+
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const liveConnection = readString(extension.liveConnection)
+    ?? readString(extension.connectionState)
+    ?? readString(extension.state)
+    ?? "unknown";
+  if (liveConnection !== "connected") {
+    return { detail: "Refresh Chrome extension heartbeat.", tone: "warning" };
+  }
+
+  return { detail: "Ready for the next agent task.", tone: "success" };
+}
+
+export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOutcome {
+  const fallback = readSharedRouteOutcome({
+    currentTurn: snapshot.currentTurn,
+    replay: snapshot.replay,
+    defaultSource: "Current turn",
+    includeCommandDetail: true
+  });
+  const explicit = readExplicitRouteOutcome(snapshot.routeOutcome, fallback, { requireKind: true });
+  if (explicit) {
+    return explicit;
+  }
+
+  return fallback;
+}
+
 export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLatestTaskSignal {
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
   const currentTurnDetail = readCurrentTurnDetail(snapshot);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const routeSignal = readLatestRouteOutcomeSignal(routeOutcome);
+  if (routeSignal) {
+    return routeSignal;
+  }
 
   if (["failed", "blocked", "denied"].includes(currentTurnState)) {
     return {
@@ -1544,6 +3324,214 @@ export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLate
   };
 }
 
+function readLatestRouteOutcomeSignal(routeOutcome: DashboardRouteOutcome): DashboardLatestTaskSignal | undefined {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return {
+        title: "Review pending approval",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "needs_confirmation":
+      return {
+        title: "Confirm route",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "needs_clarification":
+      return {
+        title: "Clarify route",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "app_policy_denied":
+    case "chrome_host_policy_denied":
+    case "blocked":
+    case "failed":
+      return {
+        title: "Latest blocker",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "user_denied":
+    case "cancelled":
+    case "stopped":
+    case "completed":
+      return {
+        title: "Latest outcome",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "running":
+      return {
+        title: "Route in progress",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    default:
+      return undefined;
+  }
+}
+
+export function readApprovalQueueSummary(snapshot: DashboardSnapshot): DashboardApprovalQueueSummary {
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const hostPolicy = readRecord(extension.hostPolicy) ?? {};
+  const liveConnection = readString(extension.liveConnection)
+    ?? readString(extension.connectionState)
+    ?? readString(extension.state)
+    ?? "unknown";
+  const items: DashboardStatusItem[] = [];
+  const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const approvalState = readString(snapshot.currentTurn.approvalState) ?? "";
+
+  if (currentTurnState === "needs_confirmation") {
+    const detail = readString(snapshot.currentTurn.latestMessage)
+      ?? readString(snapshot.currentTurn.command)
+      ?? "Review the pending route confirmation.";
+    items.push(createStatusItem("Route confirmation", detail, "warning"));
+  } else if (
+    currentTurnState.includes("approval")
+    || approvalState === "pending"
+    || approvalState === "required"
+    || snapshot.currentTurn.approvalRequired === true
+  ) {
+    const risk = readString(snapshot.currentTurn.risk) ?? "review";
+    const detail = readString(snapshot.currentTurn.latestMessage)
+      ?? readString(snapshot.currentTurn.command)
+      ?? "Review the pending Computer Use action.";
+    items.push(createStatusItem("Computer Use approval", `${risk}: ${detail}`, "warning"));
+  }
+
+  if (liveConnection !== "connected") {
+    items.push(createStatusItem(
+      "Chrome extension",
+      "heartbeat not connected; refresh the extension before trusting page control",
+      "warning"
+    ));
+  }
+
+  if (readString(hostPolicy.state) === "default") {
+    items.push(createStatusItem(
+      "Chrome host policy",
+      "ask-by-default; new sites will request approval",
+      "warning"
+    ));
+  }
+
+  return {
+    title: "Approvals",
+    value: items.length > 0 ? `${items.length} pending` : "clear",
+    detail: items.length > 0
+      ? readApprovalQueueDetail(items)
+      : "No pending local approvals.",
+    tone: items.length > 0 ? "warning" : "success",
+    items
+  };
+}
+
+function readApprovalQueueDetail(items: DashboardStatusItem[]): string {
+  return items.some((item) => item.label === "Route confirmation")
+    ? "Review pending route confirmation and browser access requests."
+    : "Review pending local approval and browser access requests.";
+}
+
+export function readActivityFeedSummary(snapshot: DashboardSnapshot): DashboardActivityFeedSummary {
+  const turnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const replayState = readString(snapshot.replay.state) ?? "empty";
+  const latestAction = readRecord(snapshot.currentTurn.latestAction)
+    ?? readRecordArray(snapshot.replay.actions).at(-1);
+  const active = Boolean(turnState && turnState !== "idle");
+  const items = [
+    ...readChromeControlActivityItems(snapshot),
+    createStatusItem("latest action", formatRuntimeAction(latestAction)),
+    createStatusItem("verification", formatRuntimeVerification(readRecord(snapshot.currentTurn.latestVerification))),
+    createStatusItem("screenshot", readRuntimeActivityScreenshot(snapshot)),
+    createStatusItem("replay", replayState, replayState === "available" ? "success" : "neutral")
+  ];
+
+  return {
+    title: "Activity feed",
+    value: active ? "live" : replayState === "available" ? "recent" : "idle",
+    detail: "Recent local activity from the current turn and replay snapshots.",
+    tone: active ? "warning" : replayState === "available" ? "success" : "neutral",
+    items
+  };
+}
+
+function readChromeControlActivityItems(snapshot: DashboardSnapshot): DashboardStatusItem[] {
+  const entries = [
+    readRecord(snapshot.currentTurn.chromeControlActivity),
+    readRecord(snapshot.currentTurn.latestChromeControlAction),
+    ...readRecordArray(snapshot.replay.chromeControlActions)
+  ].filter((entry): entry is Record<string, unknown> => Boolean(entry));
+
+  return entries.slice(-4).map((entry) => createStatusItem(
+    readString(entry.title) ?? "Chrome action",
+    formatChromeControlActivity(entry),
+    readChromeControlActivityTone(entry)
+  ));
+}
+
+function formatChromeControlActivity(entry: Record<string, unknown>): string {
+  const target = readRecord(entry.target) ?? {};
+  const title = readString(entry.title) ?? "Chrome action";
+  const host = readString(target.host) ?? "current page";
+  const tabId = readNumber(target.tabId);
+  const tab = tabId !== undefined ? ` tab ${tabId}` : "";
+  return `${title}: ${formatChromeControlActivityResult(entry)} - ${host}${tab}`;
+}
+
+function formatChromeControlActivityResult(entry: Record<string, unknown>): string {
+  const result = readString(entry.result);
+  if (result === "verified") {
+    return "Verified";
+  }
+  if (result === "blocked") {
+    return readString(entry.blockerReason) ?? "Blocked";
+  }
+  if (result === "failed") {
+    return readString(entry.blockerReason) ?? "Failed";
+  }
+
+  return readString(entry.blockerReason) ?? "Unknown";
+}
+
+function readChromeControlActivityTone(entry: Record<string, unknown>): Tone {
+  const result = readString(entry.result);
+  if (result === "verified") {
+    return "success";
+  }
+  if (result === "blocked") {
+    return "warning";
+  }
+  if (result === "failed") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function readRuntimeActivityScreenshot(snapshot: DashboardSnapshot): string {
+  const latestScreenshot = readRecord(snapshot.currentTurn.latestScreenshot);
+  if (latestScreenshot) {
+    return formatRuntimeScreenshot(latestScreenshot);
+  }
+
+  return `screenshots ${formatUnknownNumber(readNumber(snapshot.replay.screenshotCount))}`;
+}
+
 export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): DashboardRuntimeEvidenceSummary {
   const recentSmokeEvidence = readRecord(snapshot.operatorReadiness.recentSmokeEvidence);
   const recentPassedTargets = readStringArray(recentSmokeEvidence?.recentPassedTargets);
@@ -1568,6 +3556,495 @@ export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): Dashboa
         ? "warning"
         : "neutral"
   };
+}
+
+export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): DashboardOperatorEvidenceSummary {
+  const descriptor = readRecord(snapshot.descriptor) ?? {};
+  const bind = readRecord(descriptor.bind) ?? {};
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const extension = readRecord(runtime.extension) ?? {};
+  const nativeHost = readRecord(runtime.nativeHost) ?? {};
+  const routeOutcome = readRouteOutcome(snapshot);
+  const readinessState = readString(snapshot.operatorReadiness.state) ?? "unknown";
+  const alertCount = snapshot.alerts.length;
+  const artifactCount = readRecordArray(snapshot.smokeEvidence.artifacts).length;
+  const hasError = snapshot.alerts.some((alert) => readString(alert.severity) === "error");
+  const hasWarning = snapshot.alerts.some((alert) => readString(alert.severity) === "warning");
+  const tone: Tone = hasError || readinessState === "blocked"
+    ? "danger"
+    : hasWarning
+      ? "warning"
+      : readinessState === "ready"
+        ? "success"
+        : "neutral";
+
+  return {
+    title: "Operator evidence",
+    value: hasError || readinessState === "blocked"
+      ? "Blocked"
+      : hasWarning
+        ? "Attention"
+        : readinessState,
+    detail: "Dashboard, runtime, and readiness handoff payload.",
+    tone,
+    items: [
+      createStatusItem("endpoint", "/api/operator-evidence"),
+      createStatusItem("dashboard", formatSafeDashboardUrl(readString(descriptor.url))),
+      createStatusItem("bind", formatDashboardBind(bind)),
+      createStatusItem("token free", "yes", "success"),
+      createStatusItem("source", "allowlisted-dashboard-summary"),
+      createStatusItem("turn", readString(snapshot.currentTurn.state) ?? "unknown"),
+      createStatusItem(
+        "route",
+        routeOutcome.routeLabel,
+        routeOutcome.routeLabel === "unknown" ? "neutral" : routeOutcome.tone
+      ),
+      createStatusItem(
+        "route outcome",
+        routeOutcome.value,
+        routeOutcome.kind === "idle" ? "neutral" : routeOutcome.tone
+      ),
+      createStatusItem("replay", readString(snapshot.replay.state) ?? "unknown"),
+      createStatusItem("readiness", readinessState, readReadinessTone(readinessState)),
+      createStatusItem("alerts", alertCount, alertCount > 0 ? (hasError ? "danger" : "warning") : "success"),
+      createStatusItem("extension", readString(extension.state) ?? "unknown"),
+      createStatusItem("native host", readString(nativeHost.state) ?? "unknown"),
+      createStatusItem("smoke artifacts", artifactCount)
+    ]
+  };
+}
+
+function formatSafeDashboardUrl(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return value.replace(/[?#].*$/u, "") || "unknown";
+  }
+}
+
+function formatDashboardBind(bind: Record<string, unknown>): string {
+  const host = readString(bind.host);
+  const port = readNumber(bind.port);
+  return host && Number.isInteger(port) ? `${host}:${port}` : "unknown";
+}
+
+export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): DashboardRuntimeSnapshotDetail[] {
+  const currentTurnFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
+  const replayFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.replay);
+  const routeOutcome = readRouteOutcome(snapshot);
+
+  return [
+    {
+      id: "current-turn",
+      title: "Current turn snapshot",
+      value: readRuntimePanelStatusLabel(snapshot.currentTurn, currentTurnFreshness, "current-turn"),
+      tone: readRuntimePanelTone(snapshot.currentTurn, currentTurnFreshness, "current-turn"),
+      items: [
+        createStatusItem("state", readString(snapshot.currentTurn.state) ?? "idle"),
+        createStatusItem("route outcome", routeOutcome.value, routeOutcome.tone),
+        createStatusItem("route detail", routeOutcome.detail),
+        ...(routeOutcome.denialKind ? [createStatusItem("denial kind", routeOutcome.denialKind)] : []),
+        ...(routeOutcome.policyKind ? [createStatusItem("policy kind", routeOutcome.policyKind)] : []),
+        createStatusItem(
+          "snapshot freshness",
+          currentTurnFreshness.state,
+          readRuntimeSnapshotFreshnessTone(currentTurnFreshness.state)
+        ),
+        createStatusItem("snapshot age", formatRuntimeSnapshotAge(currentTurnFreshness)),
+        createStatusItem("source", currentTurnFreshness.source),
+        createStatusItem("stale", currentTurnFreshness.stale),
+        createStatusItem("target", readString(snapshot.currentTurn.targetApp) ?? "unknown"),
+        createStatusItem("risk", readString(snapshot.currentTurn.risk) ?? "unknown"),
+        createStatusItem("approval", readString(snapshot.currentTurn.approvalState) ?? "unknown"),
+        createStatusItem("stop", readString(snapshot.currentTurn.stopState) ?? "unknown"),
+        createStatusItem("agent provider", readString(snapshot.currentTurn.agentProvider) ?? "unknown"),
+        createStatusItem("command", readString(snapshot.currentTurn.command) ?? "none"),
+        createStatusItem("latest action", formatRuntimeAction(readRecord(snapshot.currentTurn.latestAction))),
+        createStatusItem(
+          "latest verify",
+          formatRuntimeVerification(readRecord(snapshot.currentTurn.latestVerification))
+        ),
+        createStatusItem(
+          "latest screenshot",
+          formatRuntimeScreenshot(readRecord(snapshot.currentTurn.latestScreenshot))
+        ),
+        createStatusItem("message", readString(snapshot.currentTurn.latestMessage) ?? "none"),
+        createStatusItem("snapshot reason", currentTurnFreshness.reason ?? "none")
+      ]
+    },
+    {
+      id: "replay",
+      title: "Replay snapshot",
+      value: readRuntimePanelStatusLabel(snapshot.replay, replayFreshness, "replay"),
+      tone: readRuntimePanelTone(snapshot.replay, replayFreshness, "replay"),
+      items: [
+        createStatusItem("state", readString(snapshot.replay.state) ?? "empty"),
+        createStatusItem(
+          "snapshot freshness",
+          replayFreshness.state,
+          readRuntimeSnapshotFreshnessTone(replayFreshness.state)
+        ),
+        createStatusItem("snapshot age", formatRuntimeSnapshotAge(replayFreshness)),
+        createStatusItem("source", replayFreshness.source),
+        createStatusItem("stale", replayFreshness.stale),
+        createStatusItem("screenshots", formatUnknownNumber(readNumber(snapshot.replay.screenshotCount))),
+        createStatusItem("actions", formatUnknownNumber(readNumber(snapshot.replay.actionCount))),
+        createStatusItem("verifications", formatUnknownNumber(readNumber(snapshot.replay.verificationCount))),
+        createStatusItem(
+          "latest screenshot",
+          formatRuntimeScreenshot(readRecordArray(snapshot.replay.screenshots).at(-1))
+        ),
+        createStatusItem(
+          "latest action",
+          formatRuntimeAction(readRecordArray(snapshot.replay.actions).at(-1))
+        ),
+        createStatusItem(
+          "latest verify",
+          formatRuntimeVerification(readRecordArray(snapshot.replay.verifications).at(-1))
+        ),
+        createStatusItem("timeline tail", formatRuntimeTimelineTail(readRecordArray(snapshot.replay.timelineTail))),
+        createStatusItem("snapshot reason", replayFreshness.reason ?? "none")
+      ]
+    }
+  ];
+}
+
+export function readLongHorizonSummary(snapshot: DashboardSnapshot): DashboardLongHorizonSummary {
+  const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const activePane = readRecord(longHorizon.activePane) ?? {};
+  const recommendation = readRecord(longHorizon.recommendation) ?? {};
+  const state = readString(longHorizon.state) ?? "unknown";
+  const session = readString(longHorizon.session) ?? "money-run";
+  const recommendationAction = readString(recommendation.action) ?? "none";
+  const recommendationReason = readString(recommendation.reason) ?? readString(longHorizon.probeError);
+  const probeCount = Array.isArray(longHorizon.probeCommands)
+    ? longHorizon.probeCommands.length
+    : undefined;
+  const signalCount = readRecordArray(longHorizon.signals).length;
+  const detail = recommendationReason
+    ?? (state === "observing"
+      ? `${session} is being observed through read-only probes.`
+      : `No long-horizon supervision recommendation has been recorded for ${session}.`);
+
+  return {
+    title: "Long-horizon supervision",
+    value: state,
+    detail,
+    tone: readLongHorizonTone(state),
+    items: [
+      createStatusItem("state", state, readLongHorizonTone(state)),
+      createStatusItem("session", session),
+      createStatusItem("source", readString(longHorizon.source) ?? "unknown"),
+      createStatusItem("active pane", readString(activePane.id) ?? "none"),
+      createStatusItem("command", readString(activePane.currentCommand) ?? "none"),
+      createStatusItem("recommend", recommendationAction),
+      createStatusItem("reason", recommendationReason ?? "none"),
+      createStatusItem("mutates", readBoolean(longHorizon.mutatesSession) ?? false),
+      createStatusItem("signals", formatUnknownNumber(signalCount)),
+      createStatusItem("probes", formatUnknownNumber(probeCount))
+    ]
+  };
+}
+
+export function readAgentSupervisionSummary(snapshot: DashboardSnapshot): DashboardAgentSupervisionSummary {
+  const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const readinessState = readString(snapshot.operatorReadiness.state) ?? "unknown";
+  const activePane = readRecord(longHorizon.activePane) ?? {};
+  const recommendation = readRecord(longHorizon.recommendation) ?? {};
+  const moneyRunState = readString(longHorizon.state) ?? "not observed";
+  const recommendationAction = readString(recommendation.action) ?? readNextAction(snapshot).detail;
+  const recommendationReason = readString(recommendation.reason) ?? readString(longHorizon.probeError);
+  const tone = readAgentSupervisionTone(moneyRunState, readinessState);
+
+  return {
+    title: "Agent supervision",
+    value: tone === "success" ? "Ready" : "Needs evidence",
+    detail: recommendationReason ?? recommendationAction,
+    tone,
+    items: [
+      createStatusItem("money-run", moneyRunState, readLongHorizonTone(moneyRunState)),
+      createStatusItem("active pane", readString(activePane.id) ?? "none"),
+      createStatusItem("recommendation", recommendationAction),
+      createStatusItem("reason", recommendationReason ?? "none"),
+      createStatusItem("mutates session", readBoolean(longHorizon.mutatesSession) ?? "unknown")
+    ]
+  };
+}
+
+function readAgentSupervisionTone(moneyRunState: string, readinessState: string): Tone {
+  if (moneyRunState === "observing" || moneyRunState === "ready" || readinessState === "ready") {
+    return "success";
+  }
+  if (moneyRunState === "blocked" || moneyRunState === "failed" || readinessState === "blocked") {
+    return "danger";
+  }
+
+  return "warning";
+}
+
+function readLongHorizonTone(state: string): Tone {
+  if (state === "observing" || state === "ready") {
+    return "success";
+  }
+  if (state === "blocked" || state === "failed") {
+    return "danger";
+  }
+  if (state === "unknown" || state === "missing") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function readRuntimeSnapshotFreshness(
+  snapshot: DashboardSnapshot,
+  panel: Record<string, unknown>
+): DashboardRuntimeSnapshotFreshness {
+  const runtimeSnapshot = readRecord(snapshot.runtimeHealth.runtimeSnapshot) ?? {};
+  const source = readString(panel.source) ?? readString(runtimeSnapshot.source) ?? "unknown";
+  const observedAt = readString(panel.observedAt) ?? readString(runtimeSnapshot.observedAt);
+  const reason = readString(panel.reason) ?? readString(runtimeSnapshot.reason);
+  const ageSeconds = readRuntimeSnapshotAgeSeconds(snapshot.generatedAt, observedAt);
+  const runtimeState = readString(runtimeSnapshot.state);
+  const afterTurnEvidenceLoss = runtimeState === "missing-after-turn" || runtimeState === "stale-after-turn";
+  const empty = !afterTurnEvidenceLoss && (
+    panel.freshInstall === true
+    || runtimeSnapshot.freshInstall === true
+    || Boolean(readString(panel.emptyReasonCode))
+    || Boolean(readString(runtimeSnapshot.emptyReasonCode))
+    || runtimeState === "missing"
+  );
+  const unavailable = runtimeState === "unavailable"
+    || runtimeState === "repair-failed"
+    || runtimeState === "isolated";
+  const stale = afterTurnEvidenceLoss
+    || panel.stale === true
+    || runtimeSnapshot.stale === true
+    || (
+      ageSeconds !== undefined
+      && ageSeconds > DASHBOARD_RUNTIME_SNAPSHOT_STALE_SECONDS
+    );
+  const state: DashboardRuntimeSnapshotFreshnessState = empty
+    ? "empty"
+    : unavailable
+      ? "unavailable"
+      : stale
+        ? "stale"
+        : observedAt
+          ? "fresh"
+          : "unknown";
+
+  return { state, source, observedAt, reason, ageSeconds, stale };
+}
+
+function readRuntimeSnapshotAgeSeconds(generatedAt: string, observedAt: string | undefined): number | undefined {
+  const generatedAtMs = Date.parse(generatedAt || "");
+  const observedAtMs = Date.parse(observedAt || "");
+  if (!Number.isFinite(generatedAtMs) || !Number.isFinite(observedAtMs)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000));
+}
+
+function formatRuntimeSnapshotAge(freshness: DashboardRuntimeSnapshotFreshness): string {
+  if (freshness.ageSeconds === undefined) {
+    return freshness.observedAt ?? "unknown";
+  }
+
+  return `${freshness.ageSeconds}s old${freshness.observedAt ? ` (${freshness.observedAt})` : ""}`;
+}
+
+function readRuntimePanelStatusLabel(
+  panel: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness,
+  kind: DashboardRuntimeSnapshotDetail["id"]
+): string {
+  if (freshness.state === "stale") {
+    return "Stale";
+  }
+  if (freshness.state === "empty") {
+    return "Empty";
+  }
+  if (freshness.state === "unavailable") {
+    return "Unavailable";
+  }
+  if (kind === "current-turn") {
+    return readString(panel.state) === "idle" ? "Idle" : "Active";
+  }
+
+  return readString(panel.state) ?? "Loaded";
+}
+
+function readRuntimePanelTone(
+  panel: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness,
+  kind: DashboardRuntimeSnapshotDetail["id"]
+): Tone {
+  if (freshness.state === "unavailable") {
+    return "danger";
+  }
+  if (freshness.state === "stale") {
+    return "warning";
+  }
+  if (freshness.state === "empty") {
+    return kind === "current-turn" ? "success" : "warning";
+  }
+  if (kind === "current-turn") {
+    return readString(panel.state) === "idle" ? "success" : "warning";
+  }
+
+  return readString(panel.state) === "available" ? "success" : "warning";
+}
+
+function readRuntimeSnapshotFreshnessTone(state: DashboardRuntimeSnapshotFreshnessState): Tone {
+  if (state === "fresh" || state === "empty") {
+    return "success";
+  }
+  if (state === "stale") {
+    return "warning";
+  }
+  if (state === "unavailable") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function formatRuntimeAction(action: Record<string, unknown> | undefined): string {
+  if (!action) {
+    return "none";
+  }
+
+  const type = readString(action.type);
+  if (type === "plan") {
+    return `plan: ${readString(action.providerLabel) ?? "planner"} ${sanitizeDashboardActivityText(readString(action.command) ?? "")}`.trim();
+  }
+  if (type === "tool_call") {
+    return joinRuntimeActionParts([
+      "tool_call:",
+      readString(action.route) ?? "unknown",
+      readString(action.status) ?? "unknown"
+    ]);
+  }
+  if (type === "approval_decision") {
+    return joinRuntimeActionParts([
+      "approval_decision:",
+      readString(action.route) ?? "unknown",
+      readString(action.decision) ?? "unknown",
+      sanitizeDashboardActivityText(readString(action.reason) ?? "")
+    ]);
+  }
+  if (type === "tool_result") {
+    return joinRuntimeActionParts([
+      "tool_result:",
+      readString(action.route) ?? "unknown",
+      readString(action.status) ?? "unknown",
+      sanitizeDashboardActivityText(readString(action.summary) ?? readString(action.evidenceSummary) ?? ""),
+      formatRuntimeArtifactCount(readNumber(action.artifactCount))
+    ]);
+  }
+  if (type === "observe_finder_selection") {
+    return joinRuntimeActionParts([
+      "observe_finder_selection:",
+      formatRuntimeCount(readNumber(action.selectedCount), "selected"),
+      readString(action.source) ?? ""
+    ]);
+  }
+  if (type === "preview_finder_plan") {
+    return joinRuntimeActionParts([
+      "preview_finder_plan:",
+      formatRuntimeCount(readNumber(action.operationCount), "ops"),
+      formatRuntimeCount(readNumber(action.destructiveOperationCount), "destructive"),
+      formatRuntimeCount(readNumber(action.createFolderCount), "folders"),
+      formatRuntimeCount(readNumber(action.moveFileCount), "moves")
+    ]);
+  }
+  if (type === "confirm_finder_plan") {
+    return joinRuntimeActionParts([
+      "confirm_finder_plan:",
+      formatRuntimeCount(readNumber(action.operationCount), "ops"),
+      formatRuntimeCount(readNumber(action.destructiveOperationCount), "destructive"),
+      sanitizeDashboardActivityText(readString(action.reason) ?? "")
+    ]);
+  }
+  if (type === "type_text") {
+    return `type_text: ${readNumber(action.textLength) ?? 0} chars`;
+  }
+  if (type === "press_key") {
+    return `press_key: ${readString(action.key) ?? "unknown"}`;
+  }
+  if (type === "verify") {
+    return formatRuntimeVerification(action);
+  }
+  if (type === "activate_app" || type === "open_session") {
+    return `${type}: ${readString(action.appName) ?? readString(action.bundleId) ?? "unknown app"}`;
+  }
+  if (type === "recover" || type === "switch_control") {
+    const transition = [
+      readString(action.action) ?? readString(action.from) ?? "",
+      readString(action.to) ? `-> ${readString(action.to)}` : "",
+      readString(action.reason) ? `- ${sanitizeDashboardActivityText(readString(action.reason) ?? "")}` : ""
+    ].filter(Boolean).join(" ");
+    return `${type}: ${transition}`.trim();
+  }
+
+  return `${type ?? "action"}${readString(action.message) ? `: ${sanitizeDashboardActivityText(readString(action.message) ?? "")}` : ""}`;
+}
+
+function joinRuntimeActionParts(parts: string[]): string {
+  return parts.filter((part) => part.trim().length > 0).join(" ").trim();
+}
+
+function formatRuntimeCount(value: number | undefined, label: string): string {
+  return value === undefined ? "" : `${value} ${label}`;
+}
+
+function formatRuntimeArtifactCount(value: number | undefined): string {
+  return value !== undefined && value > 0 ? `${value} artifacts` : "";
+}
+
+function formatRuntimeVerification(verification: Record<string, unknown> | undefined): string {
+  if (!verification) {
+    return "none";
+  }
+
+  const action = readString(verification.actionType) ?? readString(verification.type) ?? "verification";
+  const status = readString(verification.status) ?? "unknown";
+  const detail = sanitizeDashboardActivityText(readString(verification.message) ?? readString(verification.reason) ?? "");
+  return `${action}: ${status}${detail ? ` - ${detail}` : ""}`;
+}
+
+function formatRuntimeScreenshot(screenshot: Record<string, unknown> | undefined): string {
+  if (!screenshot) {
+    return "none";
+  }
+
+  const stage = readString(screenshot.stage) ?? "screenshot";
+  const recommendation = readString(screenshot.recommendation);
+  const sourceCount = readNumber(screenshot.sourceCount);
+  const detail = [
+    recommendation,
+    sourceCount !== undefined ? `${sourceCount} sources` : undefined
+  ].filter(Boolean).join(" ");
+
+  return detail ? `${stage} (${detail})` : stage;
+}
+
+function formatRuntimeTimelineTail(timelineTail: Array<Record<string, unknown>>): string {
+  const items = timelineTail.slice(-3);
+  if (items.length === 0) {
+    return "none";
+  }
+
+  return items
+    .map((event) => `${readString(event.status) ?? "event"}: ${readString(event.message) ?? readString(event.command) ?? ""}`.trim())
+    .join(" | ");
 }
 
 function readCurrentTurnDetail(snapshot: DashboardSnapshot): string {
@@ -1619,6 +4096,11 @@ export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction
     };
   }
 
+  const routeNextAction = readNextActionFromRouteOutcome(readRouteOutcome(snapshot));
+  if (routeNextAction) {
+    return routeNextAction;
+  }
+
   const chromeControl = readChromeControlState(snapshot);
   if (chromeControl.browserContext.tone !== "success" && chromeControl.browserContext.nextAction) {
     return {
@@ -1660,6 +4142,97 @@ export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction
   };
 }
 
+function readNextActionFromRouteOutcome(routeOutcome: DashboardRouteOutcome): DashboardNextAction | undefined {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return {
+        title: "Review pending approval",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "needs_confirmation":
+      return {
+        title: "Confirm route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "needs_clarification":
+      return {
+        title: "Clarify route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "app_policy_denied":
+      return {
+        title: "Review app policy denial",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "chrome_host_policy_denied":
+      return {
+        title: "Review Chrome host policy denial",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "user_denied":
+      return {
+        title: "Route denied by user",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "blocked":
+      return {
+        title: "Resolve route blocker",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "cancelled":
+      return {
+        title: "Route cancelled",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "stopped":
+      return {
+        title: "Task stopped",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "failed":
+      return {
+        title: "Review route failure",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "completed":
+      return {
+        title: "Route completed",
+        detail: routeOutcome.detail,
+        tone: "success",
+        source: "Current route"
+      };
+    case "running":
+      return {
+        title: "Monitor running route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    default:
+      return undefined;
+  }
+}
+
 function createPermissionStatus(label: string, value: unknown): DashboardStatusItem {
   const state = readString(value) ?? "unknown";
 
@@ -1668,6 +4241,160 @@ function createPermissionStatus(label: string, value: unknown): DashboardStatusI
     value: state.replaceAll("-", " "),
     tone: state === "granted" ? "success" : state === "denied" ? "danger" : "warning"
   };
+}
+
+function createStatusItem(label: string, value: unknown, tone: Tone = "neutral"): DashboardStatusItem {
+  return {
+    label,
+    value: formatStatusValue(value),
+    tone
+  };
+}
+
+function findSmokeArtifact(
+  snapshot: DashboardSnapshot,
+  target: string
+): Record<string, unknown> | undefined {
+  return readRecordArray(snapshot.smokeEvidence.artifacts)
+    .find((artifact) => readString(artifact.target) === target);
+}
+
+function formatChromePageControlActiveTab(activeTab: Record<string, unknown> | undefined): string {
+  if (!activeTab) {
+    return "not-probed";
+  }
+  const state = readString(activeTab.state) ?? "unknown";
+  const host = readString(activeTab.host) ?? "unknown-host";
+  const tabId = readNumber(activeTab.tabId);
+  return `${state} ${host}${Number.isInteger(tabId) ? ` tab ${tabId}` : ""}`;
+}
+
+function formatChromePageControlContentScript(contentScript: Record<string, unknown> | undefined): string {
+  if (!contentScript) {
+    return "not-probed";
+  }
+
+  return [
+    readString(contentScript.state) ?? "unknown",
+    readString(contentScript.reason) ?? readString(contentScript.lastError)
+  ].filter(Boolean).join(" - ");
+}
+
+function formatChromePageControlCapability(value: unknown): string {
+  if (value === true) {
+    return "ready";
+  }
+  if (value === false) {
+    return "needs-action";
+  }
+  return readString(value) ?? "not-probed";
+}
+
+function formatChromePageControlActions(capabilities: Record<string, unknown> | undefined): string {
+  return ["click", "fill", "submit", "scroll"]
+    .map((key) => `${key}:${formatChromePageControlCapability(capabilities?.[key])}`)
+    .join(", ");
+}
+
+function formatChromePageSafetyRun(
+  pageSafety: Record<string, unknown> | undefined,
+  kind: string
+): { value: string; tone: Tone } {
+  const run = readRecordArray(pageSafety?.runs)
+    .find((entry) => readString(entry.kind) === kind);
+  if (!run) {
+    return { value: "missing", tone: "neutral" };
+  }
+
+  const result = readString(run.result) ?? "unknown";
+  const pause = run.sensitivePause === true ? "paused" : "not paused";
+  const reason = readString(run.reason);
+  return {
+    value: `${result} (${pause})${reason ? ` - ${reason}` : ""}`,
+    tone: readSmokeDetailTone(result)
+  };
+}
+
+function readChromePageSafetyReason(pageSafety: Record<string, unknown> | undefined): string {
+  return readString(pageSafety?.reason)
+    ?? readRecordArray(pageSafety?.runs).map((run) => readString(run.reason)).find(Boolean)
+    ?? readStringArray(pageSafety?.findingReasons)[0]
+    ?? "-";
+}
+
+function readChromePageSafetyFindingKinds(pageSafety: Record<string, unknown> | undefined): string[] {
+  const explicitKinds = readStringArray(pageSafety?.findingKinds);
+  if (explicitKinds.length > 0) {
+    return explicitKinds;
+  }
+
+  return [...new Set(readRecordArray(pageSafety?.runs)
+    .flatMap((run) => readRecordArray(readRecord(run.pageSafety)?.findings))
+    .map((finding) => readString(finding.kind))
+    .filter((kind): kind is string => Boolean(kind)))];
+}
+
+function formatFinderSmokeProbe(probe: Record<string, unknown> | undefined): string {
+  if (!probe) {
+    return "missing";
+  }
+
+  const result = readString(probe.result) ?? "unknown";
+  const reason = readString(probe.reason);
+  return reason ? `${result} - ${reason}` : result;
+}
+
+function readSmokeDetailTone(state: string): Tone {
+  if (["passed", "ready", "capable", "eligible"].includes(state)) {
+    return "success";
+  }
+  if (
+    state === "blocked"
+    || state === "failed"
+    || state === "unavailable"
+    || state.startsWith("blocked_")
+  ) {
+    return "danger";
+  }
+  if (
+    state === "sensitive-paused"
+    || state === "needs-action"
+    || state === "needs_confirmation"
+    || state === "partial"
+    || state === "skipped"
+  ) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function formatUnknownNumber(value: number | undefined): string {
+  return value === undefined ? "unknown" : String(value);
+}
+
+function sanitizeDashboardActivityText(value: string): string {
+  return value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/(?:file:\/\/)?(?:\/Users\/|\/tmp\/|\/private\/tmp\/|\/var\/|\/repo\/)[^\s"')]+/g, "[path]");
+}
+
+function formatBoolean(value: unknown): string {
+  return typeof value === "boolean" ? (value ? "yes" : "no") : "unknown";
+}
+
+function formatStatusValue(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "yes" : "no";
+  }
+  return "unknown";
 }
 
 function pushNode(nodes: DashboardKnowledgeGraphNode[], node: DashboardKnowledgeGraphNode): void {
@@ -1741,6 +4468,25 @@ function createMemoryEvolutionNodeDetail(entries: DashboardPersonalMemoryJournal
     .map((entry) => entry.providerLabel.trim())
     .filter(Boolean)).size;
   return `${entries.length} ${entries.length === 1 ? "learning receipt" : "learning receipts"} across ${providerCount} ${providerCount === 1 ? "provider" : "providers"}`;
+}
+
+function readMutationReceiptTone({
+  blocked,
+  result
+}: {
+  blocked: number | undefined;
+  result: string;
+}): Tone {
+  if (blocked && blocked > 0) {
+    return "danger";
+  }
+  if (result === "error") {
+    return "danger";
+  }
+  if (result === "not-found" || result === "unchanged") {
+    return "neutral";
+  }
+  return "success";
 }
 
 function formatInteger(value: number): string {
@@ -1915,6 +4661,10 @@ function readNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function readStringArray(value: unknown): string[] {

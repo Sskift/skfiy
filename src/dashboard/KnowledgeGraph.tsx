@@ -464,12 +464,14 @@ function createPromptStackSteps(
   const browserLabels = nodes
     .filter((node) => node.kind === "browser")
     .map((node) => node.label);
+  const routeContextLabels = readRouteContextNodes(nodes).map((node) => node.label);
 
   pushPromptStackStep(steps, "Memory", "volatile local memory", memoryLabels);
   pushPromptStackStep(steps, "Recalled sessions", "volatile session recall", sessionLabels);
   pushPromptStackStep(steps, "Personal skills", "stable learned habits", skillLabels);
   pushPromptStackStep(steps, "Working profile", "volatile portable profile", workingProfileLabels);
   pushPromptStackStep(steps, "Browser Context", "live browser overlay", browserLabels);
+  pushPromptStackStep(steps, "Route context", "runtime route state", routeContextLabels);
   pushPromptStackStep(steps, "Background Agent", "runtime provider", provider ? [provider.label] : []);
 
   return steps;
@@ -550,6 +552,8 @@ function createPromptSourceLedgerEntries(
   });
   const browserNodes = nodes.filter((node) => node.kind === "browser");
   const browserLabels = browserNodes.map((node) => node.label);
+  const routeContextNodes = readRouteContextNodes(nodes);
+  const routeContextLabels = routeContextNodes.map((node) => node.label);
 
   pushPromptSourceLedgerEntry(entries, {
     stage: "Memory",
@@ -588,6 +592,12 @@ function createPromptSourceLedgerEntries(
     items: browserLabels.length > 0 ? browserLabels : ["No current page context"]
   });
   pushPromptSourceLedgerEntry(entries, {
+    stage: "Route context",
+    status: routeContextNodes.length > 0 ? readWorstStatus(routeContextNodes) : "idle",
+    statusTone: routeContextNodes.length > 0 ? readWorstStatusTone(routeContextNodes) : "ready",
+    items: routeContextLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
     stage: "Background Agent",
     status: provider ? readNodeReadinessStatus(provider) : "missing",
     statusTone: provider ? readNodeReadinessTone(provider) : "blocked",
@@ -604,6 +614,10 @@ function pushPromptSourceLedgerEntry(
   if (entry.items.length > 0) {
     entries.push(entry);
   }
+}
+
+function readRouteContextNodes(nodes: DashboardKnowledgeGraphNode[]): DashboardKnowledgeGraphNode[] {
+  return nodes.filter((node) => node.kind === "turn" && node.id.startsWith("route:"));
 }
 
 function readPromptSourceNodes({

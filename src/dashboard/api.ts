@@ -4,6 +4,8 @@ import type {
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalSkillActionRequest,
@@ -12,6 +14,15 @@ import type {
   DashboardProviderSettingsResponse,
   DashboardSnapshot
 } from "./contracts";
+
+export interface DashboardSnapshotEventHandlers {
+  onSnapshot: (snapshot: DashboardSnapshot) => void;
+  onError?: (error: Error) => void;
+}
+
+export interface DashboardSnapshotEventSubscription {
+  close: () => void;
+}
 
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const response = await fetch("/snapshot.json", {
@@ -23,6 +34,35 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   }
 
   return await response.json() as DashboardSnapshot;
+}
+
+export function subscribeDashboardSnapshotEvents({
+  onSnapshot,
+  onError
+}: DashboardSnapshotEventHandlers): DashboardSnapshotEventSubscription {
+  if (typeof EventSource === "undefined") {
+    return { close: () => {} };
+  }
+
+  const source = new EventSource("/events");
+  const handleSnapshotEvent = (event: MessageEvent<string>) => {
+    try {
+      onSnapshot(JSON.parse(event.data) as DashboardSnapshot);
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error("Dashboard snapshot event was invalid."));
+    }
+  };
+
+  source.addEventListener("snapshot", handleSnapshotEvent as EventListener);
+  source.onerror = () => {
+    onError?.(new Error("Dashboard live update stream disconnected."));
+  };
+
+  return {
+    close: () => {
+      source.close();
+    }
+  };
 }
 
 export async function postChromeControlAction(
@@ -87,6 +127,32 @@ export async function fetchProviderSettings(): Promise<DashboardProviderSettings
   }
 
   return payload as unknown as DashboardProviderSettingsResponse;
+}
+
+export async function fetchDashboardEvidenceSummary(): Promise<DashboardEvidenceSummary> {
+  const response = await fetch("/api/evidence-summary", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Evidence summary request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardEvidenceSummary;
+}
+
+export async function fetchDashboardOperatorEvidence(): Promise<DashboardOperatorEvidencePayload> {
+  const response = await fetch("/api/operator-evidence", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Operator evidence request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardOperatorEvidencePayload;
 }
 
 export async function postPlannerProviderSettings(

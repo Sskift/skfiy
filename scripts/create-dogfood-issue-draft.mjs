@@ -427,6 +427,9 @@ function chooseComputerUseResult(results) {
   if (results.includes("needs-user-confirmation")) {
     return "needs-user-confirmation";
   }
+  if (results.includes("needs-clarification")) {
+    return "needs-clarification";
+  }
   if (results.includes("sensitive-paused")) {
     return "sensitive-paused";
   }

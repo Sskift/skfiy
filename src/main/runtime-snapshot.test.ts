@@ -8,6 +8,9 @@ import {
   writeRuntimeSnapshot,
   writeRuntimeTurnMarker
 } from "./runtime-snapshot";
+import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload";
+import { createStopTurnTaskEvent } from "./main-route-task-events";
+import { CHROME_BUNDLE_ID } from "./task-routing";
 import type { TurnReplay } from "./computer-use/turn-replay-store";
 
 function createReplay(): TurnReplay {
@@ -110,6 +113,15 @@ describe("runtime snapshot", () => {
         },
         source: "runtime-snapshot"
       },
+      routeOutcome: {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        state: "approval_required",
+        source: "runtime-snapshot",
+        routeLabel: "Ghostty",
+        detail: "Approval required (low): Read-only terminal command."
+      },
       replay: {
         state: "available",
         outcome: "running",
@@ -179,9 +191,351 @@ describe("runtime snapshot", () => {
         source: "runtime-snapshot",
         updateSource: "live-task-event"
       },
+      routeOutcome: {
+        kind: "running",
+        value: "observing",
+        state: "observing",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "Capturing the desktop."
+      },
       replay: {
         state: "empty",
         source: "runtime-snapshot"
+      }
+    });
+  });
+
+  it("preserves replay confirmation and clarification outcomes in runtime route state", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        ...createReplay(),
+        transcript: {
+          ...createReplay().transcript,
+          outcome: "needs_confirmation"
+        },
+        timeline: []
+      },
+      observedAt: "2026-06-20T10:02:00.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "needs_confirmation",
+        approvalState: "not-required"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        value: "needs_confirmation",
+        state: "needs_confirmation"
+      },
+      replay: {
+        outcome: "needs_confirmation"
+      }
+    });
+
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        ...createReplay(),
+        transcript: {
+          ...createReplay().transcript,
+          outcome: "needs_clarification"
+        },
+        timeline: []
+      },
+      observedAt: "2026-06-20T10:03:00.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "needs_clarification",
+        approvalState: "not-required"
+      },
+      routeOutcome: {
+        kind: "needs_clarification",
+        value: "needs_clarification",
+        state: "needs_clarification"
+      },
+      replay: {
+        outcome: "needs_clarification"
+      }
+    });
+  });
+
+  it("records Task stopped as a stopped route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: {
+        status: "cancelled",
+        command: "stop current task",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      observedAt: "2026-06-20T10:01:10.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:10.000Z",
+      currentTurn: {
+        state: "cancelled",
+        command: "stop current task",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        },
+        stopState: "inactive",
+        updateSource: "live-task-event"
+      },
+      routeOutcome: {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        state: "cancelled",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "Task stopped."
+      }
+    });
+  });
+
+  it("preserves the stopped route label in runtime route outcomes", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent(createStopTurnTaskEvent({
+        kind: "chrome",
+        bundleId: CHROME_BUNDLE_ID
+      })),
+      observedAt: "2026-06-20T10:01:20.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        routeReason: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      routeOutcome: {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        state: "cancelled",
+        routeLabel: "chrome",
+        detail: "Task stopped."
+      }
+    });
+  });
+
+  it("records Chrome host policy denial as a distinct blocked route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent({
+        status: "blocked",
+        message: "Chrome host policy blocked this approved task: blocked.example",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
+      }),
+      observedAt: "2026-06-20T10:01:15.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:15.000Z",
+      currentTurn: {
+        state: "blocked",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        state: "blocked",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
+      }
+    });
+  });
+
+  it("uses explicit live task route outcomes for runtime snapshots without leaking tokens", () => {
+    const snapshot = createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent({
+        status: "blocked",
+        message: "Chrome route blocked.",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Fallback route reason should not replace explicit outcome.",
+        routeOutcome: {
+          kind: "chrome_host_policy_denied",
+          title: "Chrome host policy denied route",
+          value: "chrome_host_policy_denied",
+          detail: "Chrome host policy blocked token=runtime-secret",
+          tone: "danger",
+          source: "task-event",
+          routeLabel: "chrome",
+          state: "blocked",
+          policyKind: "chrome-host-policy"
+        }
+      }),
+      observedAt: "2026-06-20T10:01:16.000Z"
+    });
+
+    expect(snapshot.currentTurn).toMatchObject({
+      state: "blocked",
+      command: "summarize current Chrome page",
+      route: "chrome",
+      routeReason: "Fallback route reason should not replace explicit outcome.",
+      latestMessage: "Chrome route blocked."
+    });
+    expect(snapshot.currentTurn).not.toHaveProperty("routeOutcome");
+    expect(snapshot.routeOutcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "task-event",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("runtime-secret");
+  });
+
+  it("keeps replay timeline app-policy denial metadata in runtime route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          approvalRequired: false,
+          apps: [],
+          screenshots: [],
+          actions: [],
+          outcome: "blocked"
+        },
+        timeline: [
+          {
+            status: "blocked",
+            command: "organize Finder",
+            message: "Finder is denied by app policy. token=secret-token",
+            route: "finder",
+            routeReason: "Finder is denied by app policy. token=secret-token",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:01:17.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:17.000Z",
+      currentTurn: {
+        state: "blocked",
+        command: "organize Finder",
+        route: "finder",
+        routeReason: "Finder is denied by app policy. token=[redacted]",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        latestMessage: "Finder is denied by app policy. token=[redacted]"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        state: "blocked",
+        source: "runtime-snapshot",
+        routeLabel: "finder",
+        detail: "Finder is denied by app policy. token=[redacted]",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      },
+      replay: {
+        timelineTail: [
+          {
+            status: "blocked",
+            command: "organize Finder",
+            route: "finder",
+            routeReason: "Finder is denied by app policy. token=[redacted]",
+            denialKind: "app_policy",
+            policyKind: "app-policy"
+          }
+        ]
+      }
+    });
+  });
+
+  it("keeps replay timeline user denial metadata in runtime route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          approvalRequired: true,
+          apps: [],
+          screenshots: [],
+          actions: [],
+          outcome: "denied"
+        },
+        timeline: [
+          {
+            status: "denied",
+            command: "fill Chrome form",
+            message: "User denied this browser mutation.",
+            route: "chrome",
+            routeReason: "User denied this browser mutation.",
+            denialKind: "user"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:01:18.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:18.000Z",
+      currentTurn: {
+        state: "denied",
+        command: "fill Chrome form",
+        route: "chrome",
+        routeReason: "User denied this browser mutation.",
+        denialKind: "user",
+        latestMessage: "User denied this browser mutation.",
+        approvalState: "required"
+      },
+      routeOutcome: {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        state: "denied",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "User denied this browser mutation.",
+        denialKind: "user"
+      }
+    });
+  });
+
+  it("preserves live route clarification state before replay exists", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: {
+        status: "needs_clarification",
+        message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+      },
+      observedAt: "2026-06-20T10:01:20.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:20.000Z",
+      currentTurn: {
+        state: "needs_clarification",
+        latestMessage: "No supported desktop control route matched this request. 请明确目标应用和动作。",
+        approvalRequired: false,
+        approvalState: "not-required",
+        stopState: "inactive",
+        updateSource: "live-task-event"
+      },
+      routeOutcome: {
+        kind: "needs_clarification",
+        title: "Route needs clarification",
+        value: "needs_clarification",
+        state: "needs_clarification",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "No supported desktop control route matched this request. 请明确目标应用和动作。"
       }
     });
   });
@@ -252,6 +606,15 @@ describe("runtime snapshot", () => {
         approvalRequired: true,
         approvalState: "approved",
         stopState: "inactive"
+      },
+      routeOutcome: {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        state: "completed",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "Chrome page opened."
       },
       replay: {
         state: "available",
@@ -343,6 +706,7 @@ describe("runtime snapshot", () => {
     const serialized = JSON.stringify(snapshot);
 
     expect(snapshot.currentTurn.command).toBe("curl https://example.test?token=[redacted]");
+    expect(snapshot.routeOutcome.detail).toBe("Running with secret=[redacted]");
     expect(serialized).toContain("api_key=[redacted]");
     expect(serialized).toContain("Bearer [redacted]");
     expect(serialized).toContain("secret=[redacted]");
@@ -378,6 +742,11 @@ describe("runtime snapshot", () => {
       currentTurn: {
         state: "approval_required",
         command: "pwd"
+      },
+      routeOutcome: {
+        kind: "approval_required",
+        state: "approval_required",
+        routeLabel: "Ghostty"
       }
     });
     expect(files[runtimePath]).not.toContain("token=");
@@ -392,6 +761,11 @@ describe("runtime snapshot", () => {
         state: "approval_required",
         command: "pwd",
         source: "runtime-snapshot"
+      },
+      routeOutcome: {
+        kind: "approval_required",
+        state: "approval_required",
+        routeLabel: "Ghostty"
       },
       replay: {
         state: "available",
@@ -448,7 +822,12 @@ describe("runtime snapshot", () => {
       currentTurn: {
         status: "executing",
         message: "Using Bearer abc.def and token=super-secret",
-        command: "curl https://example.test?api_key=abc123"
+        command: "curl https://example.test?api_key=abc123",
+        stopTurnBehavior: {
+          beforeStatus: "approval_required",
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped with token=super-secret."
+        }
       },
       observedAt: "2026-06-20T10:03:00.000Z"
     })).toMatchObject({
@@ -459,7 +838,12 @@ describe("runtime snapshot", () => {
         source: "runtime-turn-marker",
         updateSource: "live-task-event",
         command: "curl https://example.test?api_key=[redacted]",
-        latestMessage: "Using Bearer [redacted] and token=[redacted]"
+        latestMessage: "Using Bearer [redacted] and token=[redacted]",
+        stopTurnBehavior: {
+          beforeStatus: "approval_required",
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped with token=[redacted]"
+        }
       }
     });
 

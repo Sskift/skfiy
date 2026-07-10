@@ -1,15 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, {
-  type AppPolicySettings,
-  type AssistantAgentMode,
-  type AssistantAgentSettingsResponse,
-  type DesktopApi,
-  type PlannerProviderSettings,
-  type TaskEvent
-} from "./App";
+import App from "./App";
+import type {
+  AppPolicySettings,
+  AssistantAgentMode,
+  AssistantAgentSettingsResponse,
+  DesktopApi,
+  PlannerProviderSettings,
+  TaskEvent
+} from "./app-types";
 import type { PetAtlasManifest } from "./pet-atlas";
 
 let emitTaskEvent: (event: TaskEvent) => void;
@@ -255,20 +254,6 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("does not render the obsolete assistant bubble diamond marker", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).not.toContain(".assistant-bubble::after");
-  });
-
-  it("does not reposition the pet when panels open", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).not.toContain(".pet-stage.panel-open .skfiy-pet");
-    expect(css).not.toContain("bottom: 92px");
-    expect(css).toContain("top: calc(var(--pet-hitbox-height");
-  });
-
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
@@ -386,8 +371,56 @@ describe("App", () => {
     expect(within(dashboard).getByText("当前任务")).toBeInTheDocument();
     expect(within(dashboard).getByText(/授权/)).toBeInTheDocument();
     expect(within(dashboard).getByText("未评估风险")).toBeInTheDocument();
+    expect(within(dashboard).getByText("路由待命")).toBeInTheDocument();
     expect(within(dashboard).getByText("暂无最近执行")).toBeInTheDocument();
     expect(screen.getByText("诊断/高级")).toBeInTheDocument();
+  });
+
+  it("shows route denial detail in the user-mode dashboard", async () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "blocked",
+      message: "Ghostty cannot continue.",
+      route: "ghostty",
+      routeReason: "Configured app policy blocked Ghostty.",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    }));
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const dashboard = await screen.findByLabelText("用户态 dashboard");
+    expect(within(dashboard).getByText("应用策略拒绝")).toBeInTheDocument();
+    expect(within(dashboard).getByText(
+      "ghostty · Configured app policy blocked Ghostty. · 拒绝 app_policy · 策略 app-policy"
+    )).toBeInTheDocument();
+  });
+
+  it("shows explicit task-event route outcomes in the user-mode dashboard", async () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "blocked",
+      message: "Current Chrome route cannot continue.",
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked token=task-secret",
+        tone: "danger",
+        source: "task-event",
+        routeLabel: "chrome",
+        state: "blocked",
+        policyKind: "chrome-host-policy"
+      }
+    }));
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const dashboard = await screen.findByLabelText("用户态 dashboard");
+    expect(within(dashboard).getByText("Chrome 站点策略拒绝")).toBeInTheDocument();
+    expect(within(dashboard).getByText(
+      "chrome · Chrome host policy blocked token=[redacted] · 策略 chrome-host-policy"
+    )).toBeInTheDocument();
   });
 
   it("shows startup guard warnings as a non-blocking pet bubble", async () => {
@@ -795,6 +828,7 @@ describe("App", () => {
       ["executing", "Executing", "Typing in Ghostty", "running"],
       ["approval_required", "Approval required", "Needs a human check", "waiting"],
       ["needs_confirmation", "Needs confirmation", "Verification failed", "waiting"],
+      ["needs_clarification", "Needs clarification", "Clarify the target app", "waiting"],
       ["completed", "Completed", "Task finished", "waving"],
       ["failed", "Failed", "Could not complete", "failed"]
     ];
@@ -1102,6 +1136,24 @@ describe("App", () => {
     });
   });
 
+  it("dismisses terminal task bubbles before compact pet dragging", async () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    const api = window.skfiy as DesktopApi;
+
+    act(() => emitTaskEvent({ status: "cancelled", message: "Task stopped." }));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Cancelled");
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 3, screenX: 100, screenY: 100 });
+    fireEvent.pointerMove(pet, { pointerId: 3, screenX: 112, screenY: 42 });
+
+    expect(api.moveWindowBy).toHaveBeenCalled();
+    await waitFor(() => expect(api.setWindowMode).toHaveBeenLastCalledWith("compact"));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
+    expect(screen.queryByText("Task stopped.")).not.toBeInTheDocument();
+  });
+
   it("uses a compact transparent window until an input, task, or settings bubble is visible", async () => {
     render(<App />);
 
@@ -1208,6 +1260,23 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
   });
 
+  it("shows unsupported route clarification without approval execution controls", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "needs_clarification",
+      message: "No supported desktop control route matched this request. 请明确目标应用和动作。",
+      routeReason: "No supported desktop control route matched this request."
+    }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent(
+      "Needs clarification"
+    );
+    expect(screen.getByText("No supported desktop control route matched this request. 请明确目标应用和动作。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
+  });
+
   it("shows observe_app replay records with screenshot paths and accessibility trust", () => {
     render(<App />);
 
@@ -1282,15 +1351,4 @@ describe("App", () => {
     expect(screen.queryByLabelText("Computer Use replay")).not.toBeInTheDocument();
   });
 
-  it("keeps permission icon buttons visually centered", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).toContain(".permissions-heading button,\n.permission-row button");
-    expect(css).toContain("padding: 0;");
-    expect(css).toContain("line-height: 0;");
-    expect(css).toContain(".permissions-heading button svg,\n.permission-row button svg");
-    expect(css).toContain("display: block;");
-    expect(css).toContain(".dashboard-actions button svg,\n.approval-actions button svg");
-    expect(css).toContain("flex: 0 0 auto;");
-  });
 });

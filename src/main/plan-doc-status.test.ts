@@ -2,36 +2,112 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-interface LatestAlphaEvidence {
-  appName: string;
-  tagName: string;
-  releaseUrl: string;
-  commitSha: string;
-  zipSha256: string;
-  smokeArtifacts: {
-    ui: string;
-    ghostty: string;
-    chrome: string;
-    finder: string;
-    moneyRun: string;
-  };
-}
-
 const activePlanPath = path.join(
   process.cwd(),
   "docs",
   "superpowers",
   "plans",
-  "2026-06-23-pet-agent-browser-dashboard.md"
+  "2026-07-07-code-health-cleanup.md"
 );
+const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+const activePlanDate = Date.parse("2026-07-07T00:00:00.000Z");
 
-function readLatestAlphaEvidence(): LatestAlphaEvidence {
-  return JSON.parse(
-    readFileSync(
-      path.join(process.cwd(), "docs", "release-evidence", "latest-alpha.json"),
-      "utf8"
-    )
-  ) as LatestAlphaEvidence;
+const repoMarkdownSkipDirs = new Set([
+  ".git",
+  ".skfiy-alpha",
+  ".skfiy-cli-smoke",
+  ".skfiy-dogfood",
+  ".skfiy-smoke",
+  ".build",
+  "dist",
+  "node_modules"
+]);
+const repositoryTextFileExtensions = new Set([
+  ".css",
+  ".cts",
+  ".html",
+  ".js",
+  ".json",
+  ".md",
+  ".mjs",
+  ".ts",
+  ".tsx",
+  ".yaml",
+  ".yml"
+]);
+
+function collectMarkdownDocs(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectMarkdownDocs(entryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
+  });
+}
+
+function collectRepositoryMarkdownDocs(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectRepositoryMarkdownDocs(entryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
+  });
+}
+
+function collectRepositoryDirectories(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (!entry.isDirectory() || repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    return [entryPath, ...collectRepositoryDirectories(entryPath)];
+  });
+}
+
+function collectRepositoryTextFiles(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectRepositoryTextFiles(entryPath);
+    }
+
+    return entry.isFile() && repositoryTextFileExtensions.has(path.extname(entry.name).toLowerCase())
+      ? [entryPath]
+      : [];
+  });
+}
+
+function findMarkdownBasenameDateStamp(docPath: string): string | null {
+  return /(?:^|[-_])(\d{4}-\d{2}-\d{2})(?:[-_]|$)/.exec(path.basename(docPath))?.[1] ?? null;
 }
 
 describe("implementation plan status docs", () => {
@@ -41,33 +117,285 @@ describe("implementation plan status docs", () => {
       ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
       : [];
 
-    expect(activePlanFiles).toEqual(["2026-06-23-pet-agent-browser-dashboard.md"]);
+    expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
   });
 
-  it("documents the current local packaged-app evidence in README instead of plan archives", () => {
+  it("keeps retired plan-like markdown files out of docs", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const retiredPlanLikeDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      return /(^|[-_.])plans?($|[-_.])/i.test(basename)
+        || /(^|[-_.])planning($|[-_.])/i.test(basename)
+        || /(^|\/)plans($|\/)/i.test(docPath);
+    });
+
+    expect(retiredPlanLikeDocs).toEqual([]);
+  });
+
+  it("keeps dated research and implementation logs out of docs", () => {
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const datedResearchOrLogs = markdownDocs.filter((docPath) => (
+      /(^|\/)research\//i.test(docPath)
+      || /(^|[-_.])(research|implementation-log|work-log|handoff)($|[-_.])/i.test(path.basename(docPath))
+    ));
+
+    expect(datedResearchOrLogs).toEqual([]);
+  });
+
+  it("keeps dated non-active markdown out of docs", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const datedNonActiveDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      return /^\d{4}-\d{2}-\d{2}-/.test(path.basename(docPath));
+    });
+
+    expect(datedNonActiveDocs).toEqual([]);
+  });
+
+  it("keeps stale dated plan material out of repository markdown", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDatedPlanDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      const hasDateStamp = findMarkdownBasenameDateStamp(docPath) !== null;
+      const looksLikePlanningMaterial = /(^|[-_.])(plans?|planning|research|implementation-log|work-log|handoff|checklist|backlog)($|[-_.])/i.test(basename)
+        || /(^|\/)(plans?|research|handoffs?|checklists?|backlogs?)($|\/)/i.test(docPath);
+
+      return hasDateStamp && looksLikePlanningMaterial;
+    });
+
+    expect(staleDatedPlanDocs).toEqual([]);
+  });
+
+  it("keeps inactive plan-like markdown out of the repository", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const inactivePlanLikeDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      return /(^|[-_.])(plans?|planning|research|implementation-log|work-log|handoff|checklist|backlog|cleanup)($|[-_.])/i.test(basename)
+        || /(^|\/)(plans?|research|handoffs?|checklists?|backlogs?|archives?|parking)($|\/)/i.test(docPath);
+    });
+
+    expect(inactivePlanLikeDocs).toEqual([]);
+  });
+
+  it("keeps retired planning container directories out of docs", () => {
+    const docsRoot = path.join(process.cwd(), "docs");
+    const docsDirectories = collectRepositoryDirectories(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const retiredPlanningContainers = docsDirectories.filter((docPath) => (
+      /(^|\/)(research|release-evidence|handoffs?|checklists?|backlogs?|archives?|parking)($|\/)/i.test(docPath)
+    ));
+
+    expect(retiredPlanningContainers).toEqual([]);
+  });
+
+  it("keeps pre-active-plan dated markdown out of repository docs", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDatedDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      const dateStamp = findMarkdownBasenameDateStamp(docPath);
+      return dateStamp ? Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate : false;
+    });
+
+    expect(staleDatedDocs).toEqual([]);
+  });
+
+  it("keeps pre-active-plan date anchors out of repository markdown", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDateAnchors = markdownDocs.flatMap((docPath) => {
+      const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
+      return [...contents.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)]
+        .map((match) => match[0])
+        .filter((dateStamp) => Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate)
+        .map((dateStamp) => `${docPath}: ${dateStamp}`);
+    });
+
+    expect(staleDateAnchors).toEqual([]);
+  });
+
+  it("keeps canonical docs from carrying stale cleanup queues", () => {
+    const canonicalDocPaths = [
+      "README.md",
+      "docs/README.md",
+      "docs/development-workflow.md",
+      "docs/internal-alpha-build.md",
+      "docs/chrome-extension-setup.md",
+      "docs/product-readiness-matrix.md"
+    ];
+    const staleCleanupPatterns = [
+      /^##\s+(?:Audit Queue|Current Cleanup Evidence|Subagent Convergence)\b/im,
+      /^\s*Cleanup baseline commit:/im,
+      /^\s*Latest local alpha evidence recorded during this cleanup:/im,
+      /\bcurrent supervisor queue\b/i,
+      /\bcleanup batch\b/i,
+      /\bsubagent audits converged\b/i,
+      /\bactive handoff\b/i
+    ];
+    const staleDocs = canonicalDocPaths.filter((docPath) => {
+      const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
+      return staleCleanupPatterns.some((pattern) => pattern.test(contents));
+    });
+
+    expect(staleDocs).toEqual([]);
+  });
+
+  it("keeps repository markdown pointed at the current active plan path only", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`'"),]+\.md/g;
+    const workflowDocPaths = collectRepositoryMarkdownDocs(process.cwd());
+
+    for (const docPath of workflowDocPaths) {
+      const contents = readFileSync(docPath, "utf8");
+      const stalePlanReferences = [...contents.matchAll(planReferencePattern)]
+        .map((match) => match[0])
+        .filter((reference) => reference !== activePlanReference);
+
+      expect(stalePlanReferences).toEqual([]);
+    }
+  });
+
+  it("keeps repository workflow files pointed at the current active plan path only", () => {
+    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`'"),]+\.md/g;
+    const workflowFilePaths = collectRepositoryTextFiles(process.cwd());
+    const stalePlanReferences = workflowFilePaths.flatMap((filePath) => {
+      const contents = readFileSync(filePath, "utf8");
+      return [...contents.matchAll(planReferencePattern)]
+        .map((match) => match[0])
+        .filter((reference) => reference !== activePlanReference)
+        .map((reference) => `${path.relative(process.cwd(), filePath).split(path.sep).join("/")}: ${reference}`);
+    });
+
+    expect(stalePlanReferences).toEqual([]);
+  });
+
+  it("keeps pre-active-plan planning date anchors out of repository workflow files", () => {
+    const workflowFilePaths = collectRepositoryTextFiles(process.cwd());
+    const stalePlanningDateAnchors = workflowFilePaths.flatMap((filePath) => {
+      const contents = readFileSync(filePath, "utf8");
+      const relativePath = path.relative(process.cwd(), filePath).split(path.sep).join("/");
+
+      return [...contents.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].flatMap((match) => {
+        const dateStamp = match[0];
+        if (Date.parse(`${dateStamp}T00:00:00.000Z`) >= activePlanDate) {
+          return [];
+        }
+
+        const matchIndex = match.index ?? 0;
+        const contextStart = Math.max(0, matchIndex - 120);
+        const contextEnd = Math.min(contents.length, matchIndex + dateStamp.length + 120);
+        const planningContext = `${relativePath}\n${contents.slice(contextStart, contextEnd)}`;
+        const looksLikePlanningMaterial = /(?:plans?|planning|research|implementation[- ]log|work[- ]log|handoff|checklist|backlog|cleanup)/i.test(
+          planningContext
+        );
+
+        return looksLikePlanningMaterial ? [`${relativePath}: ${dateStamp}`] : [];
+      });
+    });
+
+    expect(stalePlanningDateAnchors).toEqual([]);
+  });
+
+  it("keeps pre-active-plan short-date planning anchors out of repository markdown", () => {
+    const activePlanYear = new Date(activePlanDate).getUTCFullYear();
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd());
+    const staleShortDatePlanningAnchors = markdownDocs.flatMap((docPath) => {
+      const contents = readFileSync(docPath, "utf8");
+      const relativePath = path.relative(process.cwd(), docPath).split(path.sep).join("/");
+
+      return [...contents.matchAll(/(?<!\d{4}-)\b(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g)]
+        .flatMap((match) => {
+          const month = String(Number(match[1])).padStart(2, "0");
+          const day = String(Number(match[2])).padStart(2, "0");
+          const dateStamp = `${activePlanYear}-${month}-${day}`;
+          if (Date.parse(`${dateStamp}T00:00:00.000Z`) >= activePlanDate) {
+            return [];
+          }
+
+          const matchIndex = match.index ?? 0;
+          const contextStart = Math.max(0, matchIndex - 120);
+          const contextEnd = Math.min(contents.length, matchIndex + match[0].length + 120);
+          const planningContext = `${relativePath}\n${contents.slice(contextStart, contextEnd)}`;
+          const looksLikePlanningMaterial = /(?:plans?|planning|research|implementation[- ]log|work[- ]log|handoff|checklist|backlog|cleanup)/i.test(
+            planningContext
+          );
+
+          return looksLikePlanningMaterial ? [`${relativePath}: ${match[0]}`] : [];
+        });
+    });
+
+    expect(staleShortDatePlanningAnchors).toEqual([]);
+  });
+
+  it("keeps AGENTS pointed at the current active plan", () => {
+    const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
+
+    expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
+    expect(agents).toContain("Historical implementation material lives in git history only");
+    expect(agents).toContain("Retired dated plans must not be restored");
+    expect(agents).toContain("must not be restored");
+    expect(agents).toContain("not repo docs or");
+    expect(agents).toContain("exactly one newer active plan");
+    expect(agents).not.toContain("old 20");
+  });
+
+  it("documents output-free default smoke runs in README instead of retired plan docs", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
-    expect(readme).toContain("## Current Local Evidence");
-    expect(readme).toContain("<commit>");
-    expect(readme).toContain("Finder Automation");
-    expect(readme).toContain(".skfiy-smoke/finder-<commit>.json");
+    expect(readme).toContain("## Smoke Policy");
+    expect(readme).toContain("Default smoke runs are output-free");
+    expect(readme).toContain("npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed");
+    expect(readme).toContain("For release or dogfood evidence capture");
     expect(readme).not.toContain("skfiy-alpha-2e292e9");
   });
 
-  it("keeps latest published alpha release evidence internally consistent without voice artifacts", () => {
-    const evidence = readLatestAlphaEvidence();
-    const shortSha = evidence.commitSha.slice(0, 7);
+  it("keeps product readiness default smoke examples output-free", () => {
+    const readiness = readFileSync(
+      path.join(process.cwd(), "docs", "product-readiness-matrix.md"),
+      "utf8"
+    );
 
-    expect(evidence.appName).toBe("skfiy");
-    expect(evidence.tagName).toBe(`skfiy-alpha-${shortSha}`);
-    expect(evidence.releaseUrl).toContain(evidence.tagName);
-    expect(evidence.zipSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(evidence.smokeArtifacts.ui).toContain(shortSha);
-    expect(evidence.smokeArtifacts.ghostty).toContain(shortSha);
-    expect(evidence.smokeArtifacts.chrome).toContain(shortSha);
-    expect(evidence.smokeArtifacts.finder).toContain(shortSha);
-    expect(evidence.smokeArtifacts.moneyRun).toContain(shortSha);
-    expect(JSON.stringify(evidence.smokeArtifacts)).not.toContain("voice");
+    expect(readiness).toContain("For default\ndevelopment verification, run packaged smokes without `--output`");
+    expect(readiness).toContain("npm run smoke:dashboard -- --cli dist/skfiy");
+    expect(readiness).toContain("Add commit-scoped output paths only for explicit release, dogfood, or debugging");
+    expect(readiness).not.toContain("--output .skfiy-smoke");
+    expect(readiness).not.toContain("active handoff");
   });
 
   it("documents the active alpha and dogfood workflow around Computer Use gates", () => {
@@ -103,26 +431,41 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan focused on pet usability, agent providers, browser context, and dashboard", () => {
+  it("keeps the active plan focused on current code health work", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(activePlan).toContain("# Pet Agent Browser Dashboard Implementation Plan");
+    expect(activePlan).toContain("# skfiy Active Code Health Plan");
     expect(activePlan).toContain("For agentic workers");
-    expect(activePlan).toContain("Pet Visual Cleanup And Stable Click Behavior");
-    expect(activePlan).toContain("Screen-Aligned Pet Drag Bounds");
-    expect(activePlan).toContain("Background Agent Provider Selection In Pet Settings");
-    expect(activePlan).toContain("Chrome Extension Page Context For Background Agent");
-    expect(activePlan).toContain("Dashboard MVP Polish And Useful Runtime Visibility");
-    expect(activePlan).toContain("End-To-End Product Validation");
-    expect(activePlan).toContain("Codex");
-    expect(activePlan).toContain("Claude Code");
+    expect(activePlan).toContain("only active implementation plan");
+    expect(activePlan).toContain("Retired dated implementation plans");
+    expect(activePlan).toContain("must stay out of repo docs");
+    expect(activePlan).toContain("zero retired dated implementation Markdown");
+    expect(activePlan).toContain("Guard coverage must stay structural");
+    expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
+    expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
+    expect(activePlan).toContain("Task 3: Route State Semantics");
+    expect(activePlan).toContain("Task 4: Code-Health Slimming");
+    expect(activePlan).toContain("Task 5: Product Readiness Gates");
+    expect(activePlan).toContain("Background Agent");
+    expect(activePlan).toContain("Computer Use Planner");
     expect(activePlan).toContain("Computer Use");
     expect(activePlan).toContain("Chrome extension");
     expect(activePlan).toContain("Dashboard");
+    expect(activePlan).toContain("/api/operator-evidence");
     expect(activePlan).toContain("dist/skfiy.app");
     expect(activePlan).toContain("dist/skfiy");
+    expect(activePlan).not.toContain("Completed in this pass");
     expect(activePlan).not.toContain("smoke:voice");
     expect(activePlan).not.toContain("native-macos voice");
+  });
+
+  it("keeps retired plan date anchors out of the active plan", () => {
+    const activePlan = readFileSync(activePlanPath, "utf8");
+    const staleDateAnchors = [...activePlan.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)]
+      .map((match) => match[0])
+      .filter((dateStamp) => Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate);
+
+    expect(staleDateAnchors).toEqual([]);
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

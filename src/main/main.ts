@@ -7,18 +7,8 @@ import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import {
   createTurnReplayStore,
-  type TurnReplay,
-  type TurnReplayTaskEvent
+  type TurnReplay
 } from "./computer-use/turn-replay-store.js";
-import type {
-  DesktopActionResult,
-  DesktopAppState,
-  FinderSelectionResult,
-  PermissionState,
-  PermissionSummary,
-  PermissionSettingsTarget
-} from "./computer-use/types.js";
-import type { TmuxSupervisionReport } from "./computer-use/tmux-supervisor.js";
 import {
   createAppPolicySettingsStore,
   decideAppPolicy,
@@ -26,9 +16,7 @@ import {
 } from "./app-policy-settings.js";
 import {
   AssistantAgentTurnRuntimeError,
-  readAssistantAgentProviderStates,
   runAssistantAgentTurn,
-  type AssistantAgentPlannedToolCall,
   type AssistantAgentTurnResult
 } from "./assistant-agent.js";
 import {
@@ -49,14 +37,10 @@ import {
   createSessionMemoryStore,
   searchSessionMemory
 } from "./session-memory.js";
-import { summarizeAssistantToolPlan } from "./assistant-tools.js";
-import {
-  createBrowserPageContextFromConnection,
-  type BrowserPageContext
-} from "./browser-page-context.js";
+import type { BrowserPageContext } from "./browser-page-context.js";
+import { readLatestBrowserPageContext } from "./main-browser-context-reader.js";
 import {
   createAssistantComputerUseExecutor,
-  type AssistantComputerUseTerminalStatus,
   type AssistantComputerUseToolIdentity,
   type AssistantComputerUseToolResult
 } from "./assistant-computer-use-executor.js";
@@ -65,6 +49,7 @@ import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
 import { readChromeExtensionConnectionStatus } from "./chrome-native-host.js";
 import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
+import { createTmuxSupervisionReplayEvent } from "./tmux-supervision-replay.js";
 import {
   createPlannerProviderSettingsStore,
   readInitialPlannerProviderSettings
@@ -74,54 +59,42 @@ import { resolvePlannerCommand } from "./planner-command.js";
 import { createExternalCuaTerminalPlannerFromEnv } from "./external-cua-planner.js";
 import { readDesktopSessionDiagnosticsForRenderer } from "./desktop-session-diagnostics.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
+import { runChromePageTask } from "./orchestrator/chrome-task.js";
+import { runFinderOrganizationTask } from "./orchestrator/finder-task.js";
+import { runGhosttyCommandTask } from "./orchestrator/ghostty-task.js";
 import {
-  runChromePageTask,
-  type ChromeDesktopClient,
-  type ChromeTaskEvent
-} from "./orchestrator/chrome-task.js";
-import type { GhosttyTaskEvent } from "./orchestrator/events.js";
+  assertDesktopActionResult,
+  createChromeDesktopClient,
+  createFinderDesktopClient,
+  createGhosttyDesktopClient
+} from "./main-desktop-clients.js";
+import { runTmuxSupervisionTask } from "./orchestrator/tmux-supervision-task.js";
 import {
-  runFinderOrganizationTask,
-  type FinderDesktopClient,
-  type FinderPlanPreview,
-  type FinderTaskEvent
-} from "./orchestrator/finder-task.js";
-import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
-import {
-  runTmuxSupervisionTask,
-  type TmuxSupervisionTaskEvent
-} from "./orchestrator/tmux-supervision-task.js";
-import {
-  readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import {
-  selectCommandRoute,
-  type CommandRoute,
-  type ExecutableCommandRoute
-} from "./task-routing.js";
+import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
-  readStopTurnHotkeyStatus,
   registerStopTurnHotkey,
   STOP_TURN_ACCELERATOR
 } from "./stop-turn-hotkey.js";
+import { createScreenshotPathFactory } from "./screenshot-path.js";
 import {
-  calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
-  movePetAnchorByDelta,
   readWindowPositionOverride,
-  resizePetWindowBoundsKeepingBottom,
-  resizePetWindowBoundsKeepingPetAnchor,
-  type PetWindowBounds,
   type Point,
   type Size
 } from "./window-position.js";
 import {
-  writeRuntimeSnapshot,
-  writeRuntimeTurnMarker,
-  type RuntimeSnapshotCurrentTurnInput
-} from "./runtime-snapshot.js";
+  COMPACT_WINDOW_SIZE
+} from "./main-window-state.js";
+import {
+  applyPetWindowDragMove,
+  applyPetWindowMode
+} from "./main-window-controls.js";
+import {
+  persistMainRuntimeSnapshot
+} from "./main-runtime-snapshot-writer.js";
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
 import {
@@ -130,61 +103,78 @@ import {
   createAutomationMonitorStore,
   type AutomationMonitorStoreIo
 } from "./automation-monitor.js";
-
-type ManualMode = "active" | "quiet";
-type TaskStatus =
-  | "idle"
-  | "planned"
-  | "observing"
-  | "executing"
-  | "running"
-  | "approval_required"
-  | "needs_confirmation"
-  | "completed"
-  | "denied"
-  | "blocked"
-  | "failed"
-  | "cancelled";
-type PetWindowMode = "compact" | "expanded";
-type ComputerUseTaskEvent =
-  | GhosttyTaskEvent
-  | ChromeTaskEvent
-  | FinderTaskEvent
-  | TmuxSupervisionTaskEvent;
-type ComputerUseCommandRoute = ExecutableCommandRoute;
-
-interface TaskEvent {
-  status: TaskStatus;
-  message?: string;
-  command?: string;
-  replayReset?: boolean;
-  replayRecord?: ObserveAppReplayRecord;
-  finderSelection?: FinderSelectionResult;
-  finderPlanPreview?: FinderPlanPreview;
-  tmuxSupervisionReport?: TmuxSupervisionReport;
-}
-
-interface PendingApproval extends AssistantComputerUseToolIdentity {
-  command: string;
-  mode: ManualMode;
-  route: ComputerUseCommandRoute;
-  planApproved?: boolean;
-  approvedPlanPreview?: FinderPlanPreview;
-}
-
-interface ObserveAppReplayRecord extends DesktopAppState {
-  stage: "before" | "after";
-}
-
-interface VisiblePetRect extends Point, Size {}
+import {
+  isEnabledEnvFlag,
+  readPermissionSettingsTarget,
+  readRunCommandRequest,
+  readTmuxMonitorInput
+} from "./main-ipc-payload.js";
+import {
+  createToolResult
+} from "./main-computer-use-tool-result.js";
+import {
+  createAppPolicyPreflightDecision,
+  createChromeHostPolicyPreflightDecision
+} from "./main-computer-use-preflight.js";
+import { createRunCommandRouteDecision } from "./main-command-routing.js";
+import { createComputerUseTaskEventDispatch } from "./main-task-event-dispatch.js";
+import {
+  createAssistantAgentTaskMessage,
+  createRuntimeStatusResponse
+} from "./main-renderer-payload.js";
+import { createMainPermissionDiagnosticsResponse } from "./main-permission-diagnostics.js";
+import { createAssistantComputerUseToolPlan } from "./main-assistant-computer-use-plan.js";
+import {
+  readAssistantAgentSettingsResponse,
+  updateAssistantAgentSettingsResponse
+} from "./main-assistant-agent-settings-response.js";
+import { readAppPolicySettingsUpdate, readPlannerProviderSettingsUpdate } from "./main-settings-updates.js";
+import {
+  createManualScreenshotCompletedTaskEvent,
+  createManualScreenshotFailedTaskEvent,
+  createManualScreenshotStartedTaskEvent,
+  createPermissionSettingsFailedTaskEvent,
+  createUnknownPermissionSettingsTargetTaskEvent,
+  createRejectedRunCommandTaskEvent
+} from "./main-manual-task-events.js";
+import {
+  cancelComputerUseToolCallState,
+  completeComputerUseToolCallState,
+  createClearedActiveComputerUseTaskState,
+  createClearedPendingComputerUseTaskState,
+  createPendingApproval,
+  createPendingApprovalDeniedTaskEvent,
+  createStartedComputerUseTaskState,
+  readComputerUseRouteForToolCallState,
+  readComputerUseToolCallIdentityToCancel,
+  USER_DENIED_COMPUTER_USE_REASON,
+  type ComputerUseCommandRoute,
+  type PendingApproval
+} from "./main-pending-approval.js";
+import {
+  createAssistantChatRouteTaskEvent,
+  createAssistantToolPlanRouteTaskEvent,
+  createAssistantTurnFailedRouteTaskEvent,
+  createComputerUseFailureTaskEvent,
+  createNeedsClarificationRouteTaskEvent,
+  createNeedsConfirmationRouteTaskEvent,
+  createPlannerResolvedTaskEvent,
+  createPlannerUnavailableTaskEvent,
+  createTerminalRouteTaskEvent
+} from "./main-route-task-events.js";
+import { createStopTaskEventDecision } from "./main-stop-task.js";
+import {
+  readTurnReplayTaskEvent,
+  type ComputerUseTaskEvent,
+  type ManualMode,
+  type TaskEvent
+} from "./task-event-view.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 const smokeWindowHidden = process.env.SKFIY_SMOKE_WINDOW_MODE === "hidden";
 app.setName("skfiy");
-const COMPACT_WINDOW_SIZE: Size = { width: 90, height: 66 };
-const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const PERSONAL_MEMORY_REVIEW_TIMEOUT_MS = 15_000;
 const skfiyAppSupportDir = createSkfiyApplicationSupportPath(os.homedir());
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
@@ -233,9 +223,12 @@ let mainWindow: BrowserWindow | null = null;
 let currentPetAnchor: Point | null = null;
 let currentPetSize: Size | null = null;
 let currentTaskId = 0;
-let screenshotSerial = 0;
+const createScreenshotPath = createScreenshotPathFactory({
+  readTempDir: () => os.tmpdir()
+});
 let activeTaskController: AbortController | null = null;
 let activeComputerUseToolIdentity: AssistantComputerUseToolIdentity | null = null;
+let activeComputerUseRoute: ComputerUseCommandRoute | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
 
@@ -255,24 +248,13 @@ function createNodeAutomationMonitorStoreIo(): AutomationMonitorStoreIo {
 
 function persistRuntimeSnapshot(
   replay: TurnReplay | null,
-  currentTurn?: RuntimeSnapshotCurrentTurnInput
+  currentTurnEvent?: TaskEvent
 ): void {
-  const homeDir = os.homedir();
-
-  void (async () => {
-    await writeRuntimeSnapshot({
-      homeDir,
-      replay,
-      currentTurn
-    });
-
-    if (currentTurn) {
-      await writeRuntimeTurnMarker({
-        homeDir,
-        currentTurn
-      });
-    }
-  })().catch(() => {
+  void persistMainRuntimeSnapshot({
+    homeDir: os.homedir(),
+    replay,
+    ...(currentTurnEvent ? { currentTurnEvent } : {})
+  }).catch(() => {
     // Dashboard runtime evidence is best-effort and must not block Computer Use turns.
   });
 }
@@ -292,6 +274,49 @@ function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent)
   emitTaskEvent(window, event);
 }
 
+function clearPendingComputerUseTask(): void {
+  const nextState = createClearedPendingComputerUseTaskState({
+    currentTaskId,
+    pendingApproval
+  });
+  pendingApproval = nextState.pendingApproval;
+  activeTaskController?.abort();
+  activeTaskController = null;
+  currentTaskId = nextState.currentTaskId;
+}
+
+function clearActiveComputerUseTask(): void {
+  const nextState = createClearedActiveComputerUseTaskState({
+    currentTaskId,
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = nextState.activeRoute;
+  activeTaskController?.abort();
+  activeTaskController = null;
+  currentTaskId = nextState.currentTaskId;
+}
+
+function startComputerUseTaskEpoch() {
+  const nextState = createStartedComputerUseTaskState({
+    currentTaskId,
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
+  currentTaskId = nextState.currentTaskId;
+  pendingApproval = nextState.pendingApproval;
+  activeTaskController?.abort();
+
+  const controller = new AbortController();
+  activeTaskController = controller;
+
+  return { controller, taskId: nextState.taskId };
+}
+
 function resolveHelperPath(): string {
   return resolveDesktopHelperPath({
     env: process.env,
@@ -301,326 +326,10 @@ function resolveHelperPath(): string {
   });
 }
 
-function createScreenshotPath(scope: string): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  screenshotSerial += 1;
-  return path.join(os.tmpdir(), "skfiy", `${scope}-${timestamp}-${screenshotSerial}.png`);
-}
-
-function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient {
-  return {
-    getPermissions: async () => helper.getPermissions(),
-    listApps: async () => helper.listApps(),
-    ocrImage: async (inputPath) => helper.ocrImage(inputPath),
-    executeAction: async (action) => {
-      const result = await helper.executeAction(action);
-      assertDesktopActionResult(result, action.type);
-      return result;
-    }
-  };
-}
-
-function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopClient {
-  return {
-    executeAction: async (action) => helper.executeAction(action),
-    getFinderSelection: async () => helper.getFinderSelection(),
-    getFinderItemLayout: async (folderPath, itemNames) =>
-      helper.getFinderItemLayout(folderPath, itemNames)
-  };
-}
-
-function createChromeDesktopClient(helper: DesktopHelperClient): ChromeDesktopClient {
-  return {
-    executeAction: async (action) => helper.executeAction(action)
-  };
-}
-
-function assertDesktopActionResult(result: DesktopActionResult, label: string): void {
-  if ("ok" in result && !result.ok) {
-    throw new Error(result.message ?? `Desktop helper could not ${label}.`);
-  }
-}
-
-function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEvent {
-  const prefix = mode === "quiet" ? "Quiet mode: " : "";
-
-  switch (event.type) {
-    case "started":
-      return {
-        status: "executing",
-        message: `${prefix}Risk ${event.risk.level}: ${event.risk.reason}`,
-        replayReset: true
-      };
-    case "approval_required":
-      return {
-        status: "approval_required",
-        message: `Approval required (${event.risk.level}): ${event.risk.reason}`,
-        command: "command" in event ? event.command : `监督 tmux ${event.sessionName}`
-      };
-    case "observing":
-      return {
-        status: "observing",
-        message: `${prefix}${event.message}`
-      };
-    case "locating_app":
-      return {
-        status: "observing",
-        message: `${prefix}Finding ${event.appName}.`
-      };
-    case "session_opened":
-      return {
-        status: "observing",
-        message: `${prefix}Opened ${event.appName} session: ${event.title}.`
-      };
-    case "app_activated":
-      return {
-        status: "executing",
-        message: `${prefix}Activated ${event.appName}.`
-      };
-    case "fallback_switch":
-      return {
-        status: "executing",
-        message: `${prefix}Switching Chrome control from ${formatControlChannel(event.from)} to ${event.to} (${event.stage}): ${event.reason}`
-      };
-    case "session_initialized":
-      return {
-        status: "executing",
-        message: `${prefix}Initialized Ghostty session marker: ${event.title}.`
-      };
-    case "action_verified":
-      return {
-        status: event.status === "passed" ? "executing" : "needs_confirmation",
-        message: event.status === "passed"
-          ? `${prefix}Verified ${event.actionType}: ${event.message ?? "passed."}`
-          : `${prefix}Verification needs confirmation for ${event.actionType}: ${event.reason ?? event.status}`
-      };
-    case "verification_failed":
-      if (event.stage === "permissions") {
-        return {
-          status: "failed",
-          message: `${prefix}${event.reason}`
-        };
-      }
-
-      return {
-        status: "needs_confirmation",
-        message: `${prefix}Verification failed (${event.stage}): ${event.reason}`
-      };
-    case "recovery_attempted":
-      return {
-        status: "executing",
-        message: `${prefix}Recovering ${event.stage} observation with ${event.action}: ${event.reason}`
-      };
-    case "screenshot_before":
-      return {
-        status: "observing",
-        message: `${prefix}Captured before screenshot: ${event.path}`,
-        replayRecord: createObserveAppReplayRecord("before", event.observation)
-      };
-    case "finder_selection_observed":
-      return {
-        status: "observing",
-        message: `${prefix}Observed Finder selection: ${formatFinderSelectionSummary(event.context)}`,
-        finderSelection: event.context
-      };
-    case "plan_preview":
-      return {
-        status: "executing",
-        message: `${prefix}Finder plan preview: ${event.preview.createFolders.length} folders, ${event.preview.moveFiles.length} moves, ${event.preview.destructiveOperationCount} destructive operations.`,
-        finderPlanPreview: event.preview
-      };
-    case "plan_confirmation_required":
-      return {
-        status: "approval_required",
-        message: `${prefix}Finder plan confirmation required: ${event.reason}`,
-        command: event.command,
-        finderPlanPreview: event.preview
-      };
-    case "typing":
-      return {
-        status: "executing",
-        message: `${prefix}Typing command in Ghostty.`
-      };
-    case "submitted":
-      return {
-        status: "executing",
-        message: `${prefix}Submitted command with ${event.key}.`
-      };
-    case "screenshot_after":
-      return {
-        status: "observing",
-        message: `${prefix}Captured after screenshot: ${event.path}`,
-        replayRecord: createObserveAppReplayRecord("after", event.observation)
-      };
-    case "completed":
-      return {
-        status: "completed",
-        message: event.summary,
-        ...("report" in event ? { tmuxSupervisionReport: event.report } : {})
-      };
-  }
-
-  return {
-    status: "failed",
-    message: "Unknown task event."
-  };
-}
-
-function formatFinderSelectionSummary(context: FinderSelectionResult): string {
-  const target = context.targetPath ?? "unknown folder";
-  const count = context.selection.length;
-  return `${count} selected item${count === 1 ? "" : "s"} in ${target}.`;
-}
-
-function formatControlChannel(channel: string): string {
-  return channel.toLowerCase() === "cdp" ? "CDP" : channel;
-}
-
-function createObserveAppReplayRecord(
-  stage: "before" | "after",
-  observation: DesktopAppState
-): ObserveAppReplayRecord {
-  return {
-    ...observation,
-    stage
-  };
-}
-
 function createDesktopHelper(): DesktopHelperClient {
   return new DesktopHelperClient({
     helperPath: resolveHelperPath()
   });
-}
-
-function readMode(value: unknown): ManualMode {
-  return value === "quiet" || value === "active" ? value : "active";
-}
-
-function readTmuxMonitorInput(input: unknown): {
-  sessionName: string;
-  label?: string;
-  intervalMs: number;
-  enabled?: boolean;
-} {
-  const record = input && typeof input === "object" && !Array.isArray(input)
-    ? input as Record<string, unknown>
-    : {};
-  const sessionName = typeof record.sessionName === "string" ? record.sessionName : "";
-  const intervalMs = typeof record.intervalMs === "number" && Number.isFinite(record.intervalMs)
-    ? record.intervalMs
-    : 300_000;
-  const label = typeof record.label === "string" ? record.label : undefined;
-  const enabled = typeof record.enabled === "boolean" ? record.enabled : undefined;
-
-  return {
-    sessionName,
-    ...(label ? { label } : {}),
-    intervalMs,
-    ...(enabled === undefined ? {} : { enabled })
-  };
-}
-
-function isEnabledEnvFlag(value: string | undefined): boolean {
-  return value === "1" || value === "true" || value === "on";
-}
-
-function readPetWindowMode(value: unknown): PetWindowMode | undefined {
-  return value === "compact" || value === "expanded" ? value : undefined;
-}
-
-function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
-  return {
-    status: event.status,
-    message: event.message,
-    command: event.command
-  };
-}
-
-function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
-  return value === "screen-recording"
-    || value === "accessibility"
-    ? value
-    : undefined;
-}
-
-function readAppProcessPermissions(): PermissionSummary {
-  return {
-    screenRecording: {
-      state: readElectronMediaPermissionState(systemPreferences.getMediaAccessStatus("screen"))
-    },
-    accessibility: {
-      state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
-    }
-  };
-}
-
-function readElectronMediaPermissionState(
-  state: "not-determined" | "granted" | "denied" | "restricted" | "unknown"
-): PermissionState {
-  if (state === "restricted") {
-    return "denied";
-  }
-
-  return state;
-}
-
-function readFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readVisiblePetRect(value: unknown): VisiblePetRect | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-
-  const rect = value as Partial<VisiblePetRect>;
-  const x = readFiniteNumber(rect.x);
-  const y = readFiniteNumber(rect.y);
-  const width = readFiniteNumber(rect.width);
-  const height = readFiniteNumber(rect.height);
-
-  if (x === undefined || y === undefined || width === undefined || height === undefined) {
-    return undefined;
-  }
-
-  if (width <= 0 || height <= 0) {
-    return undefined;
-  }
-
-  return { x, y, width, height };
-}
-
-function clampWindowBoundsToNearestDisplay(bounds: PetWindowBounds): PetWindowBounds {
-  const display = screen.getDisplayNearestPoint({
-    x: bounds.x + bounds.width / 2,
-    y: bounds.y + bounds.height / 2
-  });
-  const displayBounds = display.bounds;
-
-  return {
-    ...bounds,
-    x: Math.round(clampNumber(bounds.x, displayBounds.x, displayBounds.x + displayBounds.width - bounds.width)),
-    y: Math.round(clampNumber(bounds.y, displayBounds.y, displayBounds.y + displayBounds.height - bounds.height))
-  };
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(value, Math.max(min, max)));
-}
-
-async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
-  try {
-    const connection = await readChromeExtensionConnectionStatus({ homeDir: os.homedir() });
-    return createBrowserPageContextFromConnection(connection);
-  } catch (error) {
-    return createBrowserPageContextFromConnection({
-      state: "unavailable",
-      reason: error instanceof Error
-        ? error.message
-        : "Chrome extension diagnostics could not be read.",
-      nextAction: "Pet chat will continue without Browser Context."
-    });
-  }
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
@@ -629,7 +338,10 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
     return smokeTurn;
   }
 
-  const browserPageContext = await readLatestBrowserPageContext();
+  const browserPageContext = await readLatestBrowserPageContext({
+    homeDir: os.homedir(),
+    readConnectionStatus: readChromeExtensionConnectionStatus
+  });
   const personalMemory = personalMemoryStore.read();
   const personalSkillSettings = personalSkillSettingsStore.read();
   const recalledSessions = searchSessionMemory(sessionMemoryStore.readAll(), input, 3);
@@ -656,8 +368,7 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
 }
 
 function createSmokeAssistantAgentTaskTurn(input: string): AssistantAgentTurnResult | undefined {
-  const smokeComputerUse = process.env.SKFIY_SMOKE_ASSISTANT_COMPUTER_USE === "1";
-  if (smokeComputerUse) {
+  if (process.env.SKFIY_SMOKE_ASSISTANT_COMPUTER_USE === "1") {
     const route = selectCommandRoute(input);
     if (
       route.kind !== "chrome"
@@ -740,58 +451,67 @@ function schedulePersonalMemoryPostTurnReview(
   });
 }
 
-function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult): string {
-  if (turn.status === "completed") {
-    return `${turn.providerLabel}: ${turn.message}`;
-  }
-
-  return `Assistant agent failed: ${turn.error?.message ?? "unknown error"}`;
-}
-
 function emitAssistantToolPlanTaskEvent(
   window: BrowserWindow | null,
   turn: AssistantAgentTurnResult,
-  command: string
+  command: string,
+  route: CommandRoute
 ): void {
-  const summary = summarizeAssistantToolPlan(turn);
-  if (!summary) {
+  const event = createAssistantToolPlanRouteTaskEvent({ command, route, turn });
+  if (!event) {
     return;
   }
 
-  emitTurnReplayTaskEvent(window, {
-    status: "observing",
-    message: summary.message,
-    command
-  });
+  emitTurnReplayTaskEvent(window, event);
 }
 
-function readAssistantComputerUseToolCall(turn: AssistantAgentTurnResult): AssistantAgentPlannedToolCall {
-  const toolCall = turn.toolCalls.find((candidate) =>
-    candidate.type === "computer-use" && candidate.name === "desktop-control"
-  );
-  if (!toolCall) {
-    throw new Error(`Assistant turn ${turn.id} did not plan a Computer Use tool call.`);
+function dispatchComputerUseTaskEvent({
+  approved,
+  command,
+  mode,
+  planApproved,
+  route,
+  taskEvent,
+  toolIdentity,
+  window
+}: {
+  approved: boolean;
+  command: string;
+  mode: ManualMode;
+  planApproved: boolean;
+  route: ComputerUseCommandRoute;
+  taskEvent: ComputerUseTaskEvent;
+  toolIdentity: AssistantComputerUseToolIdentity;
+  window: BrowserWindow | null;
+}): void {
+  const dispatch = createComputerUseTaskEventDispatch({
+    approved,
+    command,
+    event: taskEvent,
+    mode,
+    planApproved,
+    route
+  });
+
+  if (dispatch.approvalRequest) {
+    requireComputerUseApproval({
+      command: dispatch.approvalRequest.command,
+      mode,
+      route,
+      toolIdentity,
+      reason: dispatch.approvalRequest.reason,
+      planApproved: dispatch.approvalRequest.planApproved,
+      approvedPlanPreview: dispatch.approvalRequest.approvedPlanPreview
+    });
   }
 
-  return toolCall;
-}
+  if (dispatch.toolResult) {
+    completeComputerUseToolCall(toolIdentity, dispatch.toolResult);
+    emitTurnReplayTaskEvent(window, dispatch.taskStatus);
+    return;
+  }
 
-function createPendingApproval(
-  command: string,
-  mode: ManualMode,
-  identity: AssistantComputerUseToolIdentity,
-  route: ComputerUseCommandRoute,
-  planApproved = false,
-  approvedPlanPreview?: FinderPlanPreview
-): PendingApproval {
-  return {
-    ...identity,
-    command,
-    mode,
-    route,
-    ...(planApproved ? { planApproved } : {}),
-    ...(approvedPlanPreview ? { approvedPlanPreview } : {})
-  };
+  emitTurnReplayTaskEvent(window, dispatch.taskStatus);
 }
 
 function requireComputerUseApproval({
@@ -809,7 +529,7 @@ function requireComputerUseApproval({
   toolIdentity: AssistantComputerUseToolIdentity;
   reason: string;
   planApproved?: boolean;
-  approvedPlanPreview?: FinderPlanPreview;
+  approvedPlanPreview?: import("./orchestrator/finder-task.js").FinderPlanPreview;
 }): void {
   assistantComputerUseExecutor.requireApproval({
     ...toolIdentity,
@@ -824,6 +544,7 @@ function requireComputerUseApproval({
     approvedPlanPreview
   );
   activeComputerUseToolIdentity = toolIdentity;
+  activeComputerUseRoute = route;
 }
 
 function completeComputerUseToolCall(
@@ -834,21 +555,20 @@ function completeComputerUseToolCall(
     ...identity,
     result
   });
-  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
-    activeComputerUseToolIdentity = null;
-  }
-  if (
-    pendingApproval
-    && pendingApproval.turnId === identity.turnId
-    && pendingApproval.toolCallId === identity.toolCallId
-  ) {
-    pendingApproval = null;
-  }
-
+  const state = { pendingApproval, activeToolIdentity: activeComputerUseToolIdentity };
+  const nextState = completeComputerUseToolCallState(state, identity);
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = readComputerUseRouteForToolCallState({
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
 }
 
 function cancelActiveComputerUseToolCall(reason: string): void {
-  const identity = pendingApproval ?? activeComputerUseToolIdentity;
+  const state = { pendingApproval, activeToolIdentity: activeComputerUseToolIdentity };
+  const identity = readComputerUseToolCallIdentityToCancel(state);
   if (!identity) {
     return;
   }
@@ -858,54 +578,14 @@ function cancelActiveComputerUseToolCall(reason: string): void {
     toolCallId: identity.toolCallId,
     reason
   });
-  pendingApproval = null;
-  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
-    activeComputerUseToolIdentity = null;
-  }
-}
-
-function isSameComputerUseToolIdentity(
-  left: AssistantComputerUseToolIdentity | null,
-  right: AssistantComputerUseToolIdentity
-): boolean {
-  return Boolean(left && left.turnId === right.turnId && left.toolCallId === right.toolCallId);
-}
-
-function createToolResultFromTaskEvent(event: ComputerUseTaskEvent): AssistantComputerUseToolResult | undefined {
-  if (event.type === "completed") {
-    return {
-      status: "completed",
-      summary: event.summary,
-      evidence: {
-        summary: "Computer Use route completed with replayed orchestration events."
-      }
-    };
-  }
-
-  if (event.type === "verification_failed") {
-    return {
-      status: "failed",
-      summary: event.reason,
-      evidence: {
-        summary: `Computer Use route stopped during ${event.stage} verification.`
-      }
-    };
-  }
-
-  return undefined;
-}
-
-function createToolResult(
-  status: AssistantComputerUseTerminalStatus,
-  summary: string
-): AssistantComputerUseToolResult {
-  return {
-    status,
-    summary,
-    evidence: {
-      summary
-    }
-  };
+  const nextState = cancelComputerUseToolCallState(state, identity);
+  pendingApproval = nextState.pendingApproval;
+  activeComputerUseToolIdentity = nextState.activeToolIdentity;
+  activeComputerUseRoute = readComputerUseRouteForToolCallState({
+    pendingApproval,
+    activeToolIdentity: activeComputerUseToolIdentity,
+    activeRoute: activeComputerUseRoute
+  });
 }
 
 async function resumePendingApprovalTask(
@@ -950,11 +630,12 @@ async function continueComputerUseTask({
   mode: ManualMode;
   approved: boolean;
   planApproved: boolean;
-  approvedPlanPreview?: FinderPlanPreview;
+  approvedPlanPreview?: import("./orchestrator/finder-task.js").FinderPlanPreview;
   route: ComputerUseCommandRoute;
   toolIdentity: AssistantComputerUseToolIdentity;
 }): Promise<void> {
   activeComputerUseToolIdentity = toolIdentity;
+  activeComputerUseRoute = route;
 
   if (route.kind === "tmux_supervision") {
     await runTmuxSupervisionCommandTask(window, {
@@ -967,38 +648,28 @@ async function continueComputerUseTask({
     return;
   }
 
-  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
+  const appPolicyPreflight = createAppPolicyPreflightDecision({
+    appPolicy: decideAppPolicy(appPolicySettingsStore.get(), route.bundleId),
+    approved,
+    command,
+    mode,
+    route
+  });
 
-  if (appPolicy.decision === "deny") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
-    emitTaskEvent(window, {
-      status: "blocked",
-      message: appPolicy.reason,
-      command
-    });
+  if (appPolicyPreflight.kind === "blocked") {
+    clearPendingComputerUseTask();
+    completeComputerUseToolCall(toolIdentity, appPolicyPreflight.toolResult);
+    emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
-  if (appPolicy.decision === "ask" && !approved) {
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+  if (appPolicyPreflight.kind === "approval_required") {
+    clearPendingComputerUseTask();
     requireComputerUseApproval({
-      command,
-      mode,
-      route,
-      toolIdentity,
-      reason: appPolicy.reason
+      ...appPolicyPreflight.approvalRequest,
+      toolIdentity
     });
-    emitTaskEvent(window, {
-      status: "approval_required",
-      message: `Approval required (app policy): ${appPolicy.reason}`,
-      command
-    });
+    emitTurnReplayTaskEvent(window, appPolicyPreflight.taskEvent);
     return;
   }
 
@@ -1008,57 +679,25 @@ async function continueComputerUseTask({
       route,
       homeDir: os.homedir()
     });
+    const chromeHostPolicyPreflight = createChromeHostPolicyPreflightDecision({
+      command,
+      result: hostPolicyApproval,
+      route
+    });
 
-    if (hostPolicyApproval.status === "blocked") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
-      completeComputerUseToolCall(
-        toolIdentity,
-        createToolResult("blocked", `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
-      );
-      emitTaskEvent(window, {
-        status: "blocked",
-        message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
-        command
-      });
+    if (chromeHostPolicyPreflight.kind === "blocked" || chromeHostPolicyPreflight.kind === "failed") {
+      clearPendingComputerUseTask();
+      completeComputerUseToolCall(toolIdentity, chromeHostPolicyPreflight.toolResult);
+      emitTurnReplayTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
       return;
     }
 
-    if (hostPolicyApproval.status === "failed") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
-      completeComputerUseToolCall(
-        toolIdentity,
-        createToolResult("failed", `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
-      );
-      emitTaskEvent(window, {
-        status: "failed",
-        message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
-        command
-      });
-      return;
-    }
-
-    if (hostPolicyApproval.status === "updated") {
-      emitTurnReplayTaskEvent(window, {
-        status: "executing",
-        message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
-        command
-      });
+    if (chromeHostPolicyPreflight.kind === "allowed_current_turn") {
+      emitTurnReplayTaskEvent(window, chromeHostPolicyPreflight.taskEvent);
     }
   }
 
-  const taskId = currentTaskId + 1;
-  currentTaskId = taskId;
-  pendingApproval = null;
-  activeTaskController?.abort();
-
-  const controller = new AbortController();
-  activeTaskController = controller;
+  const { controller, taskId } = startComputerUseTaskEpoch();
 
   try {
     if (route.kind === "finder") {
@@ -1077,37 +716,16 @@ async function continueComputerUseTask({
         }
 
         turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.risk.reason
-          });
-        }
-
-        if (taskEvent.type === "plan_confirmation_required" && !planApproved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.reason,
-            planApproved: true,
-            approvedPlanPreview: taskEvent.preview
-          });
-        }
-
-        const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = createTaskEvent(taskEvent, mode);
-        if (result) {
-          completeComputerUseToolCall(toolIdentity, result);
-          emitTaskEvent(window, taskStatus);
-        } else {
-          emitTurnReplayTaskEvent(window, taskStatus);
-        }
+        dispatchComputerUseTaskEvent({
+          approved,
+          command,
+          mode,
+          planApproved,
+          route,
+          taskEvent,
+          toolIdentity,
+          window
+        });
       }
       return;
     }
@@ -1129,25 +747,16 @@ async function continueComputerUseTask({
         }
 
         turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          requireComputerUseApproval({
-            command,
-            mode,
-            route,
-            toolIdentity,
-            reason: taskEvent.risk.reason
-          });
-        }
-
-        const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = createTaskEvent(taskEvent, mode);
-        if (result) {
-          completeComputerUseToolCall(toolIdentity, result);
-          emitTaskEvent(window, taskStatus);
-        } else {
-          emitTurnReplayTaskEvent(window, taskStatus);
-        }
+        dispatchComputerUseTaskEvent({
+          approved,
+          command,
+          mode,
+          planApproved,
+          route,
+          taskEvent,
+          toolIdentity,
+          window
+        });
       }
       return;
     }
@@ -1155,16 +764,14 @@ async function continueComputerUseTask({
     const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
 
     if (plannerRuntime.decision === "unavailable") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
+      clearPendingComputerUseTask();
       completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
-      emitTaskEvent(window, {
-        status: plannerRuntime.status,
+      emitTurnReplayTaskEvent(window, createPlannerUnavailableTaskEvent({
+        command,
         message: plannerRuntime.message,
-        command
-      });
+        route,
+        status: plannerRuntime.status
+      }));
       return;
     }
 
@@ -1183,13 +790,12 @@ async function continueComputerUseTask({
         command: plannedCommand.command,
         rationale: plannedCommand.rationale
       });
-      emitTurnReplayTaskEvent(window, {
-        status: "executing",
-        message: plannedCommand.rationale
-          ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
-          : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`,
-        command
-      });
+      emitTurnReplayTaskEvent(window, createPlannerResolvedTaskEvent({
+        command,
+        plannedCommand,
+        providerLabel: plannedCommand.providerLabel,
+        route
+      }));
     }
 
     const helper = createDesktopHelper();
@@ -1205,25 +811,16 @@ async function continueComputerUseTask({
       }
 
       turnReplayStore.recordComputerUseEvent(taskEvent);
-
-      if (taskEvent.type === "approval_required" && !approved) {
-        requireComputerUseApproval({
-          command: taskEvent.command,
-          mode,
-          route,
-          toolIdentity,
-          reason: taskEvent.risk.reason
-        });
-      }
-
-      const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = createTaskEvent(taskEvent, mode);
-      if (result) {
-        completeComputerUseToolCall(toolIdentity, result);
-        emitTaskEvent(window, taskStatus);
-      } else {
-        emitTurnReplayTaskEvent(window, taskStatus);
-      }
+      dispatchComputerUseTaskEvent({
+        approved,
+        command,
+        mode,
+        planApproved,
+        route,
+        taskEvent,
+        toolIdentity,
+        window
+      });
     }
   } catch (error) {
     if (controller.signal.aborted || taskId !== currentTaskId) {
@@ -1232,11 +829,11 @@ async function continueComputerUseTask({
 
     const message = error instanceof Error ? error.message : "Task failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, {
-      status: "failed",
+    emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({
+      command,
       message,
-      command
-    });
+      route
+    }));
   } finally {
     if (activeTaskController === controller) {
       activeTaskController = null;
@@ -1260,13 +857,7 @@ async function runTmuxSupervisionCommandTask(
     toolIdentity: AssistantComputerUseToolIdentity;
   }
 ): Promise<void> {
-  const taskId = currentTaskId + 1;
-  currentTaskId = taskId;
-  pendingApproval = null;
-  activeTaskController?.abort();
-
-  const controller = new AbortController();
-  activeTaskController = controller;
+  const { controller, taskId } = startComputerUseTaskEpoch();
 
   try {
     for await (const taskEvent of runTmuxSupervisionTask(
@@ -1278,24 +869,20 @@ async function runTmuxSupervisionCommandTask(
         return;
       }
 
-      if (taskEvent.type === "approval_required" && !approved) {
-        requireComputerUseApproval({
-          command,
-          mode,
-          route,
-          toolIdentity,
-          reason: taskEvent.risk.reason
-        });
+      const replayEvent = createTmuxSupervisionReplayEvent(taskEvent);
+      if (replayEvent) {
+        turnReplayStore.recordComputerUseEvent(replayEvent);
       }
-
-      const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = createTaskEvent(taskEvent, mode);
-      if (result) {
-        completeComputerUseToolCall(toolIdentity, result);
-        emitTaskEvent(window, taskStatus);
-      } else {
-        emitTurnReplayTaskEvent(window, taskStatus);
-      }
+      dispatchComputerUseTaskEvent({
+        approved,
+        command,
+        mode,
+        planApproved: false,
+        route,
+        taskEvent,
+        toolIdentity,
+        window
+      });
     }
   } catch (error) {
     if (controller.signal.aborted || taskId !== currentTaskId) {
@@ -1304,11 +891,11 @@ async function runTmuxSupervisionCommandTask(
 
     const message = error instanceof Error ? error.message : "tmux supervision failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, {
-      status: "failed",
+    emitTurnReplayTaskEvent(window, createComputerUseFailureTaskEvent({
+      command,
       message,
-      command
-    });
+      route
+    }));
   } finally {
     if (activeTaskController === controller) {
       activeTaskController = null;
@@ -1329,89 +916,66 @@ async function runCommandTask(
 
   const assistantTurn = await createAssistantAgentTaskTurn(command);
   const route = assistantTurn.route;
-
-  if (route.kind === "chat") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: assistantTurn.status === "completed" ? "completed" : "failed",
-      message: createAssistantAgentTaskMessage(assistantTurn)
-    });
-    return;
-  }
-
-  if (assistantTurn.status !== "completed") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: "failed",
-      message: createAssistantAgentTaskMessage(assistantTurn),
-      command
-    });
-    return;
-  }
-
-  if (route.kind === "needs_clarification") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: "needs_confirmation",
-      message: `${route.reason} 请明确目标应用和动作。`
-    });
-    return;
-  }
-
-  if (route.kind === "denied" || route.kind === "blocked") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: route.kind,
-      message: route.reason,
-      command
-    });
-    return;
-  }
-
-  const executionRoute = route.kind === "needs_confirmation" ? route.targetRoute : route;
-  const plannedToolCall = readAssistantComputerUseToolCall(assistantTurn);
-  const toolIdentity: AssistantComputerUseToolIdentity = {
-    turnId: assistantTurn.id,
-    toolCallId: plannedToolCall.id
-  };
-  activeComputerUseToolIdentity = toolIdentity;
-  assistantComputerUseExecutor.planToolCall({
-    ...toolIdentity,
-    command: plannedToolCall.input.command,
-    route: plannedToolCall.input.route,
-    createdAt: plannedToolCall.createdAt
+  const routeDecision = createRunCommandRouteDecision({
+    approved,
+    assistantTurnStatus: assistantTurn.status,
+    route
   });
 
-  emitAssistantToolPlanTaskEvent(window, assistantTurn, command);
+  if (routeDecision.kind === "chat") {
+    clearPendingComputerUseTask();
+    emitTurnReplayTaskEvent(window, createAssistantChatRouteTaskEvent({
+      status: assistantTurn.status,
+      message: createAssistantAgentTaskMessage(assistantTurn)
+    }));
+    return;
+  }
 
-  if (route.kind === "needs_confirmation" && !approved) {
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
+  if (routeDecision.kind === "assistant_failed") {
+    clearPendingComputerUseTask();
+    emitTurnReplayTaskEvent(window, createAssistantTurnFailedRouteTaskEvent({
+      command,
+      message: createAssistantAgentTaskMessage(assistantTurn),
+      route: routeDecision.route
+    }));
+    return;
+  }
+
+  if (routeDecision.kind === "needs_clarification") {
+    clearPendingComputerUseTask();
+    emitTurnReplayTaskEvent(window, createNeedsClarificationRouteTaskEvent(routeDecision.route));
+    return;
+  }
+
+  if (routeDecision.kind === "terminal_route_state") {
+    clearPendingComputerUseTask();
+    emitTurnReplayTaskEvent(window, createTerminalRouteTaskEvent({
+      command,
+      route: routeDecision.route
+    }));
+    return;
+  }
+
+  const computerUsePlan = createAssistantComputerUseToolPlan(assistantTurn);
+  const toolIdentity = computerUsePlan.identity;
+  activeComputerUseToolIdentity = toolIdentity;
+  assistantComputerUseExecutor.planToolCall(computerUsePlan.planInput);
+
+  emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route);
+
+  if (routeDecision.kind === "needs_confirmation") {
+    clearPendingComputerUseTask();
     requireComputerUseApproval({
       command,
       mode,
-      route: executionRoute,
+      route: routeDecision.executionRoute,
       toolIdentity,
-      reason: route.reason
+      reason: routeDecision.route.reason
     });
-    emitTaskEvent(window, {
-      status: "needs_confirmation",
-      message: route.reason,
-      command
-    });
+    emitTurnReplayTaskEvent(window, createNeedsConfirmationRouteTaskEvent({
+      command,
+      route: routeDecision.route
+    }));
     return;
   }
 
@@ -1428,7 +992,7 @@ async function runCommandTask(
     mode,
     approved,
     planApproved,
-    route: executionRoute,
+    route: routeDecision.executionRoute,
     toolIdentity
   });
 }
@@ -1478,85 +1042,30 @@ async function createWindow() {
   }
 }
 
-function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
-  const nextSize = mode === "expanded" ? EXPANDED_WINDOW_SIZE : COMPACT_WINDOW_SIZE;
-  const currentBounds = window.getBounds();
-
-  if (currentBounds.width === nextSize.width && currentBounds.height === nextSize.height) {
-    return;
-  }
-
-  if (currentPetAnchor && currentPetSize) {
-    const nextOffset = calculatePetWindowOffsetForMode({
-      mode,
-      windowSize: nextSize,
-      petSize: currentPetSize
-    });
-    window.setBounds(resizePetWindowBoundsKeepingPetAnchor({
-      anchor: currentPetAnchor,
-      nextSize,
-      nextOffset,
-      displays: screen.getAllDisplays()
-    }));
-    return;
-  }
-
-  window.setBounds(resizePetWindowBoundsKeepingBottom(currentBounds, nextSize));
-}
-
 ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, visibleRectValue: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const x = readFiniteNumber(deltaX);
-  const y = readFiniteNumber(deltaY);
-
-  if (!window || window.isDestroyed() || x === undefined || y === undefined) {
-    return;
-  }
-
-  const bounds = window.getBounds();
-
-  const visibleRect = readVisiblePetRect(visibleRectValue);
-
-  if (visibleRect) {
-    const anchor = {
-      x: bounds.x + visibleRect.x,
-      y: bounds.y + visibleRect.y
-    };
-    const nextAnchor = movePetAnchorByDelta({
-      anchor,
-      delta: { x, y },
-      petSize: {
-        width: visibleRect.width,
-        height: visibleRect.height
-      },
-      displays: screen.getAllDisplays()
-    });
-    currentPetAnchor = nextAnchor;
-    currentPetSize = {
-      width: visibleRect.width,
-      height: visibleRect.height
-    };
-
-    window.setBounds({
-      ...bounds,
-      x: Math.round(nextAnchor.x - visibleRect.x),
-      y: Math.round(nextAnchor.y - visibleRect.y)
-    });
-    return;
-  }
-
-  window.setPosition(Math.round(bounds.x + x), Math.round(bounds.y + y));
+  const nextAnchorState = applyPetWindowDragMove({
+    currentPetAnchor,
+    currentPetSize,
+    deltaX,
+    deltaY,
+    displays: screen.getAllDisplays(),
+    visibleRectValue,
+    window
+  });
+  currentPetAnchor = nextAnchorState.currentPetAnchor;
+  currentPetSize = nextAnchorState.currentPetSize;
 });
 
 ipcMain.on("skfiy:set-window-mode", (event, mode: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const nextMode = readPetWindowMode(mode);
-
-  if (!window || window.isDestroyed() || !nextMode) {
-    return;
-  }
-
-  setPetWindowMode(window, nextMode);
+  applyPetWindowMode({
+    currentPetAnchor,
+    currentPetSize,
+    displays: screen.getAllDisplays(),
+    mode,
+    window
+  });
 });
 
 ipcMain.handle("skfiy:get-window-bounds", (event) => {
@@ -1571,29 +1080,16 @@ ipcMain.handle("skfiy:get-window-bounds", (event) => {
 
 ipcMain.handle(
   "skfiy:run-command",
-  async (event, command: unknown, options: { mode?: unknown } = {}) => {
+  async (event, command: unknown, options: unknown = {}) => {
     const window = BrowserWindow.fromWebContents(event.sender);
+    const request = readRunCommandRequest(command, options);
 
-    if (typeof command !== "string") {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "Command must be text."
-      });
+    if (!request.ok) {
+      emitTaskEvent(window, createRejectedRunCommandTaskEvent(request.message));
       return;
     }
 
-    const trimmed = command.trim();
-    const mode = readMode(options.mode);
-
-    if (!trimmed) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "No command was provided."
-      });
-      return;
-    }
-
-    await runCommandTask(window, trimmed, mode, readDefaultApprovalBypass(process.env));
+    await runCommandTask(window, request.command, request.mode, readDefaultApprovalBypass(process.env));
   }
 );
 
@@ -1602,10 +1098,7 @@ ipcMain.handle("skfiy:approve-task", async (event) => {
   const approval = pendingApproval;
 
   if (!approval) {
-    emitTaskEvent(window, {
-      status: "idle",
-      message: "No task is waiting for approval."
-    });
+    emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(null));
     return;
   }
 
@@ -1621,59 +1114,46 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
       turnId: approval.turnId,
       toolCallId: approval.toolCallId,
       decision: "denied",
-      reason: "User denied this Computer Use turn."
+      reason: USER_DENIED_COMPUTER_USE_REASON
     });
   }
 
-  pendingApproval = null;
-  activeTaskController?.abort();
-  activeTaskController = null;
-  activeComputerUseToolIdentity = null;
-  currentTaskId += 1;
+  clearActiveComputerUseTask();
 
-  emitTaskEvent(window, {
-    status: approval ? "denied" : "idle",
-    message: approval ? "Task denied." : "No task is waiting for approval.",
-    ...(approval ? { command: approval.command } : {})
-  });
+  const denialEvent = createPendingApprovalDeniedTaskEvent(approval);
+  if (approval) {
+    emitTurnReplayTaskEvent(window, denialEvent);
+  } else {
+    emitTaskEvent(window, denialEvent);
+  }
 });
 
 ipcMain.handle("skfiy:take-screenshot", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const helper = createDesktopHelper();
 
-  emitTaskEvent(window, {
-    status: "observing",
-    message: "Capturing the desktop."
-  });
+  emitTaskEvent(window, createManualScreenshotStartedTaskEvent());
 
   try {
     const screenshot = await helper.screenshot(createScreenshotPath("manual"));
-    emitTaskEvent(window, {
-      status: "completed",
-      message: `Screenshot saved: ${screenshot.outputPath}`
-    });
+    emitTaskEvent(window, createManualScreenshotCompletedTaskEvent(screenshot.outputPath));
   } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Screenshot failed."
-    });
+    emitTaskEvent(window, createManualScreenshotFailedTaskEvent(error));
   }
 });
 
 ipcMain.handle("skfiy:stop-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  cancelActiveComputerUseToolCall("Task stopped.");
-  pendingApproval = null;
-  activeTaskController?.abort();
-  activeTaskController = null;
-  activeComputerUseToolIdentity = null;
-  currentTaskId += 1;
+  const stopTask = createStopTaskEventDecision({ activeRoute: activeComputerUseRoute, pendingApproval });
+  cancelActiveComputerUseToolCall(stopTask.cancellationReason);
+  clearActiveComputerUseTask();
 
-  emitTaskEvent(window, {
-    status: "cancelled",
-    message: "Task stopped."
-  });
+  if (stopTask.delivery === "turn-replay") {
+    emitTurnReplayTaskEvent(window, stopTask.event);
+    return;
+  }
+
+  emitTaskEvent(window, stopTask.event);
 });
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {
@@ -1684,11 +1164,11 @@ ipcMain.handle("skfiy:get-permission-diagnostics", async () => {
   const helper = createDesktopHelper();
   const active = await readPermissionsForRenderer({ helper });
 
-  return readPermissionDiagnosticsForRenderer({
+  return createMainPermissionDiagnosticsResponse({
     active,
-    appProcess: readAppProcessPermissions(),
-    helper: {
-      getPermissions: async () => active
+    appProcess: {
+      screenRecording: systemPreferences.getMediaAccessStatus("screen"),
+      accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false)
     },
     identity: {
       appPath: app.getAppPath(),
@@ -1709,10 +1189,7 @@ ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unkno
   const target = readPermissionSettingsTarget(permission);
 
   if (!target) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: "Unknown permission settings target."
-    });
+    emitTaskEvent(window, createUnknownPermissionSettingsTargetTaskEvent());
     return;
   }
 
@@ -1720,10 +1197,7 @@ ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unkno
     const result = await createDesktopHelper().openPermissionSettings(target);
     assertDesktopActionResult(result, "open permission settings");
   } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Permission settings could not be opened."
-    });
+    emitTaskEvent(window, createPermissionSettingsFailedTaskEvent(error));
   }
 });
 
@@ -1742,9 +1216,7 @@ ipcMain.handle("skfiy:get-app-policy-settings", () => {
 });
 
 ipcMain.handle("skfiy:set-app-policy", (_event, update: unknown) => {
-  return appPolicySettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
+  return appPolicySettingsStore.set(readAppPolicySettingsUpdate(update));
 });
 
 ipcMain.handle("skfiy:get-planner-provider-settings", () => {
@@ -1752,29 +1224,20 @@ ipcMain.handle("skfiy:get-planner-provider-settings", () => {
 });
 
 ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) => {
-  return plannerProviderSettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
+  return plannerProviderSettingsStore.set(readPlannerProviderSettingsUpdate(update));
 });
 
 ipcMain.handle("skfiy:get-assistant-agent-settings", async () => {
-  const settings = assistantAgentSettingsStore.get();
-
-  return {
-    settings,
-    providers: await readAssistantAgentProviderStates(settings)
-  };
+  return readAssistantAgentSettingsResponse({
+    store: assistantAgentSettingsStore
+  });
 });
 
 ipcMain.handle("skfiy:set-assistant-agent-settings", async (_event, update: unknown) => {
-  const settings = assistantAgentSettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
-
-  return {
-    settings,
-    providers: await readAssistantAgentProviderStates(settings)
-  };
+  return updateAssistantAgentSettingsResponse({
+    store: assistantAgentSettingsStore,
+    update
+  });
 });
 
 ipcMain.handle("skfiy:get-turn-replay", () => {
@@ -1786,8 +1249,7 @@ ipcMain.handle("skfiy:get-automation-monitors", () => {
 });
 
 ipcMain.handle("skfiy:upsert-tmux-monitor", async (_event, input: unknown) => {
-  const monitorInput = readTmuxMonitorInput(input);
-  const definition = automationMonitorManager.upsertTmuxSessionMonitor(monitorInput);
+  const definition = automationMonitorManager.upsertTmuxSessionMonitor(readTmuxMonitorInput(input));
   await automationMonitorManager.runMonitorNow(definition.id);
   return automationMonitorManager.readSnapshot();
 });
@@ -1802,9 +1264,7 @@ ipcMain.handle("skfiy:run-automation-monitor-now", async (_event, id: unknown) =
 });
 
 ipcMain.handle("skfiy:get-runtime-status", () => {
-  return {
-    stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
-  };
+  return createRuntimeStatusResponse(stopTurnHotkeyRegistered);
 });
 
 ipcMain.handle("skfiy:get-pet-skin", async () => {

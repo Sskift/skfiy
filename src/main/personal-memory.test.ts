@@ -240,7 +240,7 @@ function createMemoryIo(files: Map<string, string>): PersonalMemoryIo {
     exists: (targetPath) => files.has(targetPath),
     mkdir: () => undefined,
     readFile: (targetPath) => files.get(targetPath) ?? "",
-    stat: (targetPath) => ({ mtimeMs: files.has(targetPath) ? Date.parse("2026-06-23T10:00:00.000Z") : 0 }),
+    stat: (targetPath) => ({ mtimeMs: files.has(targetPath) ? Date.parse("2026-07-07T10:00:00.000Z") : 0 }),
     writeFile: (targetPath, content) => {
       files.set(targetPath, content);
     }

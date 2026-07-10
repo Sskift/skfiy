@@ -1,3 +1,5 @@
+import { readRecord } from "./record-utils.js";
+
 export type BrowserPageContextState =
   | "ready"
   | "partial"
@@ -274,12 +276,6 @@ function formatCommandArg(arg: string): string {
   return /^[A-Za-z0-9_./:@%#{}=-]+$/.test(arg)
     ? arg
     : JSON.stringify(arg);
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function readOptionalString(value: unknown): string | undefined {

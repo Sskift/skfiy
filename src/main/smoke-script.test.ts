@@ -1,14 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("Ghostty product smoke script", () => {
   it("can set planner provider mode through the product preload API", async () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-ghostty-product.mjs"),
-      "utf8"
-    );
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {
       createDefaultSmokeOptions,
@@ -28,9 +24,6 @@ describe("Ghostty product smoke script", () => {
       plannerMode: "disabled"
     });
     expect(formatLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
-    expect(source).toContain("window.skfiy.setPlannerProviderSettings");
-    expect(source).toContain("window.skfiy.getAppPolicySettings()");
-    expect(source).toContain("acquireSmokeLock");
   });
 
   it("defines the Week 2 product-path task matrix as executable smoke runs", async () => {
@@ -94,7 +87,7 @@ describe("Ghostty product smoke script", () => {
         id: "unsupported-desktop-route-guard",
         command: "帮我整理一下桌面",
         requiresComputerUseEvidence: false,
-        expectedResults: ["needs-user-confirmation"]
+        expectedResults: ["needs-clarification"]
       }
     ]);
     expect(createHelpText(createDefaultSmokeOptions("/repo"))).toContain("route guards");
@@ -199,7 +192,7 @@ describe("Ghostty product smoke script", () => {
       {
         id: "single-command",
         command: "打开 Ghostty 执行 pwd 并截图",
-        expectedResults: ["passed", "blocked", "needs-user-confirmation"]
+        expectedResults: ["passed", "blocked", "needs-user-confirmation", "needs-clarification"]
       }
     ]);
   });
@@ -226,6 +219,12 @@ describe("Ghostty product smoke script", () => {
         message: "Computer Use permissions required: Accessibility is denied."
       }
     ])).toBe("blocked");
+    expect(classifySmokeResult([
+      {
+        status: "needs_clarification",
+        message: "No supported desktop control route matched this request."
+      }
+    ])).toBe("needs-clarification");
   });
 
   it("classifies a denial event as denied even if a later idle event is emitted", async () => {

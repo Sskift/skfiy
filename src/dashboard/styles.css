@@ -321,7 +321,8 @@ a:focus-visible {
   background: #fafafa;
 }
 
-.skfiy-dashboard-key-value-list h3 {
+.skfiy-dashboard-key-value-list h3,
+.skfiy-dashboard-key-value-list h4 {
   margin: 0;
   color: #3f3f46;
   font-size: 12px;
@@ -721,6 +722,49 @@ a:focus-visible {
   font-size: 12px;
   line-height: 1.3;
   overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-evidence-detail-list,
+.skfiy-dashboard-evidence-command-list {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+  min-width: 0;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skfiy-dashboard-evidence-detail-list > li,
+.skfiy-dashboard-evidence-command-list > li {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.55fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(20, 184, 166, 0.16);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.skfiy-dashboard-evidence-detail-list > li > span,
+.skfiy-dashboard-evidence-detail-list > li > strong,
+.skfiy-dashboard-evidence-detail-list > li > small,
+.skfiy-dashboard-evidence-command-list > li > span,
+.skfiy-dashboard-evidence-command-list > li > code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-evidence-command-list > li > code {
+  padding: 5px 6px;
+  border: 1px solid rgba(82, 82, 91, 0.16);
+  border-radius: 6px;
+  color: #18181b;
+  background: #ffffff;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .skfiy-dashboard-icon-button {
@@ -1670,6 +1714,14 @@ a:focus-visible {
   color: #b91c1c;
 }
 
+.skfiy-dashboard-operator-actions .skfiy-dashboard-button.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  text-decoration: none;
+}
+
 .skfiy-dashboard-provider-form-message {
   min-height: 0;
   padding: 9px 10px;
@@ -2369,6 +2421,7 @@ body {
 
 .skfiy-dashboard-card-header .card__title,
 .skfiy-dashboard-key-value-list h3,
+.skfiy-dashboard-key-value-list h4,
 .skfiy-dashboard-capability-card-heading h3,
 .skfiy-dashboard-provider-card .card__title,
 .skfiy-dashboard-assistant-provider-heading h3,

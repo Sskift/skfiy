@@ -9,6 +9,7 @@ export type TaskStatusName =
   | "running"
   | "approval_required"
   | "needs_confirmation"
+  | "needs_clarification"
   | "completed"
   | "denied"
   | "blocked"
@@ -104,6 +105,7 @@ export const TASK_STATUS_TO_PET_STATE: Record<TaskStatusName, PetAtlasState> = {
   running: "running",
   approval_required: "waiting",
   needs_confirmation: "waiting",
+  needs_clarification: "waiting",
   completed: "waving",
   denied: "review",
   blocked: "waiting",

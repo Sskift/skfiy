@@ -270,7 +270,7 @@ function isUnsupportedVisibleAppControlRequest(command: string): boolean {
     && /(?:用|在)\s+[a-z][a-z0-9 ._-]*\s*(?:输入|点击|点|观察|查看|读取|截图|按|拖|滚动)/u
       .test(normalized);
   const namesGenericVisibleTarget =
-    /\b(any|current|frontmost)\s+visible\s+(app|application|window|button)\b|\bvisible\s+(app|application)\b|当前屏幕可见|屏幕可见|当前可见\s*(app|应用|程序|窗口|按钮)?|可见\s*(app|应用|程序|窗口|按钮)|任意.*(app|应用|程序)/u
+    /\b(any|current|frontmost)\s+visible\s+(app|application|window|button)\b|\b(current|frontmost)\s+(app|application|window|button)\b|\bvisible\s+(app|application)\b|当前屏幕可见|屏幕可见|当前可见\s*(app|应用|程序|窗口|按钮)?|可见\s*(app|应用|程序|窗口|按钮)|当前\s*(app|应用|程序|窗口|按钮)|前台\s*(app|应用|程序|窗口|按钮)|任意.*(app|应用|程序)/u
       .test(normalized);
 
   return namesUnsupportedApp || namesGenericVisibleTarget;

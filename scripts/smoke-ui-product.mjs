@@ -265,6 +265,7 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     dragPetByDelta.toString(),
     readVisiblePetDragSnapshot.toString(),
     readRendererScreenBounds.toString(),
+    inferDisplayOrigin.toString(),
     readFiniteMetric.toString(),
     isVisibleEdgeAligned.toString(),
     hasVisiblePetEdgeChecks.toString(),
@@ -555,12 +556,16 @@ async function exercisePetDrag(pet) {
     view: window
   }));
 
-  const totalDeltaX = hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
-    ? afterBounds.x - beforeBounds.x
-    : 0;
-  const totalDeltaY = hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
-    ? afterBounds.y - beforeBounds.y
-    : 0;
+  const totalDeltaX = hasWindowBounds(beforeSnapshot?.visiblePet) && hasWindowBounds(afterSnapshot?.visiblePet)
+    ? afterSnapshot.visiblePet.x - beforeSnapshot.visiblePet.x
+    : hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
+      ? afterBounds.x - beforeBounds.x
+      : 0;
+  const totalDeltaY = hasWindowBounds(beforeSnapshot?.visiblePet) && hasWindowBounds(afterSnapshot?.visiblePet)
+    ? afterSnapshot.visiblePet.y - beforeSnapshot.visiblePet.y
+    : hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
+      ? afterBounds.y - beforeBounds.y
+      : 0;
   const suppressedClickAfterDrag = !document.querySelector('[aria-label="权限引导"]');
 
   return {
@@ -668,15 +673,15 @@ async function readVisiblePetDragSnapshot(pet, skfiy) {
   };
 }
 
-function readRendererScreenBounds() {
+export function readRendererScreenBounds() {
   const usableLeft = readFiniteMetric(window.screen.availLeft, 0);
   const usableTop = readFiniteMetric(window.screen.availTop, 0);
   const usableWidth = readFiniteMetric(window.screen.availWidth, window.screen.width);
   const usableHeight = readFiniteMetric(window.screen.availHeight, window.screen.height);
-  const displayLeft = usableLeft;
-  const displayTop = Math.min(usableTop, 0);
   const displayWidth = readFiniteMetric(window.screen.width, usableWidth);
   const displayHeight = readFiniteMetric(window.screen.height, usableHeight);
+  const displayLeft = inferDisplayOrigin(usableLeft, usableWidth, displayWidth);
+  const displayTop = inferDisplayOrigin(usableTop, usableHeight, displayHeight);
 
   return {
     displayBounds: {
@@ -692,6 +697,28 @@ function readRendererScreenBounds() {
       height: usableHeight
     }
   };
+}
+
+export function inferDisplayOrigin(usableStart, usableSize, displaySize) {
+  if (
+    !Number.isFinite(usableStart)
+    || !Number.isFinite(usableSize)
+    || !Number.isFinite(displaySize)
+  ) {
+    return 0;
+  }
+
+  if (usableStart === 0) {
+    return 0;
+  }
+
+  const inferredOrigin = usableStart + usableSize - displaySize;
+
+  if (usableStart > 0) {
+    return inferredOrigin > 0 ? inferredOrigin : 0;
+  }
+
+  return Math.min(usableStart, inferredOrigin);
 }
 
 function readFiniteMetric(value, fallback) {
@@ -1006,4 +1033,6 @@ function sleep(ms) {
   });
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

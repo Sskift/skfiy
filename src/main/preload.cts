@@ -10,6 +10,7 @@ type TaskStatus =
   | "running"
   | "approval_required"
   | "needs_confirmation"
+  | "needs_clarification"
   | "completed"
   | "denied"
   | "blocked"
@@ -38,22 +39,79 @@ type RiskLevel = "low" | "medium" | "high" | "blocked";
 type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
   | "verification_failed"
   | "denied"
   | "blocked"
   | "cancelled"
   | "failed"
   | "running";
+type RouteOutcomeKind =
+  | "idle"
+  | "running"
+  | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
+  | "app_policy_denied"
+  | "chrome_host_policy_denied"
+  | "user_denied"
+  | "blocked"
+  | "cancelled"
+  | "stopped"
+  | "failed"
+  | "completed"
+  | "unknown";
+type RouteOutcomeTone = "success" | "warning" | "danger" | "neutral";
+
+const routeOutcomeKinds = new Set<RouteOutcomeKind>([
+  "idle",
+  "running",
+  "approval_required",
+  "needs_confirmation",
+  "needs_clarification",
+  "app_policy_denied",
+  "chrome_host_policy_denied",
+  "user_denied",
+  "blocked",
+  "cancelled",
+  "stopped",
+  "failed",
+  "completed",
+  "unknown"
+]);
+const routeOutcomeTones = new Set<RouteOutcomeTone>([
+  "success",
+  "warning",
+  "danger",
+  "neutral"
+]);
 
 interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
+  routeOutcome?: RouteOutcome;
+  stopTurnBehavior?: TaskEventStopTurnBehavior;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
   tmuxSupervisionReport?: unknown;
+}
+
+interface TaskEventStopTurnBehavior {
+  result?: string;
+  source?: string;
+  command?: string;
+  beforeStatus?: string;
+  beforeMessage?: string;
+  afterStatus?: string;
+  afterMessage?: string;
 }
 
 interface FinderPlanPreview {
@@ -197,25 +255,66 @@ interface TurnTranscript {
     appName?: string;
     bundleId?: string;
     pid?: number;
+    turnId?: string;
+    toolCallId?: string;
+    route?: string;
     text?: string;
     key?: string;
     action?: string;
+    actionType?: string;
+    status?: string;
     stage?: string;
+    message?: string;
     reason?: string;
+    decision?: string;
+    summary?: string;
+    evidenceSummary?: string;
+    artifactCount?: number;
     providerLabel?: string;
     command?: string;
     rationale?: string;
+    from?: string;
+    to?: string;
+    source?: string;
+    frontmostBundleId?: string;
+    targetPath?: string;
+    selectedCount?: number;
+    rootPath?: string;
+    operationCount?: number;
+    destructiveOperationCount?: number;
+    createFolderCount?: number;
+    moveFileCount?: number;
   }>;
   outcome: TurnTranscriptOutcome;
 }
 
 interface TurnReplay {
   transcript: TurnTranscript;
+  routeOutcome?: RouteOutcome;
   timeline: Array<{
     status: TaskStatus;
     message?: string;
     command?: string;
+    route?: string;
+    routeReason?: string;
+    denialKind?: string;
+    policyKind?: string;
+    routeOutcome?: RouteOutcome;
+    stopTurnBehavior?: TaskEventStopTurnBehavior;
   }>;
+}
+
+interface RouteOutcome {
+  kind: RouteOutcomeKind;
+  title: string;
+  value: string;
+  detail: string;
+  tone: RouteOutcomeTone;
+  source: string;
+  routeLabel: string;
+  state: string;
+  denialKind?: string;
+  policyKind?: string;
 }
 
 interface PermissionSummary {
@@ -408,6 +507,7 @@ const taskStatuses = new Set<TaskStatus>([
   "running",
   "approval_required",
   "needs_confirmation",
+  "needs_clarification",
   "completed",
   "denied",
   "blocked",
@@ -421,7 +521,21 @@ function isTaskEvent(value: unknown): value is TaskEvent {
   }
 
   const candidate = value as Partial<TaskEvent>;
-  return typeof candidate.status === "string" && taskStatuses.has(candidate.status);
+  return (
+    typeof candidate.status === "string"
+    && taskStatuses.has(candidate.status)
+    && (candidate.message === undefined || typeof candidate.message === "string")
+    && (candidate.command === undefined || typeof candidate.command === "string")
+    && (candidate.route === undefined || typeof candidate.route === "string")
+    && (candidate.routeReason === undefined || typeof candidate.routeReason === "string")
+    && (candidate.denialKind === undefined || typeof candidate.denialKind === "string")
+    && (candidate.policyKind === undefined || typeof candidate.policyKind === "string")
+    && (candidate.routeOutcome === undefined || isRouteOutcome(candidate.routeOutcome))
+    && (
+      candidate.stopTurnBehavior === undefined
+      || isTaskEventStopTurnBehavior(candidate.stopTurnBehavior)
+    )
+  );
 }
 
 const api: DesktopApi = {
@@ -789,7 +903,8 @@ function isTurnReplay(value: unknown): value is TurnReplay {
 
   const replay = value as Partial<TurnReplay>;
   return isTurnTranscript(replay.transcript) && Array.isArray(replay.timeline)
-    && replay.timeline.every(isTurnReplayTimelineEvent);
+    && replay.timeline.every(isTurnReplayTimelineEvent)
+    && (replay.routeOutcome === undefined || isRouteOutcome(replay.routeOutcome));
 }
 
 function isTurnTranscript(value: unknown): value is TurnTranscript {
@@ -926,14 +1041,35 @@ function isTurnTranscriptAction(value: unknown): value is TurnTranscript["action
     && (action.appName === undefined || typeof action.appName === "string")
     && (action.bundleId === undefined || typeof action.bundleId === "string")
     && (action.pid === undefined || typeof action.pid === "number")
+    && (action.turnId === undefined || typeof action.turnId === "string")
+    && (action.toolCallId === undefined || typeof action.toolCallId === "string")
+    && (action.route === undefined || typeof action.route === "string")
     && (action.text === undefined || typeof action.text === "string")
     && (action.key === undefined || typeof action.key === "string")
     && (action.action === undefined || typeof action.action === "string")
+    && (action.actionType === undefined || typeof action.actionType === "string")
+    && (action.status === undefined || typeof action.status === "string")
     && (action.stage === undefined || typeof action.stage === "string")
+    && (action.message === undefined || typeof action.message === "string")
     && (action.reason === undefined || typeof action.reason === "string")
+    && (action.decision === undefined || typeof action.decision === "string")
+    && (action.summary === undefined || typeof action.summary === "string")
+    && (action.evidenceSummary === undefined || typeof action.evidenceSummary === "string")
+    && (action.artifactCount === undefined || typeof action.artifactCount === "number")
     && (action.providerLabel === undefined || typeof action.providerLabel === "string")
     && (action.command === undefined || typeof action.command === "string")
     && (action.rationale === undefined || typeof action.rationale === "string")
+    && (action.from === undefined || typeof action.from === "string")
+    && (action.to === undefined || typeof action.to === "string")
+    && (action.source === undefined || typeof action.source === "string")
+    && (action.frontmostBundleId === undefined || typeof action.frontmostBundleId === "string")
+    && (action.targetPath === undefined || typeof action.targetPath === "string")
+    && (action.selectedCount === undefined || typeof action.selectedCount === "number")
+    && (action.rootPath === undefined || typeof action.rootPath === "string")
+    && (action.operationCount === undefined || typeof action.operationCount === "number")
+    && (action.destructiveOperationCount === undefined || typeof action.destructiveOperationCount === "number")
+    && (action.createFolderCount === undefined || typeof action.createFolderCount === "number")
+    && (action.moveFileCount === undefined || typeof action.moveFileCount === "number")
   );
 }
 
@@ -941,12 +1077,59 @@ function isTurnTranscriptOutcome(value: unknown): value is TurnTranscriptOutcome
   return (
     value === "completed"
     || value === "approval_required"
+    || value === "needs_confirmation"
+    || value === "needs_clarification"
     || value === "verification_failed"
     || value === "denied"
     || value === "blocked"
     || value === "cancelled"
     || value === "failed"
     || value === "running"
+  );
+}
+
+function isRouteOutcome(value: unknown): value is RouteOutcome {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const outcome = value as Partial<RouteOutcome>;
+  return (
+    isRouteOutcomeKind(outcome.kind)
+    && typeof outcome.title === "string"
+    && typeof outcome.value === "string"
+    && typeof outcome.detail === "string"
+    && isRouteOutcomeTone(outcome.tone)
+    && typeof outcome.source === "string"
+    && typeof outcome.routeLabel === "string"
+    && typeof outcome.state === "string"
+    && (outcome.denialKind === undefined || typeof outcome.denialKind === "string")
+    && (outcome.policyKind === undefined || typeof outcome.policyKind === "string")
+  );
+}
+
+function isRouteOutcomeKind(value: unknown): value is RouteOutcomeKind {
+  return typeof value === "string" && routeOutcomeKinds.has(value as RouteOutcomeKind);
+}
+
+function isRouteOutcomeTone(value: unknown): value is RouteOutcomeTone {
+  return typeof value === "string" && routeOutcomeTones.has(value as RouteOutcomeTone);
+}
+
+function isTaskEventStopTurnBehavior(value: unknown): value is TaskEventStopTurnBehavior {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const behavior = value as Partial<TaskEventStopTurnBehavior>;
+  return (
+    (behavior.result === undefined || typeof behavior.result === "string")
+    && (behavior.source === undefined || typeof behavior.source === "string")
+    && (behavior.command === undefined || typeof behavior.command === "string")
+    && (behavior.beforeStatus === undefined || typeof behavior.beforeStatus === "string")
+    && (behavior.beforeMessage === undefined || typeof behavior.beforeMessage === "string")
+    && (behavior.afterStatus === undefined || typeof behavior.afterStatus === "string")
+    && (behavior.afterMessage === undefined || typeof behavior.afterMessage === "string")
   );
 }
 
@@ -962,6 +1145,15 @@ function isTurnReplayTimelineEvent(
     isTaskStatus(event.status)
     && (event.message === undefined || typeof event.message === "string")
     && (event.command === undefined || typeof event.command === "string")
+    && (event.route === undefined || typeof event.route === "string")
+    && (event.routeReason === undefined || typeof event.routeReason === "string")
+    && (event.denialKind === undefined || typeof event.denialKind === "string")
+    && (event.policyKind === undefined || typeof event.policyKind === "string")
+    && (event.routeOutcome === undefined || isRouteOutcome(event.routeOutcome))
+    && (
+      event.stopTurnBehavior === undefined
+      || isTaskEventStopTurnBehavior(event.stopTurnBehavior)
+    )
   );
 }
 

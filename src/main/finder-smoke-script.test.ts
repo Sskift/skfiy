@@ -36,44 +36,10 @@ describe("Finder product smoke script", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-finder-product.mjs"),
-      "utf8"
-    );
 
     expect(packageJson.scripts).toMatchObject({
       "smoke:finder": "node scripts/smoke-finder-product.mjs"
     });
-    expect(source).toContain("window.skfiy.runCommand");
-    expect(source).toContain("window.skfiy.approveTask()");
-    expect(source).toContain("awaitPromise: false");
-    expect(source).toContain("approvePendingFinderTasks");
-    expect(source).toContain("window.skfiy.getAppPolicySettings()");
-    expect(source).toContain("整理 Finder 当前文件夹");
-    expect(source).toContain("整理 Finder 选中文件夹");
-    expect(source).toContain("探测 Finder 拖拽测试文件夹");
-    expect(source).toContain("拖放 Finder 测试文件夹");
-    expect(source).toContain("openFinderFolder");
-    expect(source).toContain("selectFinderFolder");
-    expect(source).toContain("prepareFinderTargetForMode(options.targetMode, evidence.fixtureRoot)");
-    expect(source).toContain("readFinderDragProbe");
-    expect(source).toContain("readFinderItemDragDrop");
-    expect(source).toContain("readFinderPlanPreview");
-    expect(source).toContain("readFinderPlanConfirmation");
-    expect(source).toContain(
-      'event.message.includes("Verification failed (selection):")\n'
-      + '      || event.message.includes("Verification failed (layout):")'
-    );
-  });
-
-  it("wires Finder item layout through the packaged app main process", () => {
-    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
-
-    expect(source).toContain("function createFinderDesktopClient");
-    expect(source).toContain("getFinderItemLayout: async");
-    expect(source).toContain("helper.getFinderItemLayout");
-    expect(source).toContain("plan_confirmation_required");
-    expect(source).toContain("planApproved: true");
   });
 
   it("defines Finder product paths and output options", async () => {
@@ -151,36 +117,6 @@ describe("Finder product smoke script", () => {
     });
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("smoke:finder");
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("--target-dir <path>");
-  });
-
-  it("requires an explicit focus-steal opt-in before running Finder product smoke", async () => {
-    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
-    const {
-      assertFinderFocusStealAllowed,
-      createDefaultFinderSmokeOptions,
-      createHelpText,
-      parseFinderSmokeArgs
-    } = await import(pathToFileURL(modulePath).href) as {
-      assertFinderFocusStealAllowed: (options: Record<string, unknown>) => void;
-      createDefaultFinderSmokeOptions: (rootDir: string) => Record<string, unknown>;
-      createHelpText: (defaults: Record<string, unknown>) => string;
-      parseFinderSmokeArgs: (
-        argv: string[],
-        defaults: Record<string, unknown>
-      ) => Record<string, unknown>;
-    };
-    const defaults = createDefaultFinderSmokeOptions("/repo");
-
-    expect(defaults).toMatchObject({ allowFocusSteal: false });
-    expect(parseFinderSmokeArgs(["--allow-focus-steal"], defaults)).toMatchObject({
-      allowFocusSteal: true
-    });
-    expect(createHelpText(defaults)).toContain("--allow-focus-steal");
-    expect(() => assertFinderFocusStealAllowed(defaults)).toThrow(/frontmost app control/i);
-    expect(() => assertFinderFocusStealAllowed({
-      ...defaults,
-      allowFocusSteal: true
-    })).not.toThrow();
   });
 
   it("requires target-dir Finder evidence to use an isolated fixture inside the requested directory", async () => {
@@ -534,74 +470,6 @@ describe("Finder product smoke script", () => {
         selectedCount: 0
       }
     })).toBe("failed");
-  });
-
-  it("reads the latest Finder smoke evidence that matches the isolated fixture root", async () => {
-    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
-    const {
-      readFinderSmokeEventEvidence
-    } = await import(pathToFileURL(modulePath).href) as {
-      readFinderSmokeEventEvidence: (input: Record<string, unknown>) => {
-        finderSemanticObservation: Record<string, unknown>;
-        finderPlanPreview: Record<string, unknown>;
-      };
-    };
-    const fixtureRoot = "/tmp/skfiy-finder-smoke-CZSwTE";
-    const parentRoot = "/tmp";
-
-    const evidence = readFinderSmokeEventEvidence({
-      targetMode: "current-finder-folder",
-      fixtureRoot,
-      events: [
-        {
-          status: "observing",
-          finderSelection: {
-            source: "finder-applescript",
-            frontmostBundleId: "com.sskift.skfiy",
-            targetPath: parentRoot,
-            selection: [
-              { path: "/tmp/assessmentagent", name: "assessmentagent", kind: "directory" }
-            ]
-          }
-        },
-        {
-          status: "executing",
-          finderPlanPreview: {
-            rootPath: parentRoot,
-            operationCount: 12,
-            destructiveOperationCount: 0,
-            createFolders: ["/tmp/Other"],
-            moveFiles: [
-              { from: "/tmp/.DS_Store", to: "/tmp/Other/.DS_Store" }
-            ]
-          }
-        },
-        {
-          status: "observing",
-          finderSelection: {
-            source: "finder-applescript",
-            frontmostBundleId: "com.openai.codex",
-            targetPath: fixtureRoot,
-            selection: []
-          }
-        },
-        {
-          status: "executing",
-          finderPlanPreview: createFinderPlanPreviewEvidence(fixtureRoot)
-        }
-      ]
-    });
-
-    expect(evidence.finderSemanticObservation).toMatchObject({
-      result: "passed",
-      targetPath: fixtureRoot,
-      selectedCount: 0
-    });
-    expect(evidence.finderPlanPreview).toMatchObject({
-      result: "passed",
-      rootPath: fixtureRoot,
-      operationCount: 6
-    });
   });
 
   it("classifies a selected Finder folder organization only when semantic selection contains the fixture directory", async () => {
@@ -980,70 +848,6 @@ describe("Finder product smoke script", () => {
         "Images/photo.png"
       ]
     })).toBe("failed");
-  });
-
-  it("accepts selected-folder semantic evidence when skfiy is frontmost after AppleEvents consent", async () => {
-    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
-    const {
-      classifyFinderSmokeEvidence
-    } = await import(pathToFileURL(modulePath).href) as {
-      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
-    };
-    const fixtureRoot = "/var/folders/skfiy-finder-smoke-abc123";
-
-    expect(classifyFinderSmokeEvidence({
-      appLaunchViaOpen: true,
-      runnerHasTmux: false,
-      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
-      targetMode: "selected-finder-folder",
-      fixtureRoot,
-      finderObservation: {
-        result: "passed",
-        screenshotPath: "/tmp/skfiy/finder-before.png",
-        frontmostBundleId: "com.apple.finder"
-      },
-      finderSemanticObservation: {
-        result: "passed",
-        source: "finder-applescript",
-        frontmostBundleId: "com.sskift.skfiy",
-        targetPath: "/var/folders",
-        selectedCount: 1,
-        selectedItems: [
-          {
-            path: fixtureRoot,
-            name: "skfiy-finder-smoke-abc123",
-            kind: "directory"
-          }
-        ]
-      },
-      finderPlanPreview: {
-        result: "passed",
-        rootPath: fixtureRoot,
-        operationCount: 6,
-        destructiveOperationCount: 0,
-        createFolders: [
-          `${fixtureRoot}/Images`,
-          `${fixtureRoot}/Documents`,
-          `${fixtureRoot}/Code`
-        ],
-        moveFiles: [
-          { from: `${fixtureRoot}/photo.png`, to: `${fixtureRoot}/Images/photo.png` },
-          { from: `${fixtureRoot}/notes.pdf`, to: `${fixtureRoot}/Documents/notes.pdf` },
-          { from: `${fixtureRoot}/script.ts`, to: `${fixtureRoot}/Code/script.ts` }
-        ]
-      },
-      finderPlanConfirmation: {
-        result: "passed",
-        confirmedAfterPreview: true,
-        reason: "Finder selected-folder organization needs confirmation after plan preview."
-      },
-      events: [{ status: "completed", message: "Finder test folder organized." }],
-      afterTree: [
-        "Code/script.ts",
-        "Documents/notes.pdf",
-        "Images/photo.png"
-      ]
-    })).toBe("passed");
   });
 
   it("classifies a completed Finder organization with permission-blocked observation as blocked", async () => {

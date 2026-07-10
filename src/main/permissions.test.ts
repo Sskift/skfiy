@@ -1,8 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { readPermissionDiagnosticsForRenderer, readPermissionsForRenderer } from "./permissions";
+import {
+  createAppProcessPermissionSummary,
+  readElectronMediaPermissionState,
+  readPermissionDiagnosticsForRenderer,
+  readPermissionsForRenderer
+} from "./permissions";
 import type { PermissionSummary } from "./computer-use/types";
 
 describe("readPermissionsForRenderer", () => {
+  it("creates an app-process permission summary from Electron states", () => {
+    expect(readElectronMediaPermissionState("granted")).toBe("granted");
+    expect(readElectronMediaPermissionState("restricted")).toBe("denied");
+    expect(readElectronMediaPermissionState("not-determined")).toBe("not-determined");
+
+    expect(createAppProcessPermissionSummary({
+      screenRecording: "restricted",
+      accessibilityTrusted: true
+    })).toEqual({
+      screenRecording: { state: "denied" },
+      accessibility: { state: "granted" }
+    });
+    expect(createAppProcessPermissionSummary({
+      screenRecording: "unknown",
+      accessibilityTrusted: false
+    })).toEqual({
+      screenRecording: { state: "unknown" },
+      accessibility: { state: "denied" }
+    });
+  });
+
   it("returns unknown permission states without escalating to a task failure", async () => {
     const onErrorMessages: string[] = [];
 

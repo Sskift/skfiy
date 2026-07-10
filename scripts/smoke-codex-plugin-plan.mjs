@@ -155,7 +155,7 @@ Options:
   --codex <command>     Codex CLI command for isolated cache-install proof. Default: ${defaults.codexCommand}
   --extension-id <id>   Optional Chrome extension id to pass through skfiy.status.
   --timeout-ms <ms>     Wait time for MCP responses. Default: ${defaults.timeoutMs}
-  --output <path>       Persist JSON evidence to a file.
+  --output <path>       Optional: write the full JSON result to a file.
   --skip-cache-install  Skip isolated Codex cache-install proof. This keeps debug runs possible, but --require-passed will fail.
   --require-passed      Exit 2 unless the Codex plugin smoke result is passed.
   -h, --help            Show this help.

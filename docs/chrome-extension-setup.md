@@ -127,7 +127,7 @@ Expected heartbeat shape:
 {
   "schemaVersion": 1,
   "hostName": "com.sskift.skfiy",
-  "observedAt": "2026-06-20T00:00:00.000Z",
+  "observedAt": "2026-07-10T00:00:00.000Z",
   "launchOrigin": "chrome-extension://<extension-id>/",
   "messageType": "skfiy.host_policy.request",
   "requestId": "..."
@@ -316,7 +316,7 @@ the heartbeat file matches the loaded `chrome-extension://.../` origin. The
 `skfiy.page_control.health` protocol. `installedExtensionRun.readinessSnapshot`
 summarizes manifest id/version, Native Messaging handshake state, health
 protocol state, content-script state, and pageControl state in one small
-contract for dashboards or handoff reports.
+contract for dashboards or dogfood reports.
 
 ## Chromium Dashboard Dogfood
 

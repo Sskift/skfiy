@@ -1,9 +1,36 @@
 import type { PermissionState, PermissionSummary } from "./computer-use/types.js";
 
+export type ElectronMediaPermissionState = "not-determined" | "granted" | "denied" | "restricted" | "unknown";
+
 export const UNKNOWN_PERMISSION_SUMMARY: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" }
 };
+
+export function readElectronMediaPermissionState(state: ElectronMediaPermissionState): PermissionState {
+  if (state === "restricted") {
+    return "denied";
+  }
+
+  return state;
+}
+
+export function createAppProcessPermissionSummary({
+  accessibilityTrusted,
+  screenRecording
+}: {
+  accessibilityTrusted: boolean;
+  screenRecording: ElectronMediaPermissionState;
+}): PermissionSummary {
+  return {
+    screenRecording: {
+      state: readElectronMediaPermissionState(screenRecording)
+    },
+    accessibility: {
+      state: accessibilityTrusted ? "granted" : "denied"
+    }
+  };
+}
 
 interface PermissionsReader {
   getPermissions: () => Promise<PermissionSummary>;

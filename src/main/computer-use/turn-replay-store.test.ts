@@ -83,6 +83,312 @@ describe("createTurnReplayStore", () => {
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
 
+  it("uses terminal task timeline events to preserve completed route outcome after prior progress", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_call",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "running"
+    });
+    store.recordTaskEvent({
+      status: "executing",
+      message: "Typing command in Ghostty.",
+      command: "run pwd in Ghostty",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "ghostty"
+    });
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "completed",
+      summary: "pwd completed.",
+      evidence: {
+        summary: "Computer Use route completed with replayed orchestration events."
+      }
+    });
+    store.recordTaskEvent({
+      status: "completed",
+      message: "pwd completed.",
+      command: "run pwd in Ghostty",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "ghostty"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "completed"
+      },
+      routeOutcome: {
+        kind: "completed",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "pwd completed."
+      },
+      timeline: [
+        {
+          status: "executing",
+          message: "Typing command in Ghostty.",
+          route: "ghostty"
+        },
+        {
+          status: "completed",
+          message: "pwd completed.",
+          route: "ghostty"
+        }
+      ]
+    });
+  });
+
+  it("preserves route confirmation as a terminal task timeline outcome", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "needs_confirmation",
+      message: "Verification failed (after): Completion marker was not observed.",
+      route: "ghostty"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "needs_confirmation"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "Verification failed (after): Completion marker was not observed."
+      },
+      timeline: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (after): Completion marker was not observed.",
+          route: "ghostty"
+        }
+      ]
+    });
+  });
+
+  it("treats transcript verification failures as confirmable replay route outcomes", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_call",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "run pwd in Ghostty",
+      route: "ghostty",
+      status: "running"
+    });
+    store.recordComputerUseEvent({
+      type: "action_verified",
+      actionType: "completion_marker",
+      status: "failed",
+      message: "Completion marker was not observed.",
+      reason: "after screenshot did not include the marker"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "verification_failed"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        value: "needs_confirmation",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        state: "needs_confirmation"
+      }
+    });
+  });
+
+  it("lets structured route task events preserve policy metadata after generic terminal events", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "open Ghostty",
+      route: "ghostty",
+      status: "blocked",
+      summary: "Computer Use tool call blocked."
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Computer Use tool call blocked.",
+      route: "ghostty"
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Ghostty denied by app policy.",
+      route: "ghostty",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "blocked"
+      },
+      routeOutcome: {
+        kind: "app_policy_denied",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "Ghostty denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      },
+      timeline: [
+        {
+          status: "blocked",
+          message: "Computer Use tool call blocked.",
+          route: "ghostty"
+        },
+        {
+          status: "blocked",
+          message: "Ghostty denied by app policy.",
+          route: "ghostty",
+          denialKind: "app_policy",
+          policyKind: "app-policy"
+        }
+      ]
+    });
+  });
+
+  it("preserves unsupported route clarification as a terminal task timeline status", () => {
+    const updates: unknown[] = [];
+    const store = createTurnReplayStore({
+      onReplayChanged: (replay) => {
+        updates.push(replay);
+      }
+    });
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "needs_clarification",
+      message: "No supported desktop control route matched this request.",
+      routeReason: "No supported desktop control route matched this request."
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "needs_clarification"
+      },
+      routeOutcome: {
+        kind: "needs_clarification",
+        source: "turn-replay",
+        routeLabel: "unknown",
+        detail: "No supported desktop control route matched this request."
+      },
+      timeline: [
+        {
+          status: "needs_clarification",
+          message: "No supported desktop control route matched this request.",
+          routeReason: "No supported desktop control route matched this request."
+        }
+      ]
+    });
+    expect(updates.at(-1)).toMatchObject({
+      routeOutcome: {
+        kind: "needs_clarification"
+      },
+      timeline: [
+        {
+          status: "needs_clarification"
+        }
+      ]
+    });
+  });
+
+  it("preserves replay route outcome metadata without leaking token-like details", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "open Ghostty",
+      route: "ghostty",
+      status: "blocked",
+      summary: "Ghostty denied by app policy with token=secret-token",
+      evidence: {
+        summary: "blocked by local policy",
+        artifacts: []
+      }
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Ghostty denied by app policy with token=secret-token",
+      route: "ghostty",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+
+    expect(store.getReplay()?.routeOutcome).toMatchObject({
+      kind: "app_policy_denied",
+      source: "turn-replay",
+      routeLabel: "ghostty",
+      detail: "Ghostty denied by app policy with token=[redacted]"
+    });
+  });
+
+  it("uses explicit task route outcomes for replay route semantics without leaking tokens", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Fallback route message should not replace the explicit outcome.",
+      route: "chrome",
+      routeReason: "Fallback route reason should not replace the explicit outcome.",
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        detail: "Chrome host policy blocked token=explicit-secret",
+        tone: "danger",
+        source: "task-event",
+        routeLabel: "chrome",
+        state: "blocked",
+        policyKind: "chrome-host-policy"
+      }
+    });
+
+    const replay = store.getReplay();
+
+    expect(replay?.routeOutcome).toEqual({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      value: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      tone: "danger",
+      source: "task-event",
+      routeLabel: "chrome",
+      state: "blocked",
+      policyKind: "chrome-host-policy"
+    });
+    expect(replay?.timeline[0]?.routeOutcome).toMatchObject({
+      kind: "chrome_host_policy_denied",
+      detail: "Chrome host policy blocked token=[redacted]",
+      policyKind: "chrome-host-policy"
+    });
+    expect(JSON.stringify(replay)).not.toContain("explicit-secret");
+  });
+
   it("keeps turn/tool lifecycle identity across approval and completion", () => {
     const store = createTurnReplayStore();
 

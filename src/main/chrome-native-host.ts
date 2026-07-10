@@ -6,6 +6,7 @@ import {
   readChromeHostPolicyState,
   type ChromeHostPolicyIo
 } from "./chrome-host-policy.js";
+import { readRecord } from "./record-utils.js";
 
 export const CHROME_NATIVE_HOST_NAME = "com.sskift.skfiy";
 export const CHROME_NATIVE_MESSAGE_SCHEMA_VERSION = 1;
@@ -1139,12 +1140,6 @@ function summarizeLatestCommandEvidence(value: unknown): ChromeExtensionCommandE
 
   return summary.messageType && summary.requestId
     ? summary
-    : undefined;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
     : undefined;
 }
 

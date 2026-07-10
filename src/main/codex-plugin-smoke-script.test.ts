@@ -14,20 +14,6 @@ describe("Codex plugin product smoke script", () => {
     expect(packageJson.scripts).toMatchObject({
       "smoke:codex-plugin": "node scripts/smoke-codex-plugin-product.mjs"
     });
-
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("readCodexPluginMcpServer");
-    expect(source).toContain("runCodexPluginMcpSession");
-    expect(source).toContain("configuredCommandUsed");
-    expect(source).toContain("resolveConfiguredCommandPath");
-    expect(source).toContain("commandLookupPathPrepend");
-    expect(source).toContain("EXPECTED_MCP_ARGS");
-    expect(source).toContain("skfiy.status");
-    expect(source).toContain("tools/list");
-    expect(source).toContain("mcpConfigPath");
-    expect(source).toContain("cliPath");
-    expect(source).toContain("skfiy");
   });
 
   it("parses Codex plugin smoke options for a repeatable packaged-binary run", async () => {

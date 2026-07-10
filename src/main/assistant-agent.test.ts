@@ -298,7 +298,7 @@ describe("assistant agent provider", () => {
       url: "https://example.test/form",
       title: "Example Form",
       visibleText: "Name Email Submit",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     });
 
     const prompt = invocation?.args.at(-1) ?? "";
@@ -375,7 +375,7 @@ describe("assistant agent provider", () => {
       url: "https://example.test",
       title: "Example",
       visibleText: "Example text",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     }, {
       userEntries: ["User prefers concise Chinese progress updates."],
       agentEntries: ["For skfiy UI work, verify packaged app smoke evidence."]
@@ -396,14 +396,14 @@ describe("assistant agent provider", () => {
       url: "https://example.test",
       title: "Example",
       visibleText: "Example text",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     }, {
       userEntries: ["User prefers concise Chinese progress updates."],
       agentEntries: []
     }, [
       {
         turnId: "turn-obsidian",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        createdAt: "2026-07-07T10:05:00.000Z",
         userInput: "我想要 Obsidian 风格 dashboard",
         assistantReply: "我会偏知识图谱和深色画布。",
         providerLabel: "Hermes"
@@ -424,7 +424,7 @@ describe("assistant agent provider", () => {
       url: "https://example.test",
       title: "Example",
       visibleText: "Example text",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     }, {
       userEntries: [
         "User prefers concise Chinese progress updates.",
@@ -436,7 +436,7 @@ describe("assistant agent provider", () => {
     }, [
       {
         turnId: "turn-obsidian",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        createdAt: "2026-07-07T10:05:00.000Z",
         userInput: "Dashboard 要像 Obsidian，有知识图谱和双链",
         assistantReply: "我会做成本地知识画布。",
         providerLabel: "Hermes"
@@ -459,7 +459,7 @@ describe("assistant agent provider", () => {
       url: "https://example.test",
       title: "Example",
       visibleText: "Example text",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     }, {
       userEntries: [
         "User prefers concise Chinese progress updates.",
@@ -471,7 +471,7 @@ describe("assistant agent provider", () => {
     }, [
       {
         turnId: "turn-obsidian",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        createdAt: "2026-07-07T10:05:00.000Z",
         userInput: "Dashboard 要像 Obsidian，有知识图谱和双链",
         assistantReply: "我会做成本地知识画布。",
         providerLabel: "Hermes"
@@ -494,7 +494,7 @@ describe("assistant agent provider", () => {
       url: "https://example.test",
       title: "Example",
       visibleText: "Example text",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     }, {
       userEntries: [
         "User prefers concise Chinese progress updates.",

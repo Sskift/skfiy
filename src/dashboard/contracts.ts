@@ -94,6 +94,7 @@ export interface DashboardSnapshot {
   operatorReadiness: Record<string, unknown>;
   permissions: Record<string, unknown>;
   currentTurn: Record<string, unknown>;
+  routeOutcome?: Record<string, unknown>;
   replay: Record<string, unknown>;
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;
@@ -106,6 +107,18 @@ export interface DashboardSnapshot {
   providers?: {
     assistant?: DashboardProviderSummary;
     planner?: DashboardProviderSummary;
+  };
+}
+
+export interface DashboardOperatorEvidencePayload {
+  schemaVersion?: number;
+  generatedAt?: string;
+  descriptor?: Record<string, unknown>;
+  snapshot?: Record<string, unknown>;
+  status?: Record<string, unknown>;
+  outputPolicy?: {
+    tokenFree?: boolean;
+    source?: string;
   };
 }
 
@@ -281,6 +294,66 @@ export interface DashboardAutomationMonitorActionResponse {
   };
 }
 
+export type DashboardEvidenceSummaryState =
+  | "ready"
+  | "needs-evidence"
+  | "blocked"
+  | "unknown"
+  | string;
+
+export interface DashboardEvidenceSummary {
+  schemaVersion: number;
+  generatedAt: string;
+  dashboard: {
+    url: string;
+    endpoint: "/api/evidence-summary" | string;
+  };
+  status: {
+    state: DashboardEvidenceSummaryState;
+    laneCount: number;
+    readyLaneCount: number;
+    blockedLaneCount: number;
+    attentionLaneCount: number;
+  };
+  lanes: Array<{
+    id: string;
+    title: string;
+    state: DashboardEvidenceSummaryState;
+    summary: string;
+    checks: DashboardEvidenceSummaryCheck[];
+    nextActions: string[];
+    commands?: DashboardEvidenceSummaryCommand[];
+    setupGuide?: DashboardEvidenceSummarySetupGuide;
+  }>;
+  outputPolicy?: {
+    tokenFree?: boolean;
+    source?: string;
+  };
+}
+
+export interface DashboardEvidenceSummaryCheck {
+  id: string;
+  label: string;
+  state: DashboardEvidenceSummaryState;
+  value?: string | number | boolean;
+  ageSeconds?: number;
+  stale?: boolean;
+}
+
+export interface DashboardEvidenceSummaryCommand {
+  id: string;
+  label: string;
+  command: string;
+  mutates?: boolean;
+}
+
+export interface DashboardEvidenceSummarySetupGuide {
+  source: "runtime" | "native-host" | "smoke-artifact" | "derived" | string;
+  nativeHostState: string;
+  liveConnectionState: string;
+  nextActions: string[];
+  commands: DashboardEvidenceSummaryCommand[];
+}
 export type DashboardKnowledgeGraphNodeKind =
   | "memory"
   | "session"

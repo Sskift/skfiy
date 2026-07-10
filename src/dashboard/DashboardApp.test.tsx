@@ -1,7 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DashboardSnapshotEventHandlers } from "./api";
 import { DashboardApp } from "./DashboardApp";
 import type {
+  DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalSkillActionResponse,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -17,12 +20,26 @@ const snapshot: DashboardSnapshot = {
     auth: { mode: "optional-token", tokenPrinted: false },
     updates: { transport: "sse", scope: "local-http" },
     eventStore: { mode: "append-only", requiredForExecution: false },
-    panels: []
+    panels: [
+      {
+        id: "runtime-health",
+        title: "Runtime health",
+        signals: ["app", "helper", "dashboard"],
+        actions: []
+      },
+      {
+        id: "app-policy",
+        title: "App policy",
+        signals: ["app-allow-ask-deny", "chrome-host-allow-ask-deny"],
+        actions: ["show-chrome-host-policy", "set-chrome-host-policy", "reset-chrome-host-policy"]
+      }
+    ]
   },
   runtimeHealth: {
+    package: { version: "0.1.0" },
     app: { state: "installed" },
     helper: { state: "installed" },
-    dashboard: { state: "running", url: "http://127.0.0.1:52363/" },
+    dashboard: { state: "running", url: "http://127.0.0.1:52363/", pid: 4242, uptimeSeconds: 37 },
     extension: {
       state: "connected",
       liveConnection: "connected",
@@ -35,6 +52,9 @@ const snapshot: DashboardSnapshot = {
       hostPolicy: {
         schemaVersion: 1,
         state: "configured",
+        source: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+        path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+        updatedAt: "2026-07-08T10:00:00.000Z",
         reason: "Chrome host policy loaded from disk.",
         policy: {
           defaultMode: "ask",
@@ -50,6 +70,8 @@ const snapshot: DashboardSnapshot = {
       },
       pageControl: {
         state: "ready",
+        capable: true,
+        nextAction: "Use pageControl actions.",
         activeTab: { host: "127.0.0.1:52363", tabId: 42, scheme: "http" },
         contentScript: { state: "loaded" },
         capabilities: {
@@ -77,6 +99,16 @@ const snapshot: DashboardSnapshot = {
   },
   operatorReadiness: {
     state: "blocked",
+    commandSurface: {
+      state: "ready"
+    },
+    extensionReadiness: {
+      state: "blocked"
+    },
+    packagedBinary: {
+      state: "ready",
+      signingState: "unsigned"
+    },
     appReadiness: {
       chrome: {
         app: "Chrome",
@@ -209,7 +241,7 @@ const snapshot: DashboardSnapshot = {
     userEntryCount: 1,
     agentEntryCount: 1,
     sessionCount: 2,
-    latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+    latestUpdatedAt: "2026-07-07T10:00:00.000Z",
     usage: {
       user: {
         usedChars: 37,
@@ -282,14 +314,14 @@ const snapshot: DashboardSnapshot = {
     },
     recentSessions: [
       {
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         providerLabel: "Codex",
         userInput: "Summarize current dashboard state.",
         recallBasis: "matched terms: dashboard; score: 1",
         browserTitle: "skfiy Dashboard"
       },
       {
-        createdAt: "2026-06-23T09:55:00.000Z",
+        createdAt: "2026-07-07T09:55:00.000Z",
         providerLabel: "Hermes",
         userInput: "以后进度更新短一点",
         recallBasis: "matched terms: concise, updates; score: 2"
@@ -297,8 +329,8 @@ const snapshot: DashboardSnapshot = {
     ],
     memoryJournal: [
       {
-        id: "pmj-20260623T100000000Z-1",
-        createdAt: "2026-06-23T10:00:00.000Z",
+        id: "pmj-20260707T100000000Z-1",
+        createdAt: "2026-07-07T10:00:00.000Z",
         source: "post-turn-review",
         stage: "durable",
         turnId: "turn-1",
@@ -309,8 +341,8 @@ const snapshot: DashboardSnapshot = {
         content: "User prefers concise Chinese updates."
       },
       {
-        id: "pmj-20260623T100500000Z-1",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        id: "pmj-20260707T100500000Z-1",
+        createdAt: "2026-07-07T10:05:00.000Z",
         source: "post-turn-review",
         stage: "pending",
         turnId: "turn-2",
@@ -382,6 +414,7 @@ describe("DashboardApp", () => {
     expect(within(commandCenter).getByRole("img", { name: "Activity bar chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toBeInTheDocument();
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(overview.compareDocumentPosition(commandCenter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(commandCenter.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -390,6 +423,7 @@ describe("DashboardApp", () => {
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
     expect(within(provider).queryByText("planner · external-cua")).not.toBeInTheDocument();
     expect(within(provider).queryByRole("form", { name: "Computer Use Planner settings" })).not.toBeInTheDocument();
+    expect(within(provider).getByRole("heading", { name: "Prompt stack" })).toBeInTheDocument();
 
     const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
     expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
@@ -510,22 +544,79 @@ describe("DashboardApp", () => {
 
     const browser = screen.getByRole("region", { name: "Browser" });
     expect(within(browser).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
-    expect(within(browser).getByText("127.0.0.1:52363 tab 42")).toBeInTheDocument();
-    expect(within(browser).getByText("Browser Context")).toBeInTheDocument();
+    expect(within(browser).getAllByText("127.0.0.1:52363 tab 42").length).toBeGreaterThan(0);
+    expect(within(browser).getAllByText("Browser Context").length).toBeGreaterThan(0);
     expect(within(browser).getByText("skfiy Dashboard")).toBeInTheDocument();
     expect(within(browser).getByText("http://127.0.0.1:52363/dashboard")).toBeInTheDocument();
     expect(within(browser).getByText("Current Chrome page context is ready.")).toBeInTheDocument();
     expect(within(browser).getByText("plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
     expect(within(browser).getByText("screenshot: background_required")).toBeInTheDocument();
-    expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();
+    expect(within(browser).getAllByText("Using Chrome tab fallback").length).toBeGreaterThan(0);
     expect(within(browser).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
+    const hostPolicyDetails = within(browser).getByRole("list", { name: "Chrome host policy details" });
+    expect(within(hostPolicyDetails).getByText("chrome policy")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("chrome-host-policy.json")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("2026-07-08T10:00:00.000Z")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("always allow")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("127.0.0.1")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("current turn")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("turn.example")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("blocked")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("blocked.example")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("/api/chrome-host-policy")).toBeInTheDocument();
+    expect(within(browser).queryByText("/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json"))
+      .not.toBeInTheDocument();
+    const setupGuide = within(browser).getByRole("region", { name: "Chrome setup guide" });
+    expect(within(setupGuide).getByText("derived")).toBeInTheDocument();
+    const setupCommands = within(setupGuide).getByRole("list", { name: "Chrome setup command hints" });
+    expect(within(setupCommands).getByText("Install host")).toBeInTheDocument();
+    expect(within(setupCommands).getByText(
+      "skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno"
+    )).toBeInTheDocument();
+    expect(within(setupCommands).getByText("npm run smoke:chrome")).toBeInTheDocument();
+    expect(within(setupGuide).queryByText(/--output/u)).not.toBeInTheDocument();
+    expect(within(setupGuide).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
 
     const activity = screen.getByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Activity" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Alerts" })).toBeInTheDocument();
+    const alertGroups = within(activity).getByRole("list", { name: "Alert groups" });
+    expect(within(alertGroups).getByText("Permissions")).toBeInTheDocument();
+    expect(within(alertGroups).getByText("screen-recording-missing")).toBeInTheDocument();
+    expect(within(alertGroups).getByText("Screen Recording is not granted.")).toBeInTheDocument();
+    expect(within(activity).getByRole("link", { name: "Evidence summary JSON" }))
+      .toHaveAttribute("href", "/api/evidence-summary");
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Runtime evidence" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Operator evidence" })).toBeInTheDocument();
+    const operatorEvidenceDetails = within(activity).getByRole("list", { name: "Operator evidence details" });
+    expect(within(operatorEvidenceDetails).getByText("endpoint")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("/api/operator-evidence")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("dashboard")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("http://127.0.0.1:52363/")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("bind")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("127.0.0.1:52363")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("token free")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("yes")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("source")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("allowlisted-dashboard-summary")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("readiness")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("blocked")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("unknown")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getAllByText("idle").length).toBeGreaterThanOrEqual(2);
+    expect(within(operatorEvidenceDetails).getByText("smoke artifacts")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("2")).toBeInTheDocument();
+    expect(within(activity).getByRole("link", { name: "Operator evidence JSON" }))
+      .toHaveAttribute("href", "/api/operator-evidence");
     expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
     expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
+    const releaseDetails = within(activity).getByRole("list", { name: "Release gate details" });
+    expect(within(releaseDetails).getByText("reports")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("1 accepted / 1 testers")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("drift")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("behind-head aaaaaaa -> bbbbbbb")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();
@@ -556,6 +647,22 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Release gate" })).toBeInTheDocument();
+  });
+
+  it("keeps dashboard descriptor tokens out of the React overview", async () => {
+    const tokenizedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      descriptor: {
+        ...snapshot.descriptor,
+        url: "http://127.0.0.1:52363/?token=secret-dashboard-token#hidden"
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => tokenizedSnapshot)} />);
+
+    const overview = await screen.findByRole("region", { name: "Operator workspace" });
+    expect(within(overview).getByTitle("127.0.0.1:52363")).toHaveTextContent("127.0.0.1:52363");
+    expect(document.body.innerHTML).not.toContain("secret-dashboard-token");
   });
 
   it("frames Computer Use as an agent tool layer instead of a primary chat surface", async () => {
@@ -596,6 +703,77 @@ describe("DashboardApp", () => {
     )).toBeInTheDocument();
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).queryByRole("heading", { name: "Computer Use Planner settings" })).not.toBeInTheDocument();
+  });
+
+  it("applies local snapshot events without a manual refresh", async () => {
+    let eventHandlers: DashboardSnapshotEventHandlers | undefined;
+    const close = vi.fn();
+    const subscribeToSnapshotEvents = vi.fn((handlers: DashboardSnapshotEventHandlers) => {
+      eventHandlers = handlers;
+      return { close };
+    });
+    const loadSnapshot = vi.fn(async () => snapshot);
+
+    const { unmount } = render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={loadSnapshot}
+      subscribeToSnapshotEvents={subscribeToSnapshotEvents}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("你好，我在。").length).toBeGreaterThan(0);
+    expect(subscribeToSnapshotEvents).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      eventHandlers?.onSnapshot({
+        ...snapshot,
+        generatedAt: "2026-06-22T08:01:00.000Z",
+        currentTurn: {
+          state: "running",
+          latestMessage: "Live snapshot event applied.",
+          command: "stream dashboard snapshot"
+        },
+        alerts: []
+      });
+    });
+
+    await waitFor(() => {
+      const updatedActivity = screen.getByRole("region", { name: "Activity" });
+      expect(within(updatedActivity).getAllByText("Live snapshot event applied.").length).toBeGreaterThan(0);
+      expect(within(updatedActivity).getAllByText("stream dashboard snapshot").length).toBeGreaterThan(0);
+    });
+    expect(loadSnapshot).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the dashboard usable when live snapshot events are unavailable", async () => {
+    const subscribeToSnapshotEvents = vi.fn(() => {
+      throw new Error("EventSource unavailable");
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+      subscribeToSnapshotEvents={subscribeToSnapshotEvents}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("你好，我在。").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(subscribeToSnapshotEvents).toHaveBeenCalledTimes(1);
   });
 
   it("shows assistant provider, current turn, browser context, and latest blocker", async () => {
@@ -641,6 +819,450 @@ describe("DashboardApp", () => {
     const activity = screen.getByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
     expect(within(activity).getAllByText("Chrome host permission missing").length).toBeGreaterThan(0);
+  });
+
+  it("shows distinct route outcome semantics in Activity", async () => {
+    const routeBlockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        denialKind: "app_policy",
+        policyKind: "app-policy",
+        latestMessage: "Ghostty is denied by app policy.",
+        command: "run pwd in Ghostty"
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => routeBlockedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getAllByText("App policy denied route").length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state blocked")).toBeInTheDocument();
+    expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
+    expect(within(activity).getByText("denial app_policy")).toBeInTheDocument();
+    expect(within(activity).getByText("policy app-policy")).toBeInTheDocument();
+    const operatorEvidenceDetails = within(activity).getByRole("list", { name: "Operator evidence details" });
+    expect(within(operatorEvidenceDetails).getByText("route")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("ghostty")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("app_policy_denied")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("App policy denied route").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("denied by app policy").length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("app_policy_denied");
+    expect(within(commandCenter).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
+
+    const homeDetails = within(activity).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Review app policy denial")).toBeInTheDocument();
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Review app policy denial" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Ghostty is denied by app policy.")).toBeInTheDocument();
+  });
+
+  it("shows user denial as a distinct route outcome", async () => {
+    const deniedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "denied",
+        route: "chrome",
+        routeReason: "User denied this desktop control request.",
+        denialKind: "user",
+        latestMessage: "User denied this desktop control request.",
+        command: "do not open Chrome"
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => deniedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Latest outcome" })).toBeInTheDocument();
+    expect(within(activity).getAllByText("User denied route").length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText("user_denied").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state denied")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+    expect(within(activity).getByText("denial user")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("User denied route").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("denied by user").length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("user_denied");
+    expect(within(commandCenter).getAllByText("user_denied").length).toBeGreaterThan(0);
+
+    const homeDetails = within(activity).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Route denied by user")).toBeInTheDocument();
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Route denied by user" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("User denied this desktop control request.")).toBeInTheDocument();
+  });
+
+  it("shows Chrome host policy denial as a distinct route outcome", async () => {
+    const hostPolicyBlockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "blocked",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example",
+        command: "summarize current Chrome page"
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => hostPolicyBlockedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("Chrome host policy denied route").length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText("chrome_host_policy_denied").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state blocked")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+    expect(within(activity).getByText("policy chrome-host-policy")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("denied by Chrome host policy").length).toBeGreaterThan(0);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Review Chrome host policy denial" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Chrome host policy blocked this approved task: blocked.example")).toBeInTheDocument();
+  });
+
+  it("shows stop-turn route outcome semantics in Activity", async () => {
+    const stoppedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => stoppedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Latest outcome" })).toBeInTheDocument();
+    expect(within(activity).getAllByText("Route stopped").length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText("Task stopped.").length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText("stopped").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state cancelled")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("Route stopped").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("stopped route").length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("stopped");
+    expect(within(commandCenter).getAllByText("stopped").length).toBeGreaterThan(0);
+
+    const homeDetails = within(activity).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Task stopped")).toBeInTheDocument();
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Task stopped" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Task stopped.")).toBeInTheDocument();
+  });
+
+  it("shows route-level replay action summaries in Activity without leaking sensitive detail", async () => {
+    const replayActionSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "idle",
+        latestMessage: "Replay is available."
+      },
+      replay: {
+        state: "available",
+        actionCount: 2,
+        actions: [
+          {
+            type: "tool_call",
+            route: "chrome",
+            status: "approval_required",
+            command: "open https://example.test/?token=secret-token"
+          },
+          {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked",
+            summary: "Chrome host policy blocked token=secret-token at /Users/tester/Profile.",
+            artifactCount: 1
+          }
+        ]
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => replayActionSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText("tool_result: chrome blocked Chrome host policy blocked token=[redacted] at [path] 1 artifacts").length).toBeGreaterThan(0);
+    expect(within(activity).queryByText(/secret-token/)).not.toBeInTheDocument();
+    expect(within(activity).queryByText(/\/Users\/tester/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      label: "environment blocker",
+      currentTurn: {
+        state: "blocked",
+        route: "finder",
+        latestMessage: "Screen Recording permission is denied."
+      },
+      latestHeading: "Latest blocker",
+      outcomeTitle: "Route blocked",
+      outcomeValue: "blocked",
+      outcomeState: "state blocked",
+      graphEdge: "blocked route",
+      nextActionTitle: "Resolve route blocker",
+      progressValue: "blocked"
+    },
+    {
+      label: "route failure",
+      currentTurn: {
+        state: "failed",
+        route: "ghostty",
+        latestMessage: "Ghostty command failed."
+      },
+      latestHeading: "Latest blocker",
+      outcomeTitle: "Route failed",
+      outcomeValue: "failed",
+      outcomeState: "state failed",
+      graphEdge: "failed route",
+      nextActionTitle: "Review route failure",
+      progressValue: "failed"
+    },
+    {
+      label: "route cancellation",
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Browser task cancelled before execution."
+      },
+      latestHeading: "Latest outcome",
+      outcomeTitle: "Route cancelled",
+      outcomeValue: "cancelled",
+      outcomeState: "state cancelled",
+      graphEdge: "cancelled route",
+      nextActionTitle: "Route cancelled",
+      progressValue: "cancelled"
+    },
+    {
+      label: "route completion",
+      currentTurn: {
+        state: "completed",
+        route: "tmux_supervision",
+        latestMessage: "money-run supervision completed."
+      },
+      latestHeading: "Latest outcome",
+      outcomeTitle: "Route completed",
+      outcomeValue: "completed",
+      outcomeState: "state completed",
+      graphEdge: "completed route",
+      nextActionTitle: "Route completed",
+      progressValue: "completed"
+    }
+  ])("shows $label as a distinct terminal route outcome", async ({
+    currentTurn,
+    graphEdge,
+    latestHeading,
+    nextActionTitle,
+    outcomeState,
+    outcomeTitle,
+    outcomeValue,
+    progressValue
+  }) => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...snapshot,
+      alerts: [],
+      currentTurn
+    }))} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: latestHeading })).toBeInTheDocument();
+    expect(within(activity).getAllByText(outcomeTitle).length).toBeGreaterThan(0);
+    expect(within(activity).getAllByText(outcomeValue).length).toBeGreaterThan(0);
+    expect(within(activity).getByText(outcomeState)).toBeInTheDocument();
+    expect(within(activity).getAllByText(currentTurn.latestMessage).length).toBeGreaterThan(0);
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText(outcomeTitle).length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText(graphEdge).length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent(progressValue);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: nextActionTitle })).toBeInTheDocument();
+    expect(within(nextAction).getByText(currentTurn.latestMessage)).toBeInTheDocument();
+  });
+
+  it("shows the fallback Home summary in Overview without provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createHomeSummaryDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(within(activity).getAllByText("Route needs confirmation").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("Confirm")).toBeInTheDocument();
+    const details = within(activity).getByRole("list", { name: "Home summary details" });
+    expect(within(details).getByText("current task")).toBeInTheDocument();
+    expect(within(details).getByText("organize Downloads")).toBeInTheDocument();
+    expect(within(details).getByText("Finder")).toBeInTheDocument();
+    expect(within(details).getByText("high")).toBeInTheDocument();
+    expect(within(details).getByText("Confirm route")).toBeInTheDocument();
+    expect(within(details).getByText("armed")).toBeInTheDocument();
+    expect(within(activity).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
+  it("shows the fallback approvals queue in Activity without provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createApprovalQueueDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Approvals" })).toBeInTheDocument();
+    expect(within(activity).getByText("Review pending local approval and browser access requests.")).toBeInTheDocument();
+    expect(within(activity).getByText("3 pending")).toBeInTheDocument();
+    const details = within(activity).getByRole("list", { name: "Approval queue details" });
+    expect(within(details).getByText("Computer Use approval")).toBeInTheDocument();
+    expect(within(details).getByText("high: Approval required before moving files.")).toBeInTheDocument();
+    expect(within(details).getByText("Chrome extension")).toBeInTheDocument();
+    expect(within(details).getByText(
+      "heartbeat not connected; refresh the extension before trusting page control"
+    )).toBeInTheDocument();
+    expect(within(details).getByText("Chrome host policy")).toBeInTheDocument();
+    expect(within(details).getByText("ask-by-default; new sites will request approval")).toBeInTheDocument();
+    expect(within(activity).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
+  it("shows route confirmation distinctly in the Activity approval queue", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...snapshot,
+      currentTurn: {
+        state: "needs_confirmation",
+        approvalState: "required",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        latestMessage: "Confirm before organizing Finder."
+      }
+    }))} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    const details = within(activity).getByRole("list", { name: "Approval queue details" });
+    expect(within(activity).getByText("Review pending route confirmation and browser access requests.")).toBeInTheDocument();
+    expect(within(activity).getByText("1 pending")).toBeInTheDocument();
+    expect(within(details).getByText("Route confirmation")).toBeInTheDocument();
+    expect(within(details).getByText("Confirm before organizing Finder.")).toBeInTheDocument();
+    expect(within(details).queryByText("Computer Use approval")).not.toBeInTheDocument();
+  });
+
+  it("shows runtime snapshot freshness and latest replay details in Activity without screenshot paths", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createRuntimeSnapshotDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Runtime snapshots" })).toBeInTheDocument();
+    expect(within(activity).getByText("Current turn snapshot")).toBeInTheDocument();
+    expect(within(activity).getByText("Replay snapshot")).toBeInTheDocument();
+
+    const currentTurnDetails = within(activity).getByRole("list", {
+      name: "Current turn snapshot details"
+    });
+    expect(within(currentTurnDetails).getByText("40s old (2026-06-20T00:00:20.000Z)")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getAllByText("executing").length).toBeGreaterThanOrEqual(2);
+    expect(within(currentTurnDetails).getByText("type_text: 3 chars")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("press_key: passed - enter accepted")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("after (structured_first 2 sources)")).toBeInTheDocument();
+
+    const replayDetails = within(activity).getByRole("list", {
+      name: "Replay snapshot details"
+    });
+    expect(within(replayDetails).getByText("executing: Typing command. | completed: pwd")).toBeInTheDocument();
+    expect(within(replayDetails).getByText("2")).toBeInTheDocument();
+    expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
+  });
+
+  it("shows the fallback activity feed in Activity without Chrome commands or screenshot paths", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createActivityFeedDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Activity feed" })).toBeInTheDocument();
+    expect(within(activity).getByText("Recent local activity from the current turn and replay snapshots.")).toBeInTheDocument();
+    const details = within(activity).getByRole("list", { name: "Activity feed details" });
+    expect(within(details).getByText("Chrome fill: Verified - example.test tab 42")).toBeInTheDocument();
+    expect(within(details).getByText("type_text: 3 chars")).toBeInTheDocument();
+    expect(within(details).getByText("press_key: passed - enter accepted")).toBeInTheDocument();
+    expect(within(details).getByText("after (structured_first 2 sources)")).toBeInTheDocument();
+    expect(within(details).getByText("available")).toBeInTheDocument();
+    expect(within(activity).queryByText("/repo/dist/skfiy")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("typed-secret")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
+  });
+
+  it("shows long-horizon supervision details in Activity without pane tails or probe commands", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createLongHorizonDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Long-horizon supervision" })).toBeInTheDocument();
+    expect(within(activity).getAllByText(
+      "money-run has 2 windows, 3 panes, and no obvious block markers."
+    )).toHaveLength(2);
+    const details = within(activity).getByRole("list", { name: "Long-horizon supervision details" });
+    expect(within(details).getByText("money-run")).toBeInTheDocument();
+    expect(within(details).getByText("%1")).toBeInTheDocument();
+    expect(within(details).getByText("zsh")).toBeInTheDocument();
+    expect(within(details).getByText("continue_observing")).toBeInTheDocument();
+    expect(within(details).getByText("no")).toBeInTheDocument();
+    expect(within(details).getByText("2")).toBeInTheDocument();
+    expect(within(activity).queryByText("building...")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("tmux capture-pane -p -t %1 -S -120")).not.toBeInTheDocument();
+  });
+
+  it("shows fallback Agent supervision in Agent tools without pane tails, probes, or provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...createLongHorizonDashboardSnapshot(),
+      providers: {
+        ...snapshot.providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    }))} />);
+
+    const tools = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(tools).getByRole("heading", { name: "Agent supervision" })).toBeInTheDocument();
+    expect(within(tools).getAllByText("Ready").length).toBeGreaterThan(0);
+    expect(within(tools).getAllByText(
+      "money-run has 2 windows, 3 panes, and no obvious block markers."
+    )).toHaveLength(2);
+    const details = within(tools).getByRole("list", { name: "Agent supervision details" });
+    expect(within(details).getByText("observing")).toBeInTheDocument();
+    expect(within(details).getByText("%1")).toBeInTheDocument();
+    expect(within(details).getByText("continue_observing")).toBeInTheDocument();
+    expect(within(details).getByText("no")).toBeInTheDocument();
+    expect(within(tools).queryByText("building...")).not.toBeInTheDocument();
+    expect(within(tools).queryByText("tmux capture-pane -p -t %1 -S -120")).not.toBeInTheDocument();
+    expect(within(tools).queryByText("planner-secret")).not.toBeInTheDocument();
   });
 
   it("shows a browser context access checklist for the current tab permission chain", async () => {
@@ -710,6 +1332,84 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("The popup observes the page automatically after access is granted.")).toBeInTheDocument();
   });
 
+  it("shows Chrome pageControl and tab discovery from smoke artifact fallback without artifact paths", async () => {
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const artifactSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          pageControl: undefined,
+          tabDiscovery: undefined,
+          pageTabs: undefined
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            path: "/repo/.skfiy-smoke/chrome-current.json",
+            pageControl: {
+              state: "ready",
+              capable: true,
+              activeTab: {
+                host: "artifact.example",
+                tabId: 77,
+                scheme: "https"
+              },
+              contentScript: {
+                state: "loaded"
+              },
+              capabilities: {
+                domActions: true,
+                observe: true,
+                screenshot: "background_required"
+              },
+              reason: "pageControl from smoke artifact.",
+              nextAction: "Use artifact pageControl."
+            },
+            tabDiscovery: {
+              state: "artifact",
+              tabs: [
+                { id: 77, host: "artifact.example" },
+                { id: 78, host: "docs.example" }
+              ],
+              fallbackReason: "Apple Events fallback discovered the tabs."
+            }
+          }
+        ]
+      }
+    };
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => artifactSnapshot)}
+    />);
+
+    const browser = await screen.findByRole("region", { name: "Browser" });
+    expect(within(browser).getAllByText("artifact.example tab 77").length).toBeGreaterThan(0);
+    expect(within(browser).getAllByText("screenshot needs permission").length).toBeGreaterThan(0);
+    expect(within(browser).getAllByText("artifact · 2 tabs").length).toBeGreaterThan(0);
+    expect(within(browser).getByText("Apple Events fallback discovered the tabs.")).toBeInTheDocument();
+    expect(within(browser).getByText("pageControl from smoke artifact.")).toBeInTheDocument();
+    expect(within(browser).getByText("Use artifact pageControl.")).toBeInTheDocument();
+    expect(within(browser).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
+
+    expect(within(browser).getByRole("heading", { name: "Apps and sites" })).toBeInTheDocument();
+    const appsSitesDetails = within(browser).getByRole("list", { name: "Apps and sites details" });
+    expect(within(appsSitesDetails).getByText("artifact.example tab 77")).toBeInTheDocument();
+    expect(within(appsSitesDetails).getByText("screenshot needs permission")).toBeInTheDocument();
+    expect(within(appsSitesDetails).getByText("artifact · 2 tabs")).toBeInTheDocument();
+    expect(within(browser).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
+  });
+
   it("opens the target-tab Chrome extension access page from blocked Browser Context recovery", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {
@@ -774,6 +1474,12 @@ describe("DashboardApp", () => {
     />);
 
     const browser = await screen.findByRole("region", { name: "Browser" });
+    const commandHints = within(browser).getByRole("list", { name: "Chrome control command hints" });
+    expect(within(commandHints).getByText("Open access page")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "POST /api/chrome-control-action {\"action\":\"open-popup\",\"extensionId\":\"plcpkkhlcacihjfohlojdknnkademlno\",\"targetTabId\":1782098572}"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getByText("mutates")).toBeInTheDocument();
     fireEvent.click(within(browser).getByRole("button", { name: "Open access page" }));
 
     await waitFor(() => expect(runChromeControlAction).toHaveBeenCalledTimes(1));
@@ -783,6 +1489,34 @@ describe("DashboardApp", () => {
       targetTabId: 1782098572
     });
     expect(within(browser).getByText("Chrome open-popup: verified")).toBeInTheDocument();
+  });
+
+  it("shows the fallback Permissions summary in Agent tools without provider secrets", async () => {
+    const permissionSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      permissions: {
+        screenRecording: "missing",
+        accessibility: "granted",
+        finderAutomation: "unknown"
+      },
+      providers: {
+        ...snapshot.providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => permissionSnapshot)} />);
+
+    const computerUse = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByText("2 needed")).toBeInTheDocument();
+    expect(within(computerUse).getByText("Screen Recording and Finder Automation need attention.")).toBeInTheDocument();
+    expect(within(computerUse).queryByText("planner-secret")).not.toBeInTheDocument();
   });
 
   it("shows a Finder Automation access checklist when Finder smoke exposes the macOS permission blocker", async () => {
@@ -866,7 +1600,6 @@ describe("DashboardApp", () => {
         monitorId: "tmux-session:money-run-goal"
       };
     });
-
     render(<DashboardApp
       loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
         mode: "external-cua",
@@ -941,6 +1674,46 @@ describe("DashboardApp", () => {
     expect(screen.queryByLabelText("Automation shell command")).not.toBeInTheDocument();
   });
 
+  it("renders Chrome and Finder smoke artifact probe details in the React tool surface", async () => {
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => createSmokeArtifactDashboardSnapshot())}
+    />);
+
+    const computerUse = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByText("Artifact inventory")).toBeInTheDocument();
+    expect(within(computerUse).getByText("3 artifacts: 1 passed, 2 attention, 1 stale.")).toBeInTheDocument();
+    const smokeInventory = within(computerUse).getByRole("list", { name: "Smoke artifact inventory" });
+    expect(within(smokeInventory).getByText("chrome")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("passed")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("finder")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("blocked")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("dashboard")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("failed (stale)")).toBeInTheDocument();
+    expect(within(computerUse).getByText("Artifact probes")).toBeInTheDocument();
+
+    const chromeSafety = within(computerUse).getByRole("list", { name: "Chrome page safety artifact details" });
+    expect(within(chromeSafety).getByText("sensitive pause")).toBeInTheDocument();
+    expect(within(chromeSafety).getByText("credential")).toBeInTheDocument();
+    expect(within(chromeSafety).getByText("sensitive-paused (paused) - Sensitive UI text is visible.")).toBeInTheDocument();
+
+    const chromeControl = within(computerUse).getByRole("list", { name: "Chrome pageControl artifact details" });
+    expect(within(chromeControl).getByText("eligible 127.0.0.1:60329 tab 123")).toBeInTheDocument();
+    expect(within(chromeControl).getByText("click:ready, fill:ready, submit:ready, scroll:ready")).toBeInTheDocument();
+
+    const finderSmoke = within(computerUse).getByRole("list", { name: "Finder smoke artifact details" });
+    expect(within(finderSmoke).getByText("com.apple.loginwindow")).toBeInTheDocument();
+    expect(within(finderSmoke).getByText("blocked - Desktop session is not controllable before target app launch.")).toBeInTheDocument();
+    expect(within(finderSmoke).getAllByText("skipped - Desktop preflight blocked.")).toHaveLength(2);
+    expect(within(computerUse).queryByText("/repo/.skfiy-smoke/dashboard-current.json")).not.toBeInTheDocument();
+    expect(within(computerUse).queryByText("/repo/.skfiy-smoke/finder-current.json")).not.toBeInTheDocument();
+  });
+
   it("loads redacted planner settings from the provider settings endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
@@ -971,6 +1744,245 @@ describe("DashboardApp", () => {
     expect(within(form).getByLabelText("API key")).toHaveValue("");
     expect(screen.queryByDisplayValue("sk-secret")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/provider-settings", { cache: "no-store" });
+  });
+
+  it("loads the compact evidence summary from React dashboard controls", async () => {
+    const evidenceSummary: DashboardEvidenceSummary = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-22T08:01:00.000Z",
+      dashboard: {
+        url: "http://127.0.0.1:52363/?token=secret-evidence-token",
+        endpoint: "/api/evidence-summary"
+      },
+      status: {
+        state: "needs-evidence",
+        laneCount: 3,
+        readyLaneCount: 1,
+        blockedLaneCount: 1,
+        attentionLaneCount: 1
+      },
+      lanes: [
+        {
+          id: "computer-use-operator",
+          title: "Computer Use operator",
+          state: "blocked",
+          summary: "Operator runtime still needs fresh controllability evidence.",
+          checks: [
+            {
+              id: "operator-readiness",
+              label: "Operator readiness",
+              state: "blocked",
+              value: "blocked"
+            },
+            {
+              id: "route-outcome",
+              label: "Route outcome",
+              state: "blocked",
+              value: "app_policy_denied"
+            }
+          ],
+          nextActions: ["Clear dashboard alerts before starting a real Computer Use task."]
+        },
+        {
+          id: "codex-plugin",
+          title: "Codex plugin",
+          state: "ready",
+          summary: "Latest artifact is passed.",
+          checks: [
+            {
+              id: "codex-plugin-smoke",
+              label: "Latest Codex plugin smoke",
+              state: "ready",
+              value: "passed"
+            }
+          ],
+          nextActions: []
+        },
+        {
+          id: "chrome-extension",
+          title: "Chrome extension",
+          state: "needs-evidence",
+          summary: "Chrome bridge still needs installed-extension evidence.",
+          checks: [
+            {
+              id: "native-host",
+              label: "Native host install status",
+              state: "ready",
+              value: "installed"
+            }
+          ],
+          nextActions: ["Refresh the installed extension heartbeat, then rerun Chrome status."],
+          setupGuide: {
+            source: "runtime",
+            nativeHostState: "installed",
+            liveConnectionState: "stale",
+            nextActions: ["Refresh the installed extension heartbeat, then rerun Chrome status."],
+            commands: []
+          },
+          commands: [
+            {
+              id: "install-host",
+              label: "Install host",
+              command: "skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno",
+              mutates: true
+            },
+            {
+              id: "status",
+              label: "Status",
+              command: "skfiy chrome status --json --extension-id plcpkkhlcacihjfohlojdknnkademlno"
+            }
+          ]
+        }
+      ],
+      outputPolicy: {
+        tokenFree: true,
+        source: "dashboard-evidence-summary"
+      }
+    };
+    const loadEvidenceSummary = vi.fn(async () => evidenceSummary);
+
+    render(<DashboardApp
+      loadEvidenceSummary={loadEvidenceSummary}
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    const summaryButton = within(activity).getByRole("button", { name: "Load evidence summary" });
+    expect(within(activity).getByRole("link", { name: "Evidence summary JSON" }))
+      .toHaveAttribute("href", "/api/evidence-summary");
+    expect(within(activity).getByText("summary not loaded")).toBeInTheDocument();
+
+    fireEvent.click(summaryButton);
+
+    await waitFor(() => expect(loadEvidenceSummary).toHaveBeenCalledTimes(1));
+    expect(within(activity).getByText("summary needs-evidence")).toBeInTheDocument();
+    expect(within(activity).getByText("lanes 3")).toBeInTheDocument();
+    expect(within(activity).getByText("ready 1")).toBeInTheDocument();
+    expect(within(activity).getByText("attention 1")).toBeInTheDocument();
+    expect(within(activity).getByText("blocked 1")).toBeInTheDocument();
+    const contract = within(activity).getByRole("list", { name: "Evidence summary contract" });
+    expect(within(contract).getByText("endpoint")).toBeInTheDocument();
+    expect(within(contract).getByText("/api/evidence-summary")).toBeInTheDocument();
+    expect(within(contract).getByText("token free")).toBeInTheDocument();
+    expect(within(contract).getByText("yes")).toBeInTheDocument();
+    expect(within(contract).getByText("source")).toBeInTheDocument();
+    expect(within(contract).getByText("dashboard-evidence-summary")).toBeInTheDocument();
+    expect(within(activity).queryByText(/secret-evidence-token/u)).not.toBeInTheDocument();
+
+    const lanes = within(activity).getByRole("list", { name: "Evidence summary lanes" });
+    expect(within(lanes).getByText("Computer Use operator")).toBeInTheDocument();
+    expect(within(lanes).getByText("Operator runtime still needs fresh controllability evidence.")).toBeInTheDocument();
+    expect(within(lanes).getByText("Codex plugin")).toBeInTheDocument();
+    expect(within(lanes).getByText("Chrome extension")).toBeInTheDocument();
+    const operatorChecks = within(activity).getByRole("list", { name: "Checks for Computer Use operator" });
+    expect(within(operatorChecks).getByText("Operator readiness")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("Route outcome")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("app_policy_denied")).toBeInTheDocument();
+    const chromeActions = within(activity).getByRole("list", { name: "Next actions for Chrome extension" });
+    expect(within(chromeActions).getByText("Refresh the installed extension heartbeat, then rerun Chrome status.")).toBeInTheDocument();
+    const chromeSetupGuide = within(activity).getByRole("list", { name: "Setup guide for Chrome extension" });
+    expect(within(chromeSetupGuide).getByText("source")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("runtime")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("native host")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("installed")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("live connection")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("stale")).toBeInTheDocument();
+    const chromeCommands = within(activity).getByRole("list", { name: "Commands for Chrome extension" });
+    expect(within(chromeCommands).getByText("Install host")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("mutates")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("Status")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("read-only")).toBeInTheDocument();
+  });
+
+  it("loads token-free operator evidence from React dashboard controls", async () => {
+    const operatorEvidence: DashboardOperatorEvidencePayload = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-22T08:02:00.000Z",
+      descriptor: {
+        url: "http://127.0.0.1:52363/?token=secret-evidence-token",
+        bind: { host: "127.0.0.1", port: 52363 }
+      },
+      snapshot: {
+        currentTurn: {
+          command: "open https://example.test/?token=secret-evidence-token"
+        }
+      },
+      status: {
+        state: "blocked",
+        currentTurnState: "executing",
+        routeOutcomeKind: "app_policy_denied",
+        routeOutcomeState: "blocked",
+        routeOutcomeRouteLabel: "ghostty",
+        routeOutcomeDenialKind: "app_policy",
+        routeOutcomePolicyKind: "app-policy",
+        readinessState: "blocked",
+        alertCount: 2,
+        smokeArtifactCount: 3
+      },
+      outputPolicy: {
+        tokenFree: true,
+        source: "allowlisted-dashboard-summary"
+      }
+    };
+    const loadOperatorEvidence = vi.fn(async () => operatorEvidence);
+
+    render(<DashboardApp
+      loadOperatorEvidence={loadOperatorEvidence}
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByText("loaded not loaded")).toBeInTheDocument();
+    const loadButton = within(activity).getByRole("button", { name: "Load operator evidence" });
+    expect(within(activity).getByRole("link", { name: "Operator evidence JSON" }))
+      .toHaveAttribute("href", "/api/operator-evidence");
+
+    fireEvent.click(loadButton);
+
+    await waitFor(() => expect(loadOperatorEvidence).toHaveBeenCalledTimes(1));
+    expect(within(activity).getByText("loaded blocked")).toBeInTheDocument();
+    const status = within(activity).getByRole("list", { name: "Loaded operator evidence status" });
+    expect(within(status).getByText("endpoint")).toBeInTheDocument();
+    expect(within(status).getByText("/api/operator-evidence")).toBeInTheDocument();
+    expect(within(status).getByText("generated")).toBeInTheDocument();
+    expect(within(status).getByText("2026-06-22T08:02:00.000Z")).toBeInTheDocument();
+    expect(within(status).getByText("token free")).toBeInTheDocument();
+    expect(within(status).getByText("yes")).toBeInTheDocument();
+    expect(within(status).getByText("source")).toBeInTheDocument();
+    expect(within(status).getByText("allowlisted-dashboard-summary")).toBeInTheDocument();
+    expect(within(status).getByText("state")).toBeInTheDocument();
+    expect(within(status).getAllByText("blocked").length).toBeGreaterThanOrEqual(2);
+    expect(within(status).getByText("current turn")).toBeInTheDocument();
+    expect(within(status).getByText("executing")).toBeInTheDocument();
+    expect(within(status).getByText("route outcome")).toBeInTheDocument();
+    expect(within(status).getByText("app_policy_denied")).toBeInTheDocument();
+    expect(within(status).getByText("route state")).toBeInTheDocument();
+    expect(within(status).getByText("route")).toBeInTheDocument();
+    expect(within(status).getByText("ghostty")).toBeInTheDocument();
+    expect(within(status).getByText("denial")).toBeInTheDocument();
+    expect(within(status).getByText("app_policy")).toBeInTheDocument();
+    expect(within(status).getByText("policy")).toBeInTheDocument();
+    expect(within(status).getByText("app-policy")).toBeInTheDocument();
+    expect(within(status).getByText("readiness")).toBeInTheDocument();
+    expect(within(status).getByText("alerts")).toBeInTheDocument();
+    expect(within(status).getByText("2")).toBeInTheDocument();
+    expect(within(status).getByText("smoke artifacts")).toBeInTheDocument();
+    expect(within(status).getByText("3")).toBeInTheDocument();
+    expect(within(activity).queryByText(/secret-evidence-token/u)).not.toBeInTheDocument();
+    expect(within(activity).queryByText(/open https:\/\/example\.test/u)).not.toBeInTheDocument();
   });
 
   it("submits planner settings, refreshes status, and never echoes the API key", async () => {
@@ -1078,7 +2090,21 @@ describe("DashboardApp", () => {
           recentUserEntries: []
         }
       };
-      return { result: "forgotten" };
+      return {
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "forgotten",
+        applied: 1,
+        ignored: 0,
+        blocked: 0,
+        pendingWriteCount: 2,
+        personalMemory: {
+          userEntryCount: 0,
+          agentEntryCount: 1
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1101,6 +2127,14 @@ describe("DashboardApp", () => {
       })).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
+    const receipt = within(memory).getByRole("region", { name: "Personal memory mutation receipt" });
+    expect(within(receipt).getByRole("heading", { name: "Personal memory mutation receipt" })).toBeInTheDocument();
+    expect(within(receipt).getByText("result forgotten")).toBeInTheDocument();
+    expect(within(receipt).getByText("planned mutation yes")).toBeInTheDocument();
+    expect(within(receipt).getByText("system mutation yes")).toBeInTheDocument();
+    expect(within(receipt).getByText("applied 1")).toBeInTheDocument();
+    expect(within(receipt).getByText("blocked 0")).toBeInTheDocument();
+    expect(within(receipt).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
@@ -1144,7 +2178,21 @@ describe("DashboardApp", () => {
           }
         };
       }
-      return { result: (request as { action?: string }).action === "approve-pending" ? "approved" : "rejected" };
+      return {
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: (request as { action?: string }).action === "approve-pending" ? "approved" : "rejected",
+        applied: (request as { action?: string }).action === "approve-pending" ? 1 : 0,
+        ignored: 0,
+        blocked: 0,
+        pendingWriteCount: currentSnapshot.personalMemory?.pendingWriteCount ?? 0,
+        personalMemory: {
+          userEntryCount: currentSnapshot.personalMemory?.userEntryCount ?? 0,
+          agentEntryCount: currentSnapshot.personalMemory?.agentEntryCount ?? 0
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1164,6 +2212,7 @@ describe("DashboardApp", () => {
       });
     });
     expect(within(memory).getByText("Pending memory approved")).toBeInTheDocument();
+    expect(within(memory).getByText("result approved")).toBeInTheDocument();
 
     fireEvent.click(within(memory).getByRole("button", {
       name: "Reject pending memory: Use pending review before changing durable operating notes."
@@ -1175,6 +2224,7 @@ describe("DashboardApp", () => {
       });
     });
     expect(within(memory).getByText("Pending memory rejected")).toBeInTheDocument();
+    expect(within(memory).getByText("result rejected")).toBeInTheDocument();
   });
 
   it("renders pending replace memory writes as explicit revisions", async () => {
@@ -1269,7 +2319,17 @@ describe("DashboardApp", () => {
           ))
         }
       };
-      return { result: "muted" };
+      return {
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "muted",
+        personalSkills: {
+          disabledSkillIds: ["dashboard-knowledge-surface"],
+          mutedSkillCount: 1
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1292,6 +2352,82 @@ describe("DashboardApp", () => {
       expect(within(memory).queryByText("Obsidian-style knowledge dashboard")).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Personal skill muted")).toBeInTheDocument();
+    const receipt = within(memory).getByRole("region", { name: "Personal memory mutation receipt" });
+    expect(within(receipt).getByRole("heading", { name: "Personal skill mutation receipt" })).toBeInTheDocument();
+    expect(within(receipt).getByText("result muted")).toBeInTheDocument();
+    expect(within(receipt).getByText("muted skills 1")).toBeInTheDocument();
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("unmutes a personal skill card from dashboard controls and refreshes the snapshot", async () => {
+    const mutedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      personalMemory: {
+        ...snapshot.personalMemory!,
+        mutedPersonalSkillIds: ["dashboard-knowledge-surface"],
+        personalSkills: snapshot.personalMemory!.personalSkills!.filter((skill) => (
+          skill.id !== "dashboard-knowledge-surface"
+        ))
+      }
+    };
+    let currentSnapshot = mutedSnapshot;
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    const runPersonalSkillAction = vi.fn(async (request: unknown): Promise<DashboardPersonalSkillActionResponse> => {
+      expect(request).toEqual({
+        action: "unmute",
+        skillId: "dashboard-knowledge-surface"
+      });
+      currentSnapshot = {
+        ...snapshot,
+        personalMemory: {
+          ...snapshot.personalMemory!,
+          mutedPersonalSkillIds: [],
+          personalSkills: snapshot.personalMemory!.personalSkills
+        }
+      };
+      return {
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "unmuted",
+        personalSkills: {
+          disabledSkillIds: [],
+          mutedSkillCount: 0
+        }
+      };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalSkillAction={runPersonalSkillAction}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    expect(within(memory).getByRole("heading", { name: "Muted personal skills" })).toBeInTheDocument();
+    expect(within(memory).getByText("dashboard knowledge surface")).toBeInTheDocument();
+    expect(within(memory).queryByText("Obsidian-style knowledge dashboard")).not.toBeInTheDocument();
+
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Unmute personal skill: dashboard-knowledge-surface"
+    }));
+
+    await waitFor(() => {
+      expect(runPersonalSkillAction).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
+    });
+    expect(within(memory).getByText("Personal skill unmuted")).toBeInTheDocument();
+    expect(within(memory).getByText("result unmuted")).toBeInTheDocument();
+    expect(within(memory).getByText("muted skills 0")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
@@ -1321,6 +2457,17 @@ describe("DashboardApp", () => {
     render(<DashboardApp loadSnapshot={loadSnapshot} loadProviderSettings={loadProviderSettings} />);
 
     const form = await screen.findByRole("form", { name: "Chrome control actions" });
+    const commandHints = within(form).getByRole("list", { name: "Chrome control command hints" });
+    expect(within(commandHints).getByText("Observe current page")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --json"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getByText("Click confirmed selector")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "./dist/skfiy chrome click --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 42 --selector <selector> --json"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getAllByText("read-only")).toHaveLength(2);
+    expect(within(commandHints).getAllByText("mutates")).toHaveLength(4);
     const selectorInput = within(form).getByLabelText("Chrome action selector");
     const textInput = within(form).getByLabelText("Chrome fill text");
     const scrollInput = within(form).getByLabelText("Chrome scroll delta");
@@ -1441,22 +2588,341 @@ describe("DashboardApp", () => {
     expect(within(form).getByText("Enter a host before setting policy.")).toBeInTheDocument();
     expect(policyRequests).toEqual([]);
 
-    fireEvent.change(hostInput, { target: { value: "https://example.test/path" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Use current host" }));
+    expect(hostInput).toHaveValue("127.0.0.1:52363");
+    expect(within(form).getByText("Current host selected: 127.0.0.1:52363")).toBeInTheDocument();
     fireEvent.click(within(form).getByRole("button", { name: "Always allow" }));
     await waitFor(() => expect(policyRequests).toHaveLength(1));
     expect(policyRequests[0]).toEqual({
       action: "always-allow",
-      host: "https://example.test/path"
+      host: "127.0.0.1:52363"
     });
     expect(within(form).getByText("Policy configured.")).toBeInTheDocument();
 
+    fireEvent.change(hostInput, { target: { value: "https://example.test/path" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Block" }));
+    await waitFor(() => expect(policyRequests).toHaveLength(2));
+    expect(policyRequests[1]).toEqual({
+      action: "block",
+      host: "https://example.test/path"
+    });
+
     fireEvent.change(hostInput, { target: { value: "" } });
     fireEvent.click(within(form).getByRole("button", { name: "Reset policy" }));
-    await waitFor(() => expect(policyRequests).toHaveLength(2));
-    expect(policyRequests[1]).toEqual({ action: "reset" });
-    expect(loadSnapshot).toHaveBeenCalledTimes(4);
+    await waitFor(() => expect(policyRequests).toHaveLength(3));
+    expect(policyRequests[2]).toEqual({ action: "reset" });
+    expect(loadSnapshot).toHaveBeenCalledTimes(5);
   });
 });
+
+function createSmokeArtifactDashboardSnapshot(): DashboardSnapshot {
+  const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+  return {
+    ...snapshot,
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      extension: {
+        ...extension,
+        pageControl: undefined
+      }
+    },
+    smokeEvidence: {
+      artifacts: [
+        {
+          target: "chrome",
+          result: "passed",
+          path: "/repo/.skfiy-smoke/chrome-current.json",
+          pageSafety: {
+            state: "sensitive-paused",
+            source: "chrome-smoke",
+            sensitivePause: true,
+            pauseCount: 2,
+            checkedRuns: 2,
+            runs: [
+              {
+                kind: "sensitive-page",
+                result: "sensitive-paused",
+                sensitivePause: true,
+                reason: "Sensitive UI text is visible.",
+                pageSafety: {
+                  findings: [
+                    {
+                      kind: "credential",
+                      severity: "sensitive"
+                    }
+                  ]
+                }
+              },
+              {
+                kind: "sensitive-form-prefill",
+                result: "passed",
+                sensitivePause: false
+              }
+            ]
+          },
+          pageControl: {
+            source: "chrome-smoke-action",
+            state: "ready",
+            capable: true,
+            activeTab: {
+              state: "eligible",
+              tabId: 123,
+              host: "127.0.0.1:60329"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              screenshot: "background_required",
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true
+            },
+            reason: "pageControl is ready.",
+            nextAction: "Use pageControl actions."
+          }
+        },
+        {
+          target: "finder",
+          result: "blocked",
+          path: "/repo/.skfiy-smoke/finder-current.json",
+          finder: {
+            result: "blocked",
+            source: "finder-smoke",
+            desktopPreflight: {
+              result: "blocked",
+              reason: "Desktop session is not controllable before target app launch.",
+              frontmostBundleId: "com.apple.loginwindow",
+              mainDisplayAsleep: false,
+              controllable: false
+            },
+            finderObservation: {
+              result: "blocked",
+              reason: "Skipped because desktop preflight is blocked.",
+              accessibilityTrusted: true
+            },
+            finderSemanticObservation: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            finderItemDragDrop: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            reason: "Desktop session is not controllable before target app launch."
+          }
+        },
+        {
+          target: "dashboard",
+          result: "failed",
+          stale: true,
+          path: "/repo/.skfiy-smoke/dashboard-current.json"
+        }
+      ]
+    }
+  };
+}
+
+function createRuntimeSnapshotDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    generatedAt: "2026-06-20T00:01:00.000Z",
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      runtimeSnapshot: {
+        state: "available",
+        source: "runtime-snapshot",
+        observedAt: "2026-06-20T00:00:20.000Z"
+      }
+    },
+    currentTurn: {
+      state: "executing",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      command: "pwd",
+      targetApp: "Ghostty",
+      risk: "low",
+      approvalState: "approved",
+      stopState: "armed",
+      agentProvider: "Codex",
+      latestAction: { type: "type_text", textLength: 3 },
+      latestVerification: {
+        type: "verify",
+        actionType: "press_key",
+        status: "passed",
+        message: "enter accepted"
+      },
+      latestScreenshot: {
+        stage: "after",
+        path: "/tmp/after.png",
+        recommendation: "structured_first",
+        sourceCount: 2
+      },
+      latestMessage: "Typing command."
+    },
+    replay: {
+      state: "available",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      screenshotCount: 2,
+      actionCount: 3,
+      verificationCount: 1,
+      screenshots: [
+        { stage: "before", path: "/tmp/before.png" },
+        {
+          stage: "after",
+          path: "/tmp/after.png",
+          recommendation: "structured_first",
+          sourceCount: 2
+        }
+      ],
+      actions: [
+        { type: "plan", providerLabel: "External CUA", command: "pwd" },
+        { type: "type_text", textLength: 3 }
+      ],
+      verifications: [
+        {
+          type: "verify",
+          actionType: "press_key",
+          status: "passed",
+          message: "enter accepted"
+        }
+      ],
+      timelineTail: [
+        { status: "executing", message: "Typing command." },
+        { status: "completed", command: "pwd" }
+      ]
+    }
+  };
+}
+
+function createApprovalQueueDashboardSnapshot(): DashboardSnapshot {
+  const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+  return {
+    ...snapshot,
+    currentTurn: {
+      state: "approval_required",
+      approvalState: "required",
+      approvalRequired: true,
+      risk: "high",
+      command: "move files in Finder",
+      latestMessage: "Approval required before moving files."
+    },
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      extension: {
+        ...extension,
+        state: "stale",
+        liveConnection: "disconnected",
+        hostPolicy: {
+          state: "default",
+          reason: "Chrome host policy has not been configured."
+        }
+      }
+    },
+    providers: {
+      ...snapshot.providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    }
+  };
+}
+
+function createHomeSummaryDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    currentTurn: {
+      state: "needs_confirmation",
+      command: "organize Downloads",
+      targetApp: "Finder",
+      risk: "high",
+      approvalState: "required",
+      stopState: "armed",
+      latestMessage: "Confirm the Finder plan."
+    },
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      desktopSession: {
+        state: "controllable",
+        frontmostLocalizedName: "Finder"
+      }
+    },
+    providers: {
+      ...snapshot.providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    },
+    alerts: []
+  };
+}
+
+function createActivityFeedDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...createRuntimeSnapshotDashboardSnapshot(),
+    currentTurn: {
+      ...createRuntimeSnapshotDashboardSnapshot().currentTurn,
+      chromeControlActivity: {
+        kind: "chrome-control-action",
+        title: "Chrome fill",
+        target: {
+          app: "Google Chrome",
+          host: "example.test",
+          tabId: 42
+        },
+        result: "verified",
+        command: "/repo/dist/skfiy chrome fill --selector #token --text typed-secret --json",
+        timestamp: "2026-06-20T00:00:30.000Z"
+      }
+    }
+  };
+}
+
+function createLongHorizonDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    longHorizon: {
+      state: "observing",
+      session: "money-run",
+      source: "tmux-read-only-probe",
+      mutatesSession: false,
+      summary: {
+        windowCount: 2,
+        paneCount: 3,
+        activePaneIds: ["%1"],
+        deadPaneIds: []
+      },
+      activePane: {
+        id: "%1",
+        windowName: "agent",
+        currentCommand: "zsh",
+        title: "main",
+        recentTailPreview: "building...\nwaiting for next event"
+      },
+      signals: [],
+      recommendation: {
+        action: "continue_observing",
+        reason: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+        mutatesSession: false
+      },
+      probeCommands: [
+        "tmux has-session -t money-run",
+        "tmux capture-pane -p -t %1 -S -120"
+      ]
+    }
+  };
+}
 
 function createProviderSettingsPayload(planner: {
   mode: "local-deterministic" | "external-cua" | "disabled";

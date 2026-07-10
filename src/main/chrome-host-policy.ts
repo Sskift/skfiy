@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { readRecord } from "./record-utils.js";
 
 export type ChromeHostPolicyDefaultMode = "ask";
 export type ChromeHostPolicyAction =
@@ -378,12 +379,6 @@ function normalizeChromeHost(value: unknown): string {
 
 function removeHost(hosts: string[], host: string): string[] {
   return hosts.filter((candidate) => candidate !== host);
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function createDefaultChromeHostPolicyIo(): ChromeHostPolicyResetIo {

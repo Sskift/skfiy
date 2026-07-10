@@ -10,6 +10,7 @@ import {
   type ChromeExtensionConnectionStatus,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
+import { readRecord } from "./record-utils.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 50;
 const DEFAULT_POLL_TIMEOUT_MS = 10_000;
@@ -778,12 +779,6 @@ function readScreenshotBlockerReason(connection: ChromeExtensionConnectionStatus
   const latestScreenshot = readRecord(latestCommand?.pageScreenshot);
   const reason = directScreenshot?.reason ?? latestScreenshot?.reason;
   return typeof reason === "string" && reason.length > 0 ? reason : undefined;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function readString(value: unknown): string | undefined {

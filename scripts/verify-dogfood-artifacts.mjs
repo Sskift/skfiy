@@ -53,8 +53,8 @@ const NON_COMPUTER_USE_ROUTE_GUARD_RUNS = [
   },
   {
     id: "unsupported-desktop-route-guard",
-    result: "needs-user-confirmation",
-    eventStatus: "needs_confirmation",
+    result: "needs-clarification",
+    eventStatus: "needs_clarification",
     messageIncludes: "No supported desktop control route matched"
   }
 ];

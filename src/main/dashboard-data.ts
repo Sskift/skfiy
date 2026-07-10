@@ -28,6 +28,7 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
+import { readRecord } from "./record-utils.js";
 import {
   readInitialAssistantAgentSettings,
   type AssistantAgentProviderId,
@@ -74,6 +75,10 @@ import {
   createDashboardBuildIdentity,
   normalizeDashboardBuildIdentity
 } from "./dashboard-runtime-identity.js";
+import {
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const RECENT_RUNTIME_TURN_MARKER_SECONDS = 300;
@@ -132,6 +137,7 @@ export interface DashboardSnapshotInput {
   descriptor: DashboardDescriptor;
   status?: Record<string, unknown>;
   currentTurn?: Record<string, unknown>;
+  routeOutcome?: Record<string, unknown>;
   replay?: Record<string, unknown>;
   smokeEvidence?: {
     artifacts: Array<Record<string, unknown>>;
@@ -202,6 +208,7 @@ export interface DashboardSnapshot {
   operatorReadiness: Record<string, unknown>;
   permissions: Record<string, unknown>;
   currentTurn: Record<string, unknown>;
+  routeOutcome?: Record<string, unknown>;
   replay: Record<string, unknown>;
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;
@@ -222,6 +229,7 @@ export function createDashboardSnapshot({
   descriptor,
   status = {},
   currentTurn = { state: "idle" },
+  routeOutcome,
   replay = { state: "empty" },
   smokeEvidence = { artifacts: [] },
   dogfoodRelease = { state: "unknown" },
@@ -263,6 +271,8 @@ export function createDashboardSnapshot({
     pageControl: readDashboardPageControlEvidence(runtimeHealth, smokeEvidence.artifacts),
     browserContext: readDashboardBrowserContextEvidence(runtimeHealth, smokeEvidence.artifacts)
   };
+  const snapshotRouteOutcome: Record<string, unknown> = routeOutcome
+    ?? { ...createDashboardRouteOutcome(currentTurn, replay) };
 
   return {
     schemaVersion: 1,
@@ -276,6 +286,7 @@ export function createDashboardSnapshot({
     }),
     permissions,
     currentTurn: cloneRecord(currentTurn),
+    routeOutcome: cloneRecord(snapshotRouteOutcome),
     replay: cloneRecord(replay),
     smokeEvidence: {
       artifacts: smokeEvidence.artifacts.map((artifact) => cloneRecord(artifact))
@@ -292,6 +303,18 @@ export function createDashboardSnapshot({
       dogfoodRelease
     })
   };
+}
+
+function createDashboardRouteOutcome(
+  currentTurn: Record<string, unknown>,
+  replay: Record<string, unknown>
+): RouteOutcome {
+  return readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "Current turn",
+    includeCommandDetail: true
+  });
 }
 
 export function createDashboardWorkspaceSnapshot({
@@ -369,6 +392,7 @@ export function createDashboardWorkspaceSnapshot({
       runtimeSnapshot: runtimeSnapshot.status
     },
     currentTurn: runtimeSnapshot.currentTurn,
+    routeOutcome: runtimeSnapshot.routeOutcome,
     replay: runtimeSnapshot.replay,
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
@@ -1646,6 +1670,7 @@ function readWorkspaceRuntimeSnapshot(
   observedAt: string
 ): {
   currentTurn: Record<string, unknown>;
+  routeOutcome?: Record<string, unknown>;
   replay: Record<string, unknown>;
   status: Record<string, unknown>;
 } {
@@ -1742,6 +1767,7 @@ function readWorkspaceRuntimeSnapshot(
     const parsed = JSON.parse(snapshotText) as unknown;
     const snapshot = readRecord(parsed);
     const currentTurn = readRecord(snapshot?.currentTurn);
+    const routeOutcome = readRecord(snapshot?.routeOutcome);
     const replay = readRecord(snapshot?.replay);
     const snapshotObservedAt = typeof snapshot?.observedAt === "string"
       ? snapshot.observedAt
@@ -1782,6 +1808,7 @@ function readWorkspaceRuntimeSnapshot(
             : RUNTIME_SNAPSHOT_STALE_AFTER_TURN_REASON,
           ...markerMetadata
         },
+        ...(routeOutcome ? { routeOutcome: { ...routeOutcome } } : {}),
         replay: {
           ...replay,
           reason: typeof replay.reason === "string"
@@ -1801,6 +1828,7 @@ function readWorkspaceRuntimeSnapshot(
 
     return {
       currentTurn: { ...currentTurn },
+      ...(routeOutcome ? { routeOutcome: { ...routeOutcome } } : {}),
       replay: { ...replay },
       status: {
         state: "available",
@@ -1868,6 +1896,8 @@ function summarizeRuntimeTurnMarkerCurrentTurn(
     ?? "unknown";
   const command = readSanitizedString(currentTurn.command);
   const targetApp = readSanitizedString(currentTurn.targetApp);
+  const route = readSanitizedString(currentTurn.route);
+  const reason = readSanitizedString(currentTurn.reason);
   const latestMessage = readSanitizedString(currentTurn.latestMessage)
     ?? readSanitizedString(currentTurn.message);
 
@@ -1876,6 +1906,8 @@ function summarizeRuntimeTurnMarkerCurrentTurn(
     source: "runtime-turn-marker",
     ...(command ? { command } : {}),
     ...(targetApp ? { targetApp } : {}),
+    ...(route ? { route } : {}),
+    ...(reason ? { reason, routeReason: reason } : {}),
     ...(typeof currentTurn.targetBundleId === "string"
       ? { targetBundleId: currentTurn.targetBundleId }
       : {}),
@@ -4385,12 +4417,6 @@ function sanitizeDashboardChromeExtensionConnection(
   } = connection;
 
   return safeConnection;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function cloneRecord(record: Record<string, unknown>): Record<string, unknown> {

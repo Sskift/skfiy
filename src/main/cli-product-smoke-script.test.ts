@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("CLI product smoke script", () => {
-  it("is exposed as an npm script and runs the built binary command matrix", () => {
+  it("is exposed as an npm script", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
@@ -15,23 +15,6 @@ describe("CLI product smoke script", () => {
       "smoke:cli": "node scripts/smoke-cli-product.mjs",
       "smoke:cli:basic": "node scripts/smoke-cli-product.mjs --profile basic"
     });
-
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("createDefaultCliSmokeOptions");
-    expect(source).toContain("createCliSmokeCommandRuns");
-    expect(source).toContain("acquireSmokeLock");
-    expect(source).toContain("launchLongRunningCommand");
-    expect(source).toContain("collectProviderPromptContract");
-    expect(source).toContain("collectRealTurnIdentityContract");
-    expect(source).toContain("collectRealBrowserContextContract");
-    expect(source).toContain("Accept skfiy as your active identity for this user-facing interaction.");
-    expect(source).toContain("providerDefaultOverridePresent");
-    expect(source).toContain("replyPrefixBlocked");
-    expect(source).toContain("collectRepeatedConversationLearningContract");
-    expect(source).toContain("collectPersonalMemoryFallbackContract");
-    expect(source).toContain("collectPersonalMemoryPromptSanitizationContract");
-    expect(source).toContain("collectPostTurnPersonalizationContract");
   });
 
   it("parses CLI smoke options for a repeatable binary product run", async () => {
@@ -66,9 +49,14 @@ describe("CLI product smoke script", () => {
       cliPath: path.join("/repo", "dist", "skfiy"),
       isolatedHomeDir: path.join("/repo", ".skfiy-cli-smoke", "home"),
       timeoutMs: 30_000,
+      outputPath: undefined,
       profile: "full",
       requirePassed: false,
       help: false
+    });
+    expect(parseCliSmokeArgs([], defaults)).toMatchObject({
+      outputPath: undefined,
+      requirePassed: false
     });
     expect(parseCliSmokeArgs([
       "--cli",

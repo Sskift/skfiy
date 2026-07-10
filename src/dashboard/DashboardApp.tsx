@@ -8,6 +8,7 @@ import {
   Chrome,
   Eye,
   EyeOff,
+  FileSearch,
   Folder,
   Gauge,
   History,
@@ -30,6 +31,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, ProgressBar, Skeleton } from "@heroui/react";
 import {
   fetchChromeHostPolicy,
+  fetchDashboardEvidenceSummary,
+  fetchDashboardOperatorEvidence,
   fetchDashboardSnapshot,
   fetchProviderSettings,
   postAutomationMonitorAction,
@@ -37,8 +40,12 @@ import {
   postChromeHostPolicyAction,
   postPersonalMemoryAction,
   postPersonalSkillAction,
-  postPlannerProviderSettings
+  postPlannerProviderSettings,
+  subscribeDashboardSnapshotEvents,
+  type DashboardSnapshotEventHandlers,
+  type DashboardSnapshotEventSubscription
 } from "./api";
+import { buildChromeControlActionRequest } from "./chrome-control-actions";
 import type {
   DashboardAutomationMonitorActionRequest,
   DashboardAutomationMonitorActionResponse,
@@ -46,6 +53,8 @@ import type {
   DashboardChromeHostPolicyAction,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardEvidenceSummary,
+  DashboardOperatorEvidencePayload,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
@@ -64,38 +73,75 @@ import type {
   DashboardSnapshot
 } from "./contracts";
 import {
+  readActivityFeedSummary,
+  readAgentSupervisionSummary,
+  readAlertGroupSummary,
   readAlertMessages,
   readAppReadinessLanes,
   readAutomationSummary,
+  readAppsSitesSummary,
+  readApprovalQueueSummary,
   readBrowserContextSummary,
   readCapabilitySummaries,
   readChatReadinessSummary,
+  readChromeControlCommandHints,
   readChromeControlState,
+  readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readDogfoodSummary,
+  readDashboardPanelSummary,
+  readHomeSummary,
   readKnowledgeGraph,
   readLatestTaskSignal,
+  readLongHorizonSummary,
   readNextAction,
+  readOperatorEvidenceSummary,
+  readOperatorReadinessChecks,
+  readPersonalMutationReceipt,
   readProviderSummaries,
+  readPromptStackSummary,
   readReadinessSummary,
   readRecentActivity,
+  readRouteOutcome,
   readRuntimeEvidenceSummary,
+  readRuntimeHealthSummary,
+  readRuntimeSnapshotDetails,
+  readSmokeArtifactInventory,
+  readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   readUserAttentionSummary,
+  type DashboardAgentSupervisionSummary,
+  type DashboardActivityFeedSummary,
+  type DashboardAlertGroupSummary,
   type DashboardAppReadinessLane,
+  type DashboardAppsSitesSummary,
+  type DashboardApprovalQueueSummary,
   type DashboardAutomationSummary,
   type DashboardBrowserContextSummary,
   type DashboardCapabilitySummary,
   type DashboardChatReadinessSummary,
   type DashboardChromeControlState,
+  type DashboardChromeSetupGuideSummary,
   type DashboardComputerUseReadiness,
+  type DashboardPanelCatalogSummary,
   type DashboardDogfoodSummary,
+  type DashboardHomeSummary,
   type DashboardLatestTaskSignal,
+  type DashboardLongHorizonSummary,
+  type DashboardMutationReceipt,
   type DashboardNextAction,
+  type DashboardOperatorEvidenceSummary,
+  type DashboardOperatorReadinessChecks,
+  type DashboardPromptStackSummary,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
+  type DashboardRouteOutcome,
   type DashboardRuntimeEvidenceSummary,
+  type DashboardRuntimeHealthSummary,
+  type DashboardRuntimeSnapshotDetail,
+  type DashboardSmokeArtifactInventory,
+  type DashboardSmokeArtifactDetail,
   type DashboardStatusItem,
   type DashboardUserAttentionSummary,
   type Tone
@@ -103,6 +149,8 @@ import {
 import { KnowledgeGraph } from "./KnowledgeGraph";
 
 export interface DashboardAppProps {
+  loadEvidenceSummary?: () => Promise<DashboardEvidenceSummary>;
+  loadOperatorEvidence?: () => Promise<DashboardOperatorEvidencePayload>;
   loadChromeHostPolicy?: () => Promise<DashboardChromeHostPolicyResponse>;
   loadSnapshot?: () => Promise<DashboardSnapshot>;
   loadProviderSettings?: () => Promise<DashboardProviderSettingsResponse>;
@@ -124,6 +172,9 @@ export interface DashboardAppProps {
   savePlannerProviderSettings?: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<DashboardProviderSettingsResponse>;
+  subscribeToSnapshotEvents?: (
+    handlers: DashboardSnapshotEventHandlers
+  ) => DashboardSnapshotEventSubscription;
 }
 
 const NAV_ITEMS = [
@@ -166,6 +217,8 @@ const CHROME_HOST_POLICY_ACTIONS: Array<{
 ];
 
 export function DashboardApp({
+  loadEvidenceSummary = fetchDashboardEvidenceSummary,
+  loadOperatorEvidence = fetchDashboardOperatorEvidence,
   loadChromeHostPolicy = fetchChromeHostPolicy,
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
@@ -174,7 +227,8 @@ export function DashboardApp({
   runPersonalMemoryAction = postPersonalMemoryAction,
   runPersonalSkillAction = postPersonalSkillAction,
   saveChromeHostPolicyAction = postChromeHostPolicyAction,
-  savePlannerProviderSettings = postPlannerProviderSettings
+  savePlannerProviderSettings = postPlannerProviderSettings,
+  subscribeToSnapshotEvents = subscribeDashboardSnapshotEvents
 }: DashboardAppProps) {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [providerSettings, setProviderSettings] = useState<DashboardProviderSettingsResponse | null>(null);
@@ -186,8 +240,15 @@ export function DashboardApp({
   const [automationError, setAutomationError] = useState<string | null>(null);
   const [automationNotice, setAutomationNotice] = useState<string | null>(null);
   const [isRunningAutomation, setIsRunningAutomation] = useState(false);
+  const [memoryMutationReceipt, setMemoryMutationReceipt] = useState<DashboardMutationReceipt | null>(null);
+  const [evidenceSummary, setEvidenceSummary] = useState<DashboardEvidenceSummary | null>(null);
+  const [evidenceSummaryError, setEvidenceSummaryError] = useState<string | null>(null);
+  const [operatorEvidencePayload, setOperatorEvidencePayload] = useState<DashboardOperatorEvidencePayload | null>(null);
+  const [operatorEvidenceError, setOperatorEvidenceError] = useState<string | null>(null);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingEvidenceSummary, setIsLoadingEvidenceSummary] = useState(false);
+  const [isLoadingOperatorEvidence, setIsLoadingOperatorEvidence] = useState(false);
   const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -221,9 +282,11 @@ export function DashboardApp({
     setIsSavingMemory(true);
     setMemoryError(null);
     setMemoryNotice(null);
+    setMemoryMutationReceipt(null);
     try {
       const response = await runPersonalMemoryAction(request);
       await refresh();
+      setMemoryMutationReceipt(readPersonalMutationReceipt(response));
       setMemoryNotice(readPersonalMemoryNotice(response.result));
     } catch (submitError) {
       setMemoryError(readErrorMessage(submitError));
@@ -238,9 +301,11 @@ export function DashboardApp({
     setIsSavingMemory(true);
     setMemoryError(null);
     setMemoryNotice(null);
+    setMemoryMutationReceipt(null);
     try {
       const response = await runPersonalSkillAction(request);
       await refresh();
+      setMemoryMutationReceipt(readPersonalMutationReceipt(response));
       setMemoryNotice(response.result === "unmuted" ? "Personal skill unmuted" : "Personal skill muted");
     } catch (submitError) {
       setMemoryError(readErrorMessage(submitError));
@@ -283,9 +348,50 @@ export function DashboardApp({
     }
   }, [loadProviderSettings, savePlannerProviderSettings]);
 
+  const refreshEvidenceSummary = useCallback(async () => {
+    setIsLoadingEvidenceSummary(true);
+    setEvidenceSummaryError(null);
+    try {
+      setEvidenceSummary(await loadEvidenceSummary());
+    } catch (summaryError) {
+      setEvidenceSummaryError(readErrorMessage(summaryError));
+    } finally {
+      setIsLoadingEvidenceSummary(false);
+    }
+  }, [loadEvidenceSummary]);
+
+  const refreshOperatorEvidence = useCallback(async () => {
+    setIsLoadingOperatorEvidence(true);
+    setOperatorEvidenceError(null);
+    try {
+      setOperatorEvidencePayload(await loadOperatorEvidence());
+    } catch (evidenceError) {
+      setOperatorEvidenceError(readErrorMessage(evidenceError));
+    } finally {
+      setIsLoadingOperatorEvidence(false);
+    }
+  }, [loadOperatorEvidence]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    try {
+      const subscription = subscribeToSnapshotEvents({
+        onSnapshot: (nextSnapshot) => {
+          setSnapshot(nextSnapshot);
+          setError(null);
+        }
+      });
+
+      return () => {
+        subscription.close();
+      };
+    } catch {
+      return undefined;
+    }
+  }, [subscribeToSnapshotEvents]);
 
   return (
     <div className="skfiy-dashboard-shell">
@@ -348,13 +454,20 @@ export function DashboardApp({
             providerSettings={providerSettings}
             providerSettingsError={providerSettingsError}
             providerSettingsNotice={providerSettingsNotice}
+            evidenceSummary={evidenceSummary}
+            evidenceSummaryError={evidenceSummaryError}
+            operatorEvidencePayload={operatorEvidencePayload}
+            operatorEvidenceError={operatorEvidenceError}
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
+            isLoadingEvidenceSummary={isLoadingEvidenceSummary}
+            isLoadingOperatorEvidence={isLoadingOperatorEvidence}
             isMemorySaving={isSavingMemory}
             isRunningAutomation={isRunningAutomation}
             automationError={automationError}
             automationNotice={automationNotice}
             memoryError={memoryError}
+            memoryMutationReceipt={memoryMutationReceipt}
             memoryNotice={memoryNotice}
             onLoadChromeHostPolicy={loadChromeHostPolicy}
             onRefresh={refresh}
@@ -363,6 +476,8 @@ export function DashboardApp({
             onRunPersonalSkillAction={submitPersonalSkillAction}
             onRunChromeControlAction={runChromeControlAction}
             onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
+            onLoadEvidenceSummary={refreshEvidenceSummary}
+            onLoadOperatorEvidence={refreshOperatorEvidence}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
           />
         ) : (
@@ -404,13 +519,20 @@ function DashboardContent({
   providerSettings,
   providerSettingsError,
   providerSettingsNotice,
+  evidenceSummary,
+  evidenceSummaryError,
+  operatorEvidencePayload,
+  operatorEvidenceError,
   isProviderSettingsLoading,
   isProviderSettingsSaving,
+  isLoadingEvidenceSummary,
+  isLoadingOperatorEvidence,
   isMemorySaving,
   isRunningAutomation,
   automationError,
   automationNotice,
   memoryError,
+  memoryMutationReceipt,
   memoryNotice,
   onLoadChromeHostPolicy,
   onRefresh,
@@ -419,19 +541,28 @@ function DashboardContent({
   onRunPersonalSkillAction,
   onRunChromeControlAction,
   onSaveChromeHostPolicyAction,
+  onLoadEvidenceSummary,
+  onLoadOperatorEvidence,
   onSubmitPlannerProviderSettings
 }: {
   snapshot: DashboardSnapshot;
   providerSettings: DashboardProviderSettingsResponse | null;
   providerSettingsError: string | null;
   providerSettingsNotice: string | null;
+  evidenceSummary: DashboardEvidenceSummary | null;
+  evidenceSummaryError: string | null;
+  operatorEvidencePayload: DashboardOperatorEvidencePayload | null;
+  operatorEvidenceError: string | null;
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
+  isLoadingEvidenceSummary: boolean;
+  isLoadingOperatorEvidence: boolean;
   isMemorySaving: boolean;
   isRunningAutomation: boolean;
   automationError: string | null;
   automationNotice: string | null;
   memoryError: string | null;
+  memoryMutationReceipt: DashboardMutationReceipt | null;
   memoryNotice: string | null;
   onLoadChromeHostPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
   onRefresh: () => Promise<void>;
@@ -450,29 +581,49 @@ function DashboardContent({
   onSaveChromeHostPolicyAction: (
     request: DashboardChromeHostPolicyActionRequest
   ) => Promise<DashboardChromeHostPolicyResponse>;
+  onLoadEvidenceSummary: () => Promise<void>;
+  onLoadOperatorEvidence: () => Promise<void>;
   onSubmitPlannerProviderSettings: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<void>;
 }) {
   const stateItems = useMemo(() => readSnapshotState(snapshot), [snapshot]);
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
+  const readinessChecks = useMemo(() => readOperatorReadinessChecks(snapshot), [snapshot]);
   const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
+  const panelCatalog = useMemo(() => readDashboardPanelSummary(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const browserContext = useMemo(() => readBrowserContextSummary(snapshot), [snapshot]);
   const chatReadiness = useMemo(() => readChatReadinessSummary(snapshot), [snapshot]);
+  const chromeSetupGuide = useMemo(() => readChromeSetupGuideSummary(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
+  const agentSupervision = useMemo(() => readAgentSupervisionSummary(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
   const automation = useMemo(() => readAutomationSummary(snapshot), [snapshot]);
+  const smokeArtifactInventory = useMemo(() => readSmokeArtifactInventory(snapshot), [snapshot]);
+  const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
+  const promptStack = useMemo(() => readPromptStackSummary(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const homeSummary = useMemo(() => readHomeSummary(snapshot), [snapshot]);
+  const appsSitesSummary = useMemo(() => readAppsSitesSummary(snapshot), [snapshot]);
+  const activityFeed = useMemo(() => readActivityFeedSummary(snapshot), [snapshot]);
+  const alertGroups = useMemo(() => readAlertGroupSummary(snapshot), [snapshot]);
+  const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
+  const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
+  const runtimeHealth = useMemo(() => readRuntimeHealthSummary(snapshot), [snapshot]);
+  const operatorEvidence = useMemo(() => readOperatorEvidenceSummary(snapshot), [snapshot]);
+  const runtimeSnapshotDetails = useMemo(() => readRuntimeSnapshotDetails(snapshot), [snapshot]);
+  const longHorizon = useMemo(() => readLongHorizonSummary(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const userAttention = useMemo(() => readUserAttentionSummary(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
   const knowledgeGraph = useMemo(() => readKnowledgeGraph(snapshot), [snapshot]);
+  const dashboardUrl = formatDashboardUrl(snapshot.descriptor.url);
 
   return (
     <div className="skfiy-dashboard-content">
@@ -503,7 +654,7 @@ function DashboardContent({
             </div>
             <div>
               <span>Dashboard</span>
-              <strong title={snapshot.descriptor.url}>{formatDashboardUrl(snapshot.descriptor.url)}</strong>
+              <strong title={dashboardUrl}>{dashboardUrl}</strong>
             </div>
             <div>
               <span>Alerts</span>
@@ -541,6 +692,7 @@ function DashboardContent({
             error={providerSettingsError}
             isLoading={isProviderSettingsLoading}
           />
+          <PromptStackCard summary={promptStack} />
         </div>
       </section>
 
@@ -568,6 +720,12 @@ function DashboardContent({
               <p className="skfiy-dashboard-muted-message">
                 Permissioned desktop/app-control tool invoked by the selected Background Agent.
               </p>
+              <div className="skfiy-dashboard-inline-list" aria-label="Computer Use permission summary">
+                <StatusChip tone={computerUse.permissionSummary.tone}>
+                  {computerUse.permissionSummary.value}
+                </StatusChip>
+                <span>{computerUse.permissionSummary.detail}</span>
+              </div>
               <StatusRow
                 icon={<MousePointer2 size={16} aria-hidden="true" />}
                 label="Desktop session"
@@ -618,6 +776,7 @@ function DashboardContent({
             notice={automationNotice}
             onRunAutomationMonitorAction={onRunAutomationMonitorAction}
           />
+          <AgentSupervisionCard summary={agentSupervision} />
           {appReadiness.map((lane) => (
             <AppReadinessCard key={lane.id} lane={lane} />
           ))}
@@ -626,6 +785,8 @@ function DashboardContent({
               <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
             </div>
           ) : null}
+          <SmokeArtifactInventoryCard summary={smokeArtifactInventory} />
+          <SmokeArtifactDetailsCard details={smokeArtifactDetails} />
         </div>
       </section>
 
@@ -640,6 +801,7 @@ function DashboardContent({
             <h2 id="browser-title">Browser</h2>
           </div>
         </div>
+        <AppsSitesSummaryCard summary={appsSitesSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--main">
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
@@ -719,6 +881,15 @@ function DashboardContent({
                   <span>Default</span>
                   <strong>{chromeControl.hostPolicy.defaultMode}</strong>
                 </div>
+                <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Chrome host policy details">
+                  {chromeControl.hostPolicy.items.map((item) => (
+                    <li key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.tone}</small>
+                    </li>
+                  ))}
+                </ul>
                 <div className="skfiy-dashboard-inline-list">
                   {chromeControl.hostPolicy.entries.length > 0 ? (
                     chromeControl.hostPolicy.entries.map((entry) => (
@@ -734,6 +905,7 @@ function DashboardContent({
                 onRefresh={onRefresh}
                 onRunAction={onRunChromeControlAction}
               />
+              <ChromeSetupGuidePanel setupGuide={chromeSetupGuide} />
               <ChromeHostPolicyControls
                 chromeControl={chromeControl}
                 onLoadPolicy={onLoadChromeHostPolicy}
@@ -766,9 +938,16 @@ function DashboardContent({
           knowledgeGraph={knowledgeGraph}
           nextAction={nextAction}
           readiness={readiness}
+          routeOutcome={routeOutcome}
           runtimeEvidence={runtimeEvidence}
           stateItems={stateItems}
         />
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
+          <OperatorReadinessChecksCard summary={readinessChecks} />
+          <RuntimeHealthCard summary={runtimeHealth} />
+          <DashboardPanelCatalogCard summary={panelCatalog} />
+          <HomeSummaryCard summary={homeSummary} />
+        </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
@@ -797,8 +976,27 @@ function DashboardContent({
               </div>
             </Card.Content>
           </Card.Root>
+          <ActivityFeedCard summary={activityFeed} />
+          <AlertGroupCard summary={alertGroups} />
+          <RouteOutcomeCard outcome={routeOutcome} />
+          <ApprovalQueueCard summary={approvalQueue} />
           <LatestSignalCard signal={latestSignal} />
           <RuntimeEvidenceCard evidence={runtimeEvidence} />
+          <RuntimeSnapshotDetailsCard details={runtimeSnapshotDetails} />
+          <LongHorizonCard summary={longHorizon} />
+          <EvidenceSummaryCard
+            error={evidenceSummaryError}
+            isLoading={isLoadingEvidenceSummary}
+            onLoad={onLoadEvidenceSummary}
+            summary={evidenceSummary}
+          />
+          <OperatorEvidenceCard
+            error={operatorEvidenceError}
+            isLoading={isLoadingOperatorEvidence}
+            onLoad={onLoadOperatorEvidence}
+            payload={operatorEvidencePayload}
+            summary={operatorEvidence}
+          />
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -815,6 +1013,15 @@ function DashboardContent({
                 <StatusChip tone="neutral">{dogfood.cohortLabel}</StatusChip>
                 <StatusChip tone="neutral">replay {activity.replayState}</StatusChip>
               </div>
+              <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Release gate details">
+                {dogfood.items.map((item) => (
+                  <li key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.tone}</small>
+                  </li>
+                ))}
+              </ul>
             </Card.Content>
           </Card.Root>
         </div>
@@ -867,6 +1074,7 @@ function DashboardContent({
           error={memoryError}
           isSaving={isMemorySaving}
           memory={snapshot.personalMemory}
+          mutationReceipt={memoryMutationReceipt}
           notice={memoryNotice}
           onForget={onRunPersonalMemoryAction}
           onMuteSkill={onRunPersonalSkillAction}
@@ -1008,6 +1216,7 @@ function DashboardCommandCenter({
   knowledgeGraph,
   nextAction,
   readiness,
+  routeOutcome,
   runtimeEvidence,
   stateItems
 }: {
@@ -1020,13 +1229,17 @@ function DashboardCommandCenter({
   knowledgeGraph: ReturnType<typeof readKnowledgeGraph>;
   nextAction: DashboardNextAction;
   readiness: DashboardReadinessSummary;
+  routeOutcome: DashboardRouteOutcome;
   runtimeEvidence: DashboardRuntimeEvidenceSummary;
   stateItems: DashboardStatusItem[];
 }) {
+  const routeTone = routeOutcome.kind === "idle" ? "success" : routeOutcome.tone;
+  const routeScore = routeOutcome.kind === "idle" ? 100 : readToneScore(routeOutcome.tone);
   const radarMetrics = [
     { label: "Readiness", score: readToneScore(readiness.tone), tone: readiness.tone },
     { label: "Desktop", score: readToneScore(computerUse.desktop.tone), tone: computerUse.desktop.tone },
     { label: "Browser", score: readToneScore(chromeControl.tone), tone: chromeControl.tone },
+    { label: "Route", score: routeScore, tone: routeTone },
     { label: "Evidence", score: readToneScore(runtimeEvidence.tone), tone: runtimeEvidence.tone },
     { label: "Release", score: readToneScore(dogfood.tone), tone: dogfood.tone },
     { label: "Alerts", score: alerts.length === 0 ? 100 : Math.max(10, 80 - alerts.length * 18), tone: alerts.length === 0 ? "success" as const : "warning" as const }
@@ -1039,6 +1252,7 @@ function DashboardCommandCenter({
     { label: "Memory", detail: `${knowledgeGraph.nodes.filter((node) => node.kind === "memory").length} nodes`, tone: readGraphTone(knowledgeGraph, "memory") },
     { label: "Browser", detail: chromeControl.label, tone: chromeControl.tone },
     { label: "Tool layer", detail: computerUse.desktop.value, tone: computerUse.desktop.tone },
+    { label: "Route", detail: routeOutcome.value, tone: routeTone },
     { label: "Evidence", detail: runtimeEvidence.value, tone: runtimeEvidence.tone }
   ];
   const activityBars = [
@@ -1058,6 +1272,12 @@ function DashboardCommandCenter({
       value: chromeControl.browserContext.state,
       score: readToneScore(chromeControl.browserContext.tone),
       tone: chromeControl.browserContext.tone
+    },
+    {
+      label: "Route outcome",
+      value: routeOutcome.value,
+      score: routeScore,
+      tone: routeTone
     },
     {
       label: "Next action",
@@ -1115,6 +1335,161 @@ function DashboardCommandCenter({
             ))}
           </div>
         </section>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function OperatorReadinessChecksCard({ summary }: { summary: DashboardOperatorReadinessChecks }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Command surface and runtime proof</Card.Description>
+        </div>
+        <Gauge size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator readiness checks">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function RuntimeHealthCard({ summary }: { summary: DashboardRuntimeHealthSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local process and bridge state</Card.Description>
+        </div>
+        <MonitorCog size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Runtime health details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function DashboardPanelCatalogCard({ summary }: { summary: DashboardPanelCatalogSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local descriptor surface</Card.Description>
+        </div>
+        <FileSearch size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          {summary.items.map((item) => (
+            <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+              {item.label} {item.value}
+            </StatusChip>
+          ))}
+        </div>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Dashboard panel catalog">
+          {summary.panels.map((panel) => (
+            <li key={panel.id}>
+              <StatusChip tone={panel.tone}>{panel.id}</StatusChip>
+              <strong>{panel.title}</strong>
+              <span>{panel.signalCount} signals · {panel.actionCount} actions</span>
+              <small>
+                {panel.actions.length > 0
+                  ? `actions: ${panel.actions.join(", ")}`
+                  : "read-only panel"}
+              </small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function HomeSummaryCard({ summary }: { summary: DashboardHomeSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Assistant task snapshot</Card.Description>
+        </div>
+        <Home size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Home summary details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AppsSitesSummaryCard({ summary }: { summary: DashboardAppsSitesSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Browser access snapshot</Card.Description>
+        </div>
+        <Chrome size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Apps and sites details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );
@@ -1302,6 +1677,7 @@ function PersonalMemoryPanel({
   error,
   isSaving,
   memory,
+  mutationReceipt,
   notice,
   onForget,
   onMuteSkill
@@ -1310,6 +1686,7 @@ function PersonalMemoryPanel({
   error: string | null;
   isSaving: boolean;
   memory: DashboardPersonalMemorySummary | undefined;
+  mutationReceipt: DashboardMutationReceipt | null;
   notice: string | null;
   onForget: (request: DashboardPersonalMemoryActionRequest) => Promise<void>;
   onMuteSkill: (request: DashboardPersonalSkillActionRequest) => Promise<void>;
@@ -1318,6 +1695,7 @@ function PersonalMemoryPanel({
   const agentEntries = memory?.recentAgentEntries ?? [];
   const pendingWrites = memory?.pendingWrites ?? [];
   const personalSkills = memory?.personalSkills ?? [];
+  const mutedSkillIds = memory?.mutedPersonalSkillIds ?? [];
   const memoryJournal = memory?.memoryJournal ?? [];
 
   return (
@@ -1381,6 +1759,8 @@ function PersonalMemoryPanel({
         <PersonalSkillCardList
           isSaving={isSaving}
           onMute={(skill) => onMuteSkill({ action: "mute", skillId: skill.id })}
+          onUnmute={(skillId) => onMuteSkill({ action: "unmute", skillId })}
+          mutedSkillIds={mutedSkillIds}
           skills={personalSkills}
         />
         <WorkingProfilePanel profile={memory?.workingProfile} />
@@ -1390,6 +1770,7 @@ function PersonalMemoryPanel({
           sessions={memory?.recentSessions ?? []}
           targetProviderLabel={assistantProviderLabel}
         />
+        <PersonalMutationReceiptPanel receipt={mutationReceipt} />
         <p
           aria-live="polite"
           className="skfiy-dashboard-control-feedback"
@@ -1399,6 +1780,34 @@ function PersonalMemoryPanel({
         </p>
       </Card.Content>
     </Card.Root>
+  );
+}
+
+function PersonalMutationReceiptPanel({
+  receipt
+}: {
+  receipt: DashboardMutationReceipt | null;
+}) {
+  if (!receipt) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-label="Personal memory mutation receipt"
+      className="skfiy-dashboard-control-panel"
+      role="region"
+    >
+      <h3>{receipt.title}</h3>
+      <div className="skfiy-dashboard-inline-list">
+        <StatusChip tone={receipt.tone}>result {receipt.result}</StatusChip>
+        {receipt.items.map((item) => (
+          <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+            {item.label} {item.value}
+          </StatusChip>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1524,11 +1933,15 @@ function formatMemoryJournalAction(
 
 function PersonalSkillCardList({
   isSaving,
+  mutedSkillIds,
   onMute,
+  onUnmute,
   skills
 }: {
   isSaving: boolean;
+  mutedSkillIds: string[];
   onMute: (skill: DashboardPersonalSkillCard) => Promise<void>;
+  onUnmute: (skillId: string) => Promise<void>;
   skills: DashboardPersonalSkillCard[];
 }) {
   return (
@@ -1568,8 +1981,36 @@ function PersonalSkillCardList({
       ) : (
         <p className="skfiy-dashboard-empty">No personal skills have been distilled yet.</p>
       )}
+      {mutedSkillIds.length > 0 ? (
+        <>
+          <h4>Muted personal skills</h4>
+          <ul aria-label="Muted personal skills">
+            {mutedSkillIds.map((skillId) => (
+              <li key={skillId}>
+                <span>muted</span>
+                <strong>{formatMutedPersonalSkillLabel(skillId)}</strong>
+                <small>{skillId}</small>
+                <button
+                  aria-label={`Unmute personal skill: ${skillId}`}
+                  className="skfiy-dashboard-icon-button"
+                  disabled={isSaving}
+                  onClick={() => void onUnmute(skillId)}
+                  title="Unmute personal skill"
+                  type="button"
+                >
+                  <Eye size={14} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
   );
+}
+
+function formatMutedPersonalSkillLabel(skillId: string): string {
+  return skillId.trim().replace(/-/gu, " ");
 }
 
 function PendingMemoryWriteList({
@@ -2046,6 +2487,40 @@ function ProviderCard({
   );
 }
 
+function PromptStackCard({ summary }: { summary: DashboardPromptStackSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Background Agent context</Card.Description>
+          <Card.Title>{summary.title}</Card.Title>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          {summary.items.map((item) => (
+            <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+              {item.label} {item.value}
+            </StatusChip>
+          ))}
+        </div>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Prompt stack blocks">
+          {summary.blocks.map((block) => (
+            <li key={block.id}>
+              <StatusChip tone={block.tone}>{block.value}</StatusChip>
+              <strong>{block.label}</strong>
+              <span>{block.detail}</span>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
 function ChromeControlActions({
   chromeControl,
   onRefresh,
@@ -2071,60 +2546,27 @@ function ChromeControlActions({
   )
     && Boolean(chromeControl.extensionId)
     && Number.isInteger(chromeControl.tabId);
+  const commandHints = useMemo(() => readChromeControlCommandHints(chromeControl), [chromeControl]);
 
   const launchAction = async (action: DashboardChromeControlActionRequest["action"]) => {
-    const trimmedSelector = selector.trim();
-    const trimmedText = text.trim();
-    const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
-    const canLaunch = action === "open-popup" ? canOpenAccessPage : canRun;
-    if (!canLaunch || !chromeControl.extensionId || targetTabId === undefined) {
-      setFeedbackTone("warning");
-      setFeedback(action === "open-popup"
-        ? "Chrome access page is not available for the current tab."
-        : chromeControl.actionUnavailableReason ?? "Chrome action controls are not ready.");
-      return;
-    }
-    if ((action === "click" || action === "fill") && !trimmedSelector) {
-      setFeedbackTone("warning");
-      setFeedback("Enter a selector before launching this action.");
-      return;
-    }
-    if (action === "fill" && !trimmedText) {
-      setFeedbackTone("warning");
-      setFeedback("Enter fill text before launching this action.");
-      return;
-    }
-
-    const request: DashboardChromeControlActionRequest = {
+    const requestResult = buildChromeControlActionRequest({
       action,
-      extensionId: chromeControl.extensionId,
-      ...(chromeControl.chromeAppName ? { chromeAppName: chromeControl.chromeAppName } : {}),
-      targetTabId
-    };
-    if (action === "click" || action === "fill") {
-      request.selector = trimmedSelector;
-    }
-    if (action === "submit") {
-      request.selector = trimmedSelector || "form";
-    }
-    if (action === "fill") {
-      request.text = trimmedText;
-    }
-    if (action === "scroll") {
-      const scrollDelta = readScrollDelta(dy);
-      if (scrollDelta === undefined) {
-        setFeedbackTone("warning");
-        setFeedback("Enter a numeric scroll delta before launching this action.");
-        return;
-      }
-      request.dy = scrollDelta;
+      chromeControl,
+      dy,
+      selector,
+      text
+    });
+    if (!requestResult.ok) {
+      setFeedbackTone("warning");
+      setFeedback(requestResult.message);
+      return;
     }
 
     setBusyAction(action);
     setFeedbackTone("neutral");
     setFeedback(`Running Chrome ${action}...`);
     try {
-      const payload = await onRunAction(request);
+      const payload = await onRunAction(requestResult.request);
       setFeedbackTone("success");
       setFeedback(formatChromeActionFeedback(action, payload));
       await onRefresh();
@@ -2211,6 +2653,19 @@ function ChromeControlActions({
       {chromeControl.actionUnavailableReason ? (
         <p className="skfiy-dashboard-muted-message">{chromeControl.actionUnavailableReason}</p>
       ) : null}
+      {commandHints.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-command-list" aria-label="Chrome control command hints">
+          {commandHints.map((command) => (
+            <li key={command.id}>
+              <span>{command.label}</span>
+              <code>{command.command}</code>
+              <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                {command.mutates ? "mutates" : "read-only"}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <p
         aria-live="polite"
         className="skfiy-dashboard-control-feedback"
@@ -2219,6 +2674,46 @@ function ChromeControlActions({
         {feedback}
       </p>
     </form>
+  );
+}
+
+function ChromeSetupGuidePanel({ setupGuide }: { setupGuide: DashboardChromeSetupGuideSummary }) {
+  return (
+    <div className="skfiy-dashboard-control-panel" aria-label="Chrome setup guide" role="region">
+      <h4>Chrome setup guide</h4>
+      <div className="skfiy-dashboard-key-value">
+        <span>Source</span>
+        <strong>{setupGuide.source}</strong>
+        <span>Native host</span>
+        <strong>{setupGuide.nativeHostState}</strong>
+        <span>Live connection</span>
+        <strong>{setupGuide.liveConnectionState}</strong>
+      </div>
+      {setupGuide.nextActions.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Chrome setup next actions">
+          {setupGuide.nextActions.map((action) => (
+            <li key={action}>
+              <span>next</span>
+              <strong>{action}</strong>
+              <small>action</small>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {setupGuide.commands.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-command-list" aria-label="Chrome setup command hints">
+          {setupGuide.commands.map((command) => (
+            <li key={`${command.id}-${command.command}`}>
+              <span>{command.label}</span>
+              <code>{command.command}</code>
+              <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                {command.mutates ? "mutates" : "read-only"}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -2239,6 +2734,7 @@ function ChromeHostPolicyControls({
   const [busyAction, setBusyAction] = useState<ChromeHostPolicyControlAction | null>(null);
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<Tone>("neutral");
+  const currentHost = readChromeHostPolicyCurrentHost(chromeControl);
 
   const updatePolicy = async (action: ChromeHostPolicyControlAction) => {
     const trimmedHost = host.trim();
@@ -2296,6 +2792,21 @@ function ChromeHostPolicyControls({
         </div>
       </div>
       <div className="skfiy-dashboard-control-actions">
+        <button
+          className="skfiy-dashboard-button button"
+          disabled={busyAction !== null || !currentHost}
+          onClick={() => {
+            if (currentHost) {
+              setHost(currentHost);
+              setFeedbackTone("neutral");
+              setFeedback(`Current host selected: ${currentHost}`);
+            }
+          }}
+          type="button"
+        >
+          <MousePointer2 size={15} aria-hidden="true" />
+          Use current host
+        </button>
         {CHROME_HOST_POLICY_ACTIONS.map((item) => {
           const Icon = item.icon;
           return (
@@ -2320,6 +2831,275 @@ function ChromeHostPolicyControls({
         {feedback}
       </p>
     </form>
+  );
+}
+
+function readChromeHostPolicyCurrentHost(
+  chromeControl: DashboardChromeControlState
+): string | undefined {
+  const host = chromeControl.host.trim();
+  return host && host !== "No active ordinary page" ? host : undefined;
+}
+
+function EvidenceSummaryCard({
+  error,
+  isLoading,
+  onLoad,
+  summary
+}: {
+  error: string | null;
+  isLoading: boolean;
+  onLoad: () => Promise<void>;
+  summary: DashboardEvidenceSummary | null;
+}) {
+  const tone = readEvidenceSummaryTone(summary?.status.state);
+
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Evidence summary</Card.Title>
+          <Card.Description>Compact local readiness contract</Card.Description>
+        </div>
+        <Gauge size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          Readiness, plugin, and Chrome bridge lanes grouped for handoff review.
+        </p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary ? tone : "neutral"}>
+            summary {summary?.status.state ?? "not loaded"}
+          </StatusChip>
+          {summary ? (
+            <>
+              <StatusChip tone="neutral">lanes {summary.status.laneCount}</StatusChip>
+              <StatusChip tone="success">ready {summary.status.readyLaneCount}</StatusChip>
+              <StatusChip tone="warning">attention {summary.status.attentionLaneCount}</StatusChip>
+              <StatusChip tone="danger">blocked {summary.status.blockedLaneCount}</StatusChip>
+            </>
+          ) : null}
+        </div>
+        <div
+          className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions"
+          aria-label="Evidence summary actions"
+        >
+          <button
+            className="skfiy-dashboard-button button"
+            disabled={isLoading}
+            onClick={() => void onLoad()}
+            type="button"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            {isLoading ? "Loading summary" : "Load evidence summary"}
+          </button>
+          <a
+            className="skfiy-dashboard-button button"
+            href="/api/evidence-summary"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Eye size={14} aria-hidden="true" />
+            Evidence summary JSON
+          </a>
+        </div>
+        {summary ? (
+          <ul
+            aria-label="Evidence summary contract"
+            className="skfiy-dashboard-evidence-detail-list"
+          >
+            <li>
+              <span>endpoint</span>
+              <strong>{summary.dashboard.endpoint}</strong>
+            </li>
+            <li>
+              <span>token free</span>
+              <strong>{summary.outputPolicy?.tokenFree ? "yes" : "unknown"}</strong>
+            </li>
+            <li>
+              <span>source</span>
+              <strong>{summary.outputPolicy?.source ?? "unknown"}</strong>
+            </li>
+          </ul>
+        ) : null}
+        {summary?.lanes.length ? (
+          <ul className="skfiy-dashboard-evidence-list" aria-label="Evidence summary lanes">
+            {summary.lanes.map((lane) => (
+              <li key={lane.id}>
+                <span>{lane.title}</span>
+                <strong>{lane.state}</strong>
+                <small>{lane.summary}</small>
+                {lane.checks.length > 0 ? (
+                  <ul
+                    aria-label={`Checks for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    {lane.checks.map((check) => (
+                      <li key={check.id}>
+                        <span>{check.label}</span>
+                        <strong>{formatEvidenceCheckValue(check.value, check.state)}</strong>
+                        <small>{check.stale ? `${check.state} · stale` : check.state}</small>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {lane.nextActions.length > 0 ? (
+                  <ul
+                    aria-label={`Next actions for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    {lane.nextActions.map((action) => (
+                      <li key={action}>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {lane.setupGuide ? (
+                  <ul
+                    aria-label={`Setup guide for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    <li>
+                      <span>source</span>
+                      <strong>{lane.setupGuide.source}</strong>
+                    </li>
+                    <li>
+                      <span>native host</span>
+                      <strong>{lane.setupGuide.nativeHostState}</strong>
+                    </li>
+                    <li>
+                      <span>live connection</span>
+                      <strong>{lane.setupGuide.liveConnectionState}</strong>
+                    </li>
+                  </ul>
+                ) : null}
+                {lane.commands?.length ? (
+                  <ul
+                    aria-label={`Commands for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-command-list"
+                  >
+                    {lane.commands.map((command) => (
+                      <li key={`${command.id}-${command.command}`}>
+                        <span>{command.label}</span>
+                        <code>{command.command}</code>
+                        <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                          {command.mutates ? "mutates" : "read-only"}
+                        </StatusChip>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {error ? (
+          <p className="skfiy-dashboard-control-feedback" data-tone="danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function formatEvidenceCheckValue(
+  value: DashboardEvidenceSummary["lanes"][number]["checks"][number]["value"],
+  fallback: string
+): string {
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return value ?? fallback;
+}
+
+function readEvidenceSummaryTone(state: DashboardEvidenceSummary["status"]["state"] | undefined): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "blocked") {
+    return "danger";
+  }
+  if (state === "needs-evidence") {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function SmokeArtifactInventoryCard({
+  summary
+}: {
+  summary: DashboardSmokeArtifactInventory;
+}) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Smoke evidence</Card.Description>
+          <Card.Title>{summary.title}</Card.Title>
+        </div>
+        <FileSearch size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Smoke artifact inventory">
+          {summary.items.map((item, index) => (
+            <li key={`${item.label}-${index}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function SmokeArtifactDetailsCard({
+  details
+}: {
+  details: DashboardSmokeArtifactDetail[];
+}) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Smoke evidence</Card.Description>
+          <Card.Title>Artifact probes</Card.Title>
+        </div>
+        <CheckCircle2 size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        {details.map((detail) => (
+          <div key={detail.id} className="skfiy-dashboard-control-panel">
+            <div className="skfiy-dashboard-inline-list">
+              <StatusChip tone={detail.tone}>{detail.title}</StatusChip>
+              <StatusChip tone={detail.tone}>{detail.value}</StatusChip>
+            </div>
+            <ul
+              aria-label={`${detail.title} artifact details`}
+              className="skfiy-dashboard-evidence-detail-list"
+            >
+              {detail.items.map((item) => (
+                <li key={`${detail.id}-${item.label}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.tone}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </Card.Content>
+    </Card.Root>
   );
 }
 
@@ -2533,7 +3313,6 @@ function readScrollDelta(value: string): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
-
 function formatChromeActionFeedback(
   action: DashboardChromeControlActionRequest["action"],
   payload: Record<string, unknown>
@@ -2627,6 +3406,37 @@ function ActivityCount({ label, value }: { label: string; value?: number }) {
   );
 }
 
+function RouteOutcomeCard({ outcome }: { outcome: DashboardRouteOutcome }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Route outcome</Card.Title>
+          <Card.Description>{outcome.source}</Card.Description>
+        </div>
+        <ArrowRight size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          <strong>{outcome.title}</strong>
+          <span> {outcome.detail}</span>
+        </p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={outcome.tone}>{outcome.value}</StatusChip>
+          <StatusChip tone="neutral">state {outcome.state}</StatusChip>
+          <StatusChip tone="neutral">route {outcome.routeLabel}</StatusChip>
+          {outcome.denialKind ? (
+            <StatusChip tone="neutral">denial {outcome.denialKind}</StatusChip>
+          ) : null}
+          {outcome.policyKind ? (
+            <StatusChip tone="neutral">policy {outcome.policyKind}</StatusChip>
+          ) : null}
+        </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
 function LatestSignalCard({ signal }: { signal: DashboardLatestTaskSignal }) {
   return (
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
@@ -2635,7 +3445,7 @@ function LatestSignalCard({ signal }: { signal: DashboardLatestTaskSignal }) {
           <Card.Title>{signal.title}</Card.Title>
           <Card.Description>{signal.source}</Card.Description>
         </div>
-        <TriangleAlert size={18} aria-hidden="true" />
+        <CircleForTone tone={signal.tone} />
       </Card.Header>
       <Card.Content className="skfiy-dashboard-card-content">
         <p className="skfiy-dashboard-message">{signal.detail}</p>
@@ -2662,6 +3472,339 @@ function RuntimeEvidenceCard({ evidence }: { evidence: DashboardRuntimeEvidenceS
         <div className="skfiy-dashboard-inline-list">
           <StatusChip tone={evidence.tone}>{evidence.value}</StatusChip>
         </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function OperatorEvidenceCard({
+  error,
+  isLoading,
+  onLoad,
+  payload,
+  summary
+}: {
+  error: string | null;
+  isLoading: boolean;
+  onLoad: () => Promise<void>;
+  payload: DashboardOperatorEvidencePayload | null;
+  summary: DashboardOperatorEvidenceSummary;
+}) {
+  const loadedItems = payload ? readOperatorEvidencePayloadItems(payload) : [];
+  const status = readRecord(payload?.status);
+  const loadedState = readPayloadString(status?.state);
+
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Read-only dashboard evidence payload</Card.Description>
+        </div>
+        <Eye size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          <StatusChip tone={payload ? readEvidenceSummaryTone(loadedState) : "neutral"}>
+            loaded {loadedState ?? "not loaded"}
+          </StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator evidence details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+        <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
+          <button
+            className="skfiy-dashboard-button button"
+            disabled={isLoading}
+            onClick={() => void onLoad()}
+            type="button"
+          >
+            <RefreshCw size={15} aria-hidden="true" />
+            {isLoading ? "Loading evidence" : "Load operator evidence"}
+          </button>
+          <a
+            className="skfiy-dashboard-button button"
+            href="/api/operator-evidence"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Eye size={14} aria-hidden="true" />
+            Operator evidence JSON
+          </a>
+        </div>
+        {loadedItems.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Loaded operator evidence status">
+            {loadedItems.map((item) => (
+              <li key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.tone}</small>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {error ? (
+          <p className="skfiy-dashboard-control-feedback" data-tone="danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function readOperatorEvidencePayloadItems(
+  payload: DashboardOperatorEvidencePayload
+): DashboardStatusItem[] {
+  const status = readRecord(payload.status) ?? {};
+  return [
+    createOperatorEvidenceItem("endpoint", "/api/operator-evidence"),
+    createOperatorEvidenceItem("generated", payload.generatedAt),
+    createOperatorEvidenceItem("token free", payload.outputPolicy?.tokenFree ? "yes" : "unknown", payload.outputPolicy?.tokenFree ? "success" : "neutral"),
+    createOperatorEvidenceItem("source", payload.outputPolicy?.source),
+    createOperatorEvidenceItem("state", status.state, readEvidenceSummaryTone(readPayloadString(status.state))),
+    createOperatorEvidenceItem("current turn", status.currentTurnState),
+    createOperatorEvidenceItem("route outcome", status.routeOutcomeKind),
+    createOperatorEvidenceItem("route state", status.routeOutcomeState),
+    createOperatorEvidenceItem("route", status.routeOutcomeRouteLabel),
+    createOperatorEvidenceItem("denial", status.routeOutcomeDenialKind),
+    createOperatorEvidenceItem("policy", status.routeOutcomePolicyKind),
+    createOperatorEvidenceItem("readiness", status.readinessState),
+    createOperatorEvidenceItem("alerts", status.alertCount),
+    createOperatorEvidenceItem("smoke artifacts", status.smokeArtifactCount)
+  ].filter((item): item is DashboardStatusItem => Boolean(item));
+}
+
+function createOperatorEvidenceItem(
+  label: string,
+  value: unknown,
+  tone: Tone = "neutral"
+): DashboardStatusItem | undefined {
+  const formatted = formatOperatorEvidenceValue(value);
+  return formatted ? { label, value: formatted, tone } : undefined;
+}
+
+function formatOperatorEvidenceValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? value : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return undefined;
+}
+
+function RuntimeSnapshotDetailsCard({ details }: { details: DashboardRuntimeSnapshotDetail[] }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Runtime snapshots</Card.Title>
+          <Card.Description>Current turn and replay freshness</Card.Description>
+        </div>
+        <History size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          Latest runtime snapshot details from the local operator state.
+        </p>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Runtime snapshot panels">
+          {details.map((detail) => (
+            <li key={detail.id}>
+              <span>{detail.title}</span>
+              <strong>{detail.value}</strong>
+              <small>{detail.id}</small>
+              <ul
+                aria-label={`${detail.title} details`}
+                className="skfiy-dashboard-evidence-detail-list"
+              >
+                {detail.items.map((item) => (
+                  <li key={`${detail.id}-${item.label}`}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.tone}</small>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function ActivityFeedCard({ summary }: { summary: DashboardActivityFeedSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Recent actions and replay</Card.Description>
+        </div>
+        <MousePointerClick size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Activity feed details">
+          {summary.items.map((item, index) => (
+            <li key={`${item.label}-${index}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AlertGroupCard({ summary }: { summary: DashboardAlertGroupSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Grouped blocker areas</Card.Description>
+        </div>
+        <TriangleAlert size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        {summary.groups.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-list" aria-label="Alert groups">
+            {summary.groups.map((group) => (
+              <li key={group.id}>
+                <span>{group.title}</span>
+                <strong>{group.value}</strong>
+                <small>{group.tone}</small>
+                <ul
+                  aria-label={`${group.title} alerts`}
+                  className="skfiy-dashboard-evidence-detail-list"
+                >
+                  {group.items.map((item) => (
+                    <li key={`${group.id}-${item.label}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.tone}</small>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="skfiy-dashboard-empty">No dashboard alerts are active.</p>
+        )}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function ApprovalQueueCard({ summary }: { summary: DashboardApprovalQueueSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local approval queue</Card.Description>
+        </div>
+        <ShieldCheck size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        {summary.items.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Approval queue details">
+            {summary.items.map((item) => (
+              <li key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.tone}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="skfiy-dashboard-empty">No approval requests are waiting.</p>
+        )}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AgentSupervisionCard({ summary }: { summary: DashboardAgentSupervisionSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Read-only Background Agent supervision</Card.Description>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Agent supervision details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function LongHorizonCard({ summary }: { summary: DashboardLongHorizonSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Read-only money-run supervision</Card.Description>
+        </div>
+        <Activity size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Long-horizon supervision details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );
@@ -2817,6 +3960,6 @@ function formatDashboardUrl(value: string): string {
     const url = new URL(value);
     return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
-    return value || "unknown";
+    return value.replace(/[?#].*$/u, "") || "unknown";
   }
 }

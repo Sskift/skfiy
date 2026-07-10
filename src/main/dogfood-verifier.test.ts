@@ -91,10 +91,10 @@ describe("dogfood artifact verifier", () => {
     },
     {
       id: "unsupported-desktop-route-guard",
-      result: "needs-user-confirmation",
+      result: "needs-clarification",
       events: [
         {
-          status: "needs_confirmation",
+          status: "needs_clarification",
           message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
         }
       ]
