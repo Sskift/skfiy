@@ -376,6 +376,23 @@ function createFillWakeUrl(overrides = {}) {
   });
 }
 
+function createPageActionWakeCase(requestId, resultAction, wakeAction, wakeOptions, expectedMessageAction, expectedResult) {
+  return {
+    requestId,
+    resultAction,
+    wakeUrl: () => createLocalhostActionWakeUrl(wakeAction, { ...wakeOptions, requestId }),
+    expectedMessageAction,
+    expectedResult
+  };
+}
+
+const PAGE_ACTION_WAKE_CASES = [
+  createPageActionWakeCase("cli-click-current", "click", "click", { selector: "#submit" }, { kind: "click", selector: "#submit" }, { action: "click", selector: "#submit" }),
+  createPageActionWakeCase("cli-fill-current", "fill", "fill", { selector: "#name", text: "skfiy" }, { kind: "fill", selector: "#name", value: "skfiy" }, { action: "fill", selector: "#name" }),
+  createPageActionWakeCase("cli-submit-current", "submit", "submit", { selector: "form" }, { kind: "submit", selector: "form", confirmed: true }, { action: "submit", selector: "form" }),
+  createPageActionWakeCase("cli-scroll-current", "scroll", "scroll", { dy: 600 }, { kind: "scroll", deltaY: 600 }, { action: "scroll", deltaY: 600 })
+];
+
 function createReadyLocalhostContentScriptSession(overrides = {}) {
   const { pageControl = {}, ...sessionOverrides } = overrides;
   const { capabilities = {}, ...pageControlOverrides } = pageControl;
@@ -1835,20 +1852,15 @@ describe("Chrome extension background policy sync", () => {
       responseCount: 5,
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabDataUrl: screenshotDataUrl,
-      pageActionResults: [
-        { result: "passed", action: "click" },
-        { result: "passed", action: "fill" },
-        { result: "passed", action: "submit" },
-        { result: "passed", action: "scroll" }
-      ]
+      pageActionResults: PAGE_ACTION_WAKE_CASES.map(({ resultAction }) => ({
+        result: "passed",
+        action: resultAction
+      }))
     });
 
     const wakeUrls = [
       createLocalhostActionWakeUrl("screenshot", { requestId: "cli-screenshot-current" }),
-      createLocalhostActionWakeUrl("click", { selector: "#submit", requestId: "cli-click-current" }),
-      createFillWakeUrl({ requestId: "cli-fill-current" }),
-      createLocalhostActionWakeUrl("submit", { selector: "form", requestId: "cli-submit-current" }),
-      createLocalhostActionWakeUrl("scroll", { dy: 600, requestId: "cli-scroll-current" })
+      ...PAGE_ACTION_WAKE_CASES.map(({ wakeUrl }) => wakeUrl())
     ];
 
     await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
@@ -1863,12 +1875,11 @@ describe("Chrome extension background policy sync", () => {
       tabId,
       type: message.type,
       action: message.payload?.action
-    }))).toEqual([
-      { tabId: 42, type: PAGE_ACTION, action: { kind: "click", selector: "#submit" } },
-      { tabId: 42, type: PAGE_ACTION, action: { kind: "fill", selector: "#name", value: "skfiy" } },
-      { tabId: 42, type: PAGE_ACTION, action: { kind: "submit", selector: "form", confirmed: true } },
-      { tabId: 42, type: PAGE_ACTION, action: { kind: "scroll", deltaY: 600 } }
-    ]);
+    }))).toEqual(PAGE_ACTION_WAKE_CASES.map(({ expectedMessageAction }) => ({
+      tabId: 42,
+      type: PAGE_ACTION,
+      action: expectedMessageAction
+    })));
 
     expect(mock.postedMessages[0]).toMatchObject({
       schemaVersion: 1,
@@ -1892,44 +1903,20 @@ describe("Chrome extension background policy sync", () => {
     });
     expect(mock.postedMessages[0].payload.pageScreenshot.dataUrl).toBeUndefined();
 
-    expect(mock.postedMessages.slice(1).map((message) => message.requestId)).toEqual([
-      "cli-click-current",
-      "cli-fill-current",
-      "cli-submit-current",
-      "cli-scroll-current"
-    ]);
-    expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual([
-      createExpectedPageActionResult({
-        requestId: "cli-click-current",
+    expect(mock.postedMessages.slice(1).map((message) => message.requestId)).toEqual(
+      PAGE_ACTION_WAKE_CASES.map(({ requestId }) => requestId)
+    );
+    expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual(
+      PAGE_ACTION_WAKE_CASES.map(({ requestId, expectedResult }) => createExpectedPageActionResult({
+        requestId,
         result: "passed",
-        action: "click",
         targetTabId: 42,
-        selector: "#submit"
-      }),
-      createExpectedPageActionResult({
-        requestId: "cli-fill-current",
-        result: "passed",
-        action: "fill",
-        targetTabId: 42,
-        selector: "#name"
-      }),
-      createExpectedPageActionResult({
-        requestId: "cli-submit-current",
-        result: "passed",
-        action: "submit",
-        targetTabId: 42,
-        selector: "form"
-      }),
-      createExpectedPageActionResult({
-        requestId: "cli-scroll-current",
-        result: "passed",
-        action: "scroll",
-        targetTabId: 42,
-        deltaY: 600
-      })
-    ]);
-    expect(mock.postedMessages[2].payload.pageActionResult.value).toBeUndefined();
-    expect(mock.postedMessages[2].payload.pageActionResult.text).toBeUndefined();
+        ...expectedResult
+      }))
+    );
+    const fillActionResult = mock.postedMessages.find((message) => message.requestId === "cli-fill-current").payload.pageActionResult;
+    expect(fillActionResult.value).toBeUndefined();
+    expect(fillActionResult.text).toBeUndefined();
   });
 
   it("records current request blockers when submit and scroll wake actions return no page response", async () => {
